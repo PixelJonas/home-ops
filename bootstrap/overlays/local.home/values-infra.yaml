@@ -23,7 +23,7 @@ applications:
     source:
       path: /infra-components/lvm-operator/base
 
-  external-secrets-doppler-push:
+  external-secrets-doppler:
     annotations:
       argocd.argoproj.io/sync-wave: "2"
     destination:
