@@ -39,3 +39,9 @@ applications:
       argocd.argoproj.io/sync-wave: "200"
     source:
       path: components-apps/crunchy-postgres
+
+  firefly-app:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/firefly
