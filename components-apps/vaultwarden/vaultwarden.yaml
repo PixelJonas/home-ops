@@ -38,9 +38,6 @@ spec:
                       secretKeyRef:
                         name: vaultwarden-credentials
                         key: admin-password
-                securityContext:
-                  privileged: true
-
 
         service:
           vaultwarden:
