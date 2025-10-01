@@ -12,7 +12,7 @@ spec:
             stp:
               enabled: false
           port:
-            - name: ens19
+            - name: enp8s0
         ipv4:
           address:
             - ip: 10.10.10.50
