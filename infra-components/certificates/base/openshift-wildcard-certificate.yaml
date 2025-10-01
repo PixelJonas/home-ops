@@ -8,8 +8,8 @@ metadata:
 spec:
   secretName: openshift-wildcard-certificate
   issuerRef:
-    name: letsencrypt-prod
+    name: cloudflare-issuer
     kind: ClusterIssuer
-  commonName: '*.altus.janz.digital'
+  commonName: '*.apps.altus.janz.digital'
   dnsNames:
-  - '*.altus.janz.digital'
+  - '*.apps.altus.janz.digital'
