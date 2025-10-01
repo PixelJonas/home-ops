@@ -18,4 +18,4 @@
       valueFrom:
         secretKeyRef:
           name: firefly-pguser-postgres
-          key: postgres-password
+          key: password

@@ -3,16 +3,14 @@ kind: Application
 metadata:
   name: firefly-backup-app
   namespace: openshift-gitops
-  annotations:
-    argocd.argoproj.io/sync-wave: "211"
 spec:
   destination:
     namespace: firefly
     server: https://kubernetes.default.svc
   project: cluster-apps
   source:
-    path: manifests/argocd/apps/firefly/base/apps/backup
-    repoURL: https://github.com/pixeljonas/cluster-gitops.git
+    path: components-apps/firefly/backup
+    repoURL: https://github.com/pixeljonas/home-ops.git
     targetRevision: master
   syncPolicy:
     syncOptions:

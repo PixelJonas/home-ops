@@ -46,3 +46,9 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/firefly
+
+  vaultwarden:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/vaultwarden

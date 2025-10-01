@@ -17,3 +17,4 @@ spec:
     - name: firefly
       databases:
         - firefly
+    - name: postgres
