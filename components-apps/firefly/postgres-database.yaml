@@ -1,0 +1,19 @@
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PostgresCluster
+metadata:
+  name: firefly
+  namespace: firefly
+spec:
+  postgresVersion: 16
+  instances:
+    - name: firefly-db
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+  users:
+    - name: firefly
+      databases:
+        - firefly
