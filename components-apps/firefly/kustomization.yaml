@@ -11,5 +11,5 @@ resources:
   - firefly-importer-cronjob.yaml
   - pvc-firefly-importer-pvc.yaml
   - firefly.yaml
-  - postgresql-chart.yaml
+  - postgresql-database.yaml
   - privileged-rolebinding.yaml

@@ -24,8 +24,8 @@ spec:
                 - name: POSTGRES_POSTGRES_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: template-db-postgresql
-                      key: postgres-password
+                      name: template-pguser-postgres
+                      key: password
               volumeMounts:
                 - name: backup
                   mountPath: /backup
