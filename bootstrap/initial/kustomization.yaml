@@ -5,3 +5,4 @@ resources:
   - argocd-instance.yaml
   - appproject.yaml
   - application-manager.yaml
+  - rolebinding-cluster-admin.yaml
