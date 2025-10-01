@@ -1,0 +1,65 @@
+default:
+  app:
+    enabled: true
+    enableAutoSync: true
+    autoSyncPrune: false
+    project: cluster-config
+    labels:
+      app-source: local.home
+      repo: cluster-config
+    destination:
+      namespace: openshift-gitops
+      server: https://kubernetes.default.svc
+    source:
+      repoURL: https://github.com/pixeljonas/home-ops.git
+      targetRevision: HEAD
+
+applications:
+
+  lvm-operator:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: openshift-storage
+    source:
+      path: clusters/overlays/local.home/components/lvm-operator/overlays/standalone
+
+  external-secrets-doppler-push:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: external-secrets-operator
+    source:
+      path: components/external-secrets-store-doppler/base
+
+  cert-manager-operator:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: cert-manager-operator
+    source:
+      path: components/cert-manager-operator/aggregate/overlays/letsencrypt
+
+  certificates:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: cert-manager-operator
+    source:
+      path: components/certificates/base
+
+  alertmanager:
+    annotations:
+      argocd.argoproj.io/sync-wave: '11'
+    destination:
+      namespace: openshift-monitoring
+    source:
+      path: components/alertmanager/base
+
+  openshift-monitoring:
+    annotations:
+      argocd.argoproj.io/sync-wave: '11'
+    destination:
+      namespace: openshift-monitoring
+    source:
+      path: components/openshift-monitoring/base
