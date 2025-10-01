@@ -1,0 +1,11 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: KubeletConfig
+metadata:
+  name: increased-reservation
+spec:
+  machineConfigPoolSelector:
+    matchLabels:
+      increased-memory: enabled
+  kubeletConfig:
+    systemReserved:
+      memory: 3Gi
