@@ -8,7 +8,7 @@ metadata:
 spec:
   secretName: openshift-api-certificate
   issuerRef:
-    name: letsencrypt-prod
+    name: cloudflare-issuer
     kind: ClusterIssuer
   dnsNames:
   - api.altus.janz.digital
