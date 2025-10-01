@@ -1,8 +1,8 @@
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: external-restic-config-database
-  namespace: firefly
+  name: external-restic-config
+  namespace: template
   annotations:
     argocd.argoproj.io/sync-wave: "30"
 spec:
@@ -14,7 +14,7 @@ spec:
   data:
     - secretKey: RESTIC_REPOSITORY
       remoteRef:
-        key: FIREFLY_DATABASE_REPO_LOCAL
+        key: TEMPLATE_DATABASE_REPO_LOCAL
 
     - secretKey: RESTIC_PASSWORD
       remoteRef:

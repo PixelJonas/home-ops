@@ -33,3 +33,8 @@ projects:
         kind: '*'
 
 applications:
+  firefly:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/firefly
