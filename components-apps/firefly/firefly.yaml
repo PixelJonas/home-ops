@@ -29,7 +29,7 @@ spec:
                   APP_ENV: prod
                   ALLOW_WEBHOOKS: true
                   DB_CONNECTION: pgsql
-                  DB_HOST: firefly-db-postgresql
+                  DB_HOST: firefly-pods
                   DB_PORT: 5432
                   DB_DATABASE: firefly
                   DB_USERNAME: firefly
