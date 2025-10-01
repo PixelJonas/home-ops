@@ -21,7 +21,7 @@ applications:
     destination:
       namespace: openshift-storage
     source:
-      path: /infra-components/lvm-operator/base
+      path: infra-components/lvm-operator/base
 
   external-secrets-doppler:
     annotations:
