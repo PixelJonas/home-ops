@@ -4,5 +4,5 @@ kind: Kustomization
 resources:
   - argocd-instance.yaml
   - appproject.yaml
-  - application-manager.yaml
+  - config-manager.yaml
   - rolebinding-cluster-admin.yaml

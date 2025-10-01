@@ -15,13 +15,27 @@ default:
       targetRevision: HEAD
 
 applications:
+  nmstate:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    source:
+      path: components-infra/nmstate
+
   lvm-operator:
     annotations:
       argocd.argoproj.io/sync-wave: "2"
     destination:
       namespace: openshift-storage
     source:
-      path: infra-components/lvm-operator/base
+      path: components-infra/lvm-operator/base
+
+  synology-csi:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: synology-csi
+    source:
+      path: components-infra/synology-csi
 
   external-secrets-doppler:
     annotations:
@@ -29,7 +43,7 @@ applications:
     destination:
       namespace: external-secrets-operator
     source:
-      path: infra-components/external-secrets-store-doppler/base
+      path: components-infra/external-secrets-store-doppler/base
 
   cert-manager-operator:
     annotations:
@@ -37,7 +51,7 @@ applications:
     destination:
       namespace: cert-manager-operator
     source:
-      path: infra-components/cert-manager-operator/aggregate/overlays/letsencrypt
+      path: components-infra/cert-manager-operator/aggregate/overlays/letsencrypt
 
   certificates:
     annotations:
@@ -45,7 +59,7 @@ applications:
     destination:
       namespace: cert-manager-operator
     source:
-      path: infra-components/certificates/base
+      path: components-infra/certificates/base
 
   registry:
     annotations:
@@ -53,7 +67,7 @@ applications:
     destination:
       namespace: openshift-image-registry
     source:
-      path: infra-components/registry-sno/base
+      path: components-infra/registry-sno/base
 
   alertmanager:
     annotations:
@@ -61,7 +75,7 @@ applications:
     destination:
       namespace: openshift-monitoring
     source:
-      path: infra-components/alertmanager/base
+      path: components-infra/alertmanager/base
 
   openshift-monitoring:
     annotations:
@@ -69,21 +83,28 @@ applications:
     destination:
       namespace: openshift-monitoring
     source:
-      path: infra-components/openshift-monitoring/base
+      path: components-infra/openshift-monitoring/base
 
   rbac:
     annotations:
       argocd.argoproj.io/compare-options: IgnoreExtraneous
       argocd.argoproj.io/sync-wave: '11'
     source:
-      path: infra-components/rbac/base
+      path: components-infra/rbac/base
+
+  cloudflared:
+    annotations:
+      argocd.argoproj.io/sync-wave: "22"
+      argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    source:
+      path: components-infra/cloudflared
 
   node-config:
     annotations:
       argocd.argoproj.io/sync-wave: "99"
       argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     source:
-      path: infra-components/node-config
+      path: components-infra/node-config
 
   defrag-etcd:
     annotations:
@@ -91,7 +112,7 @@ applications:
     destination:
       namespace: openshift-etcd
     source:
-      path: infra-components/defrag-etcd/base
+      path: components-infra/defrag-etcd/base
 
   cleanup-completed-pods:
     annotations:
@@ -99,4 +120,4 @@ applications:
     destination:
       namespace: clean-completed-pods
     source:
-      path: infra-components/clean-completed-pods/base
+      path: components-infra/clean-completed-pods/base
