@@ -1,12 +1,12 @@
 apiVersion: postgres-operator.crunchydata.com/v1beta1
 kind: PostgresCluster
 metadata:
-  name: firefly
+  name: vaultwarden-db
   namespace: firefly
 spec:
   postgresVersion: 16
   instances:
-    - name: firefly-db
+    - name: vaultwarden-db
       dataVolumeClaimSpec:
         accessModes:
           - ReadWriteOnce
@@ -14,7 +14,7 @@ spec:
           requests:
             storage: 10Gi
   users:
-    - name: firefly
+    - name: vaultwarden
       databases:
-        - firefly
+        - vaultwarden
     - name: postgres

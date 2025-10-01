@@ -1,0 +1,11 @@
+- op: replace
+  path: /metadata/name
+  value: vaultwarden-backup-b2
+  
+- op: replace
+  path: /metadata/namespace
+  value: vaultwarden
+
+- op: replace
+  path: /spec/sourcePVC
+  value: syno-vaultwarden-db-backup
