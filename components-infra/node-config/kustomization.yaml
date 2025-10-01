@@ -4,4 +4,3 @@ kind: Kustomization
 resources:
   - set-max-pods.yaml
   - increased-reservation.yaml
-  - nad-syno-network.yaml

@@ -39,7 +39,7 @@ applications:
     destination:
       namespace: external-secrets-operator
     source:
-      path: infra-components/external-secrets-operator/base
+      path: components-infra/external-secrets-operator/base
 
   gitops-alerting:
     annotations:
@@ -47,11 +47,11 @@ applications:
     destination:
       namespace: openshift-gitops
     source:
-      path: infra-components/gitops-alerting
+      path: components-infra/gitops-alerting
 
   helm-repos:
     annotations:
       argocd.argoproj.io/compare-options: IgnoreExtraneous
       argocd.argoproj.io/sync-wave: "11"
     source:
-      path: infra-components/helm-repos/base
+      path: components-infra/helm-repos/base

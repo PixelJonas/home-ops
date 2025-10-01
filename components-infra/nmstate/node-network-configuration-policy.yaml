@@ -2,6 +2,8 @@ apiVersion: nmstate.io/v1
 kind: NodeNetworkConfigurationPolicy
 metadata:
   name: syno-interface
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   desiredState:
     interfaces:
@@ -20,4 +22,4 @@ spec:
         state: up
         type: linux-bridge
   nodeSelector:
-    kubernetes.io/hostname: master-0
+    kubernetes.io/hostname: altus
