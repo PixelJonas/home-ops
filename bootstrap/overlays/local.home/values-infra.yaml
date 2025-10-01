@@ -15,14 +15,13 @@ default:
       targetRevision: HEAD
 
 applications:
-
   lvm-operator:
     annotations:
       argocd.argoproj.io/sync-wave: "2"
     destination:
       namespace: openshift-storage
     source:
-      path: /infra-components/lvm-operator/overlays/standalone
+      path: /infra-components/lvm-operator/base
 
   external-secrets-doppler-push:
     annotations:
@@ -82,11 +81,9 @@ applications:
   node-config:
     annotations:
       argocd.argoproj.io/sync-wave: "99"
+      argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     source:
-      path: clusters/overlays/local.home/components/node-config
-
-
-
+      path: infra-components/node-config
 
   defrag-etcd:
     annotations:

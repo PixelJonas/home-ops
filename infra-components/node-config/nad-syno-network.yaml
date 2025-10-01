@@ -1,0 +1,23 @@
+apiVersion: nmstate.io/v1
+kind: NodeNetworkConfigurationPolicy
+metadata:
+  name: syno-interface
+spec:
+  desiredState:
+    interfaces:
+      - bridge:
+          options:
+            stp:
+              enabled: false
+          port:
+            - name: ens19
+        ipv4:
+          address:
+            - ip: 10.10.10.50
+              prefix-length: 24
+          enabled: true
+        name: br0
+        state: up
+        type: linux-bridge
+  nodeSelector:
+    kubernetes.io/hostname: master-0
