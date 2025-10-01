@@ -1,0 +1,4 @@
+resources:
+- ../../../operator/base
+- ../../../instance/base
+- ../../../issuers/base

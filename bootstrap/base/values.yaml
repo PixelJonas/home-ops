@@ -1,0 +1,51 @@
+default:
+  app:
+    enabled: true
+    enableAutoSync: true
+    autoSyncPrune: false
+    project: cluster-config
+    labels:
+      app-source: base
+      repo: cluster-config
+    destination:
+      namespace: openshift-gitops
+      server: https://kubernetes.default.svc
+    source:
+      repoURL: https://github.com/pixeljonas/home-ops.git
+      targetRevision: HEAD
+
+projects:
+
+  cluster-config:
+    annotations:
+      notifications.argoproj.io/subscribe.on-sync-failed.slack: cluster-gitops
+      notifications.argoproj.io/subscribe.on-health-degraded.slack: cluster-gitops
+    description: Project for overall cluster configuration
+    namespace: openshift-gitops
+    sourceRepos:
+    - https://github.com/pixeljonas/home-ops
+    - https://github.com/redhat-cop/gitops-catalog
+    destinations: |
+      - namespace: '*'
+        server: https://kubernetes.default.svc
+    extraFields: |
+      clusterResourceWhitelist:
+      - group: '*'
+        kind: '*'
+
+applications:
+
+  external-secrets:
+    annotations:
+      argocd.argoproj.io/sync-wave: '1'
+    destination:
+      namespace: external-secrets-operator
+    source:
+      path: components/external-secrets-operator/base
+
+  helm-repos:
+    annotations:
+      argocd.argoproj.io/compare-options: IgnoreExtraneous
+      argocd.argoproj.io/sync-wave: '11'
+    source:
+      path: components/helm-repos/base

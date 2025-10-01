@@ -1,0 +1,1 @@
+See the old repo for examples of alertmanager configuration and slack template [here](https://github.com/PixelJonas/cluster-gitops/tree/master/manifests/argocd/apps/alertmanager/base/apps/examples).
