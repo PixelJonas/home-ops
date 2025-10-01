@@ -41,11 +41,11 @@ applications:
     destination:
       namespace: external-secrets-operator
     source:
-      path: components/external-secrets-operator/base
+      path: infra-components/external-secrets-operator/base
 
   helm-repos:
     annotations:
       argocd.argoproj.io/compare-options: IgnoreExtraneous
       argocd.argoproj.io/sync-wave: '11'
     source:
-      path: components/helm-repos/base
+      path: infra-components/helm-repos/base

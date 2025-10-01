@@ -22,7 +22,7 @@ applications:
     destination:
       namespace: openshift-storage
     source:
-      path: clusters/overlays/local.home/components/lvm-operator/overlays/standalone
+      path: /infra-components/lvm-operator/overlays/standalone
 
   external-secrets-doppler-push:
     annotations:
@@ -30,7 +30,7 @@ applications:
     destination:
       namespace: external-secrets-operator
     source:
-      path: components/external-secrets-store-doppler/base
+      path: infra-components/external-secrets-store-doppler/base
 
   cert-manager-operator:
     annotations:
@@ -38,7 +38,7 @@ applications:
     destination:
       namespace: cert-manager-operator
     source:
-      path: components/cert-manager-operator/aggregate/overlays/letsencrypt
+      path: infra-components/cert-manager-operator/aggregate/overlays/letsencrypt
 
   certificates:
     annotations:
@@ -46,7 +46,15 @@ applications:
     destination:
       namespace: cert-manager-operator
     source:
-      path: components/certificates/base
+      path: infra-components/certificates/base
+
+  registry:
+    annotations:
+      argocd.argoproj.io/sync-wave: '5'
+    destination:
+      namespace: openshift-image-registry
+    source:
+      path: infra-components/registry-sno/base
 
   alertmanager:
     annotations:
@@ -54,7 +62,7 @@ applications:
     destination:
       namespace: openshift-monitoring
     source:
-      path: components/alertmanager/base
+      path: infra-components/alertmanager/base
 
   openshift-monitoring:
     annotations:
@@ -62,4 +70,36 @@ applications:
     destination:
       namespace: openshift-monitoring
     source:
-      path: components/openshift-monitoring/base
+      path: infra-components/openshift-monitoring/base
+
+  rbac:
+    annotations:
+      argocd.argoproj.io/compare-options: IgnoreExtraneous
+      argocd.argoproj.io/sync-wave: '11'
+    source:
+      path: infra-components/rbac/base
+
+  node-config:
+    annotations:
+      argocd.argoproj.io/sync-wave: "99"
+    source:
+      path: clusters/overlays/local.home/components/node-config
+
+
+
+
+  defrag-etcd:
+    annotations:
+      argocd.argoproj.io/sync-wave: '99'
+    destination:
+      namespace: openshift-etcd
+    source:
+      path: infra-components/defrag-etcd/base
+
+  cleanup-completed-pods:
+    annotations:
+      argocd.argoproj.io/sync-wave: '99'
+    destination:
+      namespace: clean-completed-pods
+    source:
+      path: infra-components/clean-completed-pods/base
