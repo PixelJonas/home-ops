@@ -34,8 +34,8 @@ projects:
         kind: '*'
 
 applications:
-  firefly:
+  crunchy-postgres:
     annotations:
-      argocd.argoproj.io/sync-wave: "300"
+      argocd.argoproj.io/sync-wave: "200"
     source:
-      path: components-apps/firefly
+      path: components-apps/crunchy-postgres
