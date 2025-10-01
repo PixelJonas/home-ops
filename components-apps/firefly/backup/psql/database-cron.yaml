@@ -1,0 +1,21 @@
+- op: replace
+  path: /metadata/name
+  value: firefly-backup
+  
+- op: replace
+  path: /metadata/namespace
+  value: firefly
+
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/volumes/0/persistentVolumeClaim/claimName
+  value: syno-firefly-db-backup
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/containers/0/env
+  value: 
+    - name: POSTGRES_USER
+      value: firefly
+    - name: POSTGRES_POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: firefly-db-postgresql
+          key: postgres-password
