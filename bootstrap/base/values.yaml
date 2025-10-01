@@ -15,7 +15,6 @@ default:
       targetRevision: HEAD
 
 projects:
-
   cluster-config:
     annotations:
       notifications.argoproj.io/subscribe.on-sync-failed.slack: cluster-gitops
@@ -23,8 +22,8 @@ projects:
     description: Project for overall cluster configuration
     namespace: openshift-gitops
     sourceRepos:
-    - https://github.com/pixeljonas/home-ops
-    - https://github.com/redhat-cop/gitops-catalog
+      - https://github.com/pixeljonas/home-ops
+      - https://github.com/redhat-cop/gitops-catalog
     destinations: |
       - namespace: '*'
         server: https://kubernetes.default.svc
@@ -34,18 +33,25 @@ projects:
         kind: '*'
 
 applications:
-
   external-secrets:
     annotations:
-      argocd.argoproj.io/sync-wave: '1'
+      argocd.argoproj.io/sync-wave: "1"
     destination:
       namespace: external-secrets-operator
     source:
       path: infra-components/external-secrets-operator/base
 
+  gitops-alerting:
+    annotations:
+      argocd.argoproj.io/sync-wave: "1"
+    destination:
+      namespace: openshift-gitops
+    source:
+      path: infra-components/gitops-alerting
+
   helm-repos:
     annotations:
       argocd.argoproj.io/compare-options: IgnoreExtraneous
-      argocd.argoproj.io/sync-wave: '11'
+      argocd.argoproj.io/sync-wave: "11"
     source:
       path: infra-components/helm-repos/base
