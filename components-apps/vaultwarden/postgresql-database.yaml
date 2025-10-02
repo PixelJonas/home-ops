@@ -1,20 +1,20 @@
-apiVersion: postgres-operator.crunchydata.com/v1beta1
-kind: PostgresCluster
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
 metadata:
   name: vaultwarden-db
   namespace: vaultwarden
 spec:
-  postgresVersion: 16
-  instances:
-    - name: vaultwarden-db
-      dataVolumeClaimSpec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 10Gi
-  users:
-    - name: vaultwarden
-      databases:
-        - vaultwarden
-    - name: postgres
+  instances: 1
+
+  superuserSecret:
+    name: vaultwarden-db-postgres-secret
+
+  bootstrap:
+    initdb:
+      database: vaultwarden
+      owner: vaultwarden
+      secret:
+        name: vaultwarden-db-vaultwarden-secret
+
+  storage:
+    size: 1Gi
