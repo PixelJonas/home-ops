@@ -11,7 +11,7 @@ spec:
     spec:
       template:
         spec:
-          serviceAccountName: default
+          serviceAccountName: database-psql-backup
           containers:
             - name: document-eporter-via-kubectl
               image: quay.io/openshift/origin-cli:4.21
