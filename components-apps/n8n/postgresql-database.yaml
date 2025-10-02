@@ -3,6 +3,8 @@ kind: Cluster
 metadata:
   name: n8n-db
   namespace: n8n
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
 spec:
   instances: 1
 

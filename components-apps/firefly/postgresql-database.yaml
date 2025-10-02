@@ -3,6 +3,8 @@ kind: Cluster
 metadata:
   name: firefly-db
   namespace: firefly
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
 spec:
   instances: 1
 
