@@ -1,7 +1,7 @@
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: firefly-db-postgres-secret
+  name: firefly-db-firefly-secret
   namespace: firefly
   annotations:
     argocd.argoproj.io/sync-wave: "30"
