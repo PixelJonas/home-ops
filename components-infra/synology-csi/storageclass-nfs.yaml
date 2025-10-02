@@ -1,0 +1,14 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: synology-nfs-storage
+provisioner: csi.san.synology.com
+parameters:
+  protocol: "nfs"
+  dsm: '10.10.10.40'
+  location: '/volume1/openshift'
+  mountPermissions: '0775'
+mountOptions:
+  - nfsvers=4.1
+reclaimPolicy: Delete
+allowVolumeExpansion: true
