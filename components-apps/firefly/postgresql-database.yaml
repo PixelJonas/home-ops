@@ -13,7 +13,7 @@ spec:
       size: 10Gi
   postgres:
     version: latest
-  initialData:
+  managedSql:
     scripts:
       - name: create-database-user
         scriptFrom:
