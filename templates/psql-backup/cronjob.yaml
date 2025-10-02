@@ -37,7 +37,7 @@ spec:
 
                   echo -----------------------------------
                   echo "Backing up $POSTGRES_USER database"
-                  kubectl exec "$POSTGRES_USER"-db-postgresql-0 --container postgresql -- /bin/bash -c "PGPASSWORD=$POSTGRES_POSTGRES_PASSWORD pg_dumpall -U postgres" > /backup/backup.sql
+                  kubectl exec "$POSTGRES_USER"-db-1 --container postgres -- /bin/bash -c "PGPASSWORD=$POSTGRES_POSTGRES_PASSWORD pg_dumpall -U postgres" > /backup/backup.sql
                   echo -----------------------------------
                     ls -lah /backup
                   echo -----------------------------------
