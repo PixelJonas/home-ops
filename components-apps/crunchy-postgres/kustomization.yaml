@@ -1,9 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-  - https://github.com/redhat-cop/gitops-catalog/crunchy-postgres-operator/operator/overlays/v5?ref=main
-
-components:
-  - https://github.com/redhat-cop/gitops-catalog/crunchy-postgres-operator/operator/components/separate-namespace?ref=main
-  - https://github.com/redhat-cop/gitops-catalog/crunchy-postgres-operator/operator/components/feature-gates?ref=main
