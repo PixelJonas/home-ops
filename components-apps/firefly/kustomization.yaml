@@ -5,7 +5,7 @@ resources:
   - namespace.yaml
   - anyuid-rolebinding.yaml
   - external-firefly-credentials.yaml
-  - external-postgresql-credentials.yaml
+  - external-firefly-initial-data.yaml
   - firefly-backup-app.yaml
   - firefly-cronjob.yaml
   - firefly-importer-cronjob.yaml
