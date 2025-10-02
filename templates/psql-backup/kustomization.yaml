@@ -4,3 +4,6 @@ kind: Kustomization
 resources:
   - cronjob.yaml
   - pvc.yaml
+  - serviceaccount.yaml
+  - role.yaml
+  - rolebinding-psql-backup.yaml

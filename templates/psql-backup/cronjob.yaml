@@ -11,7 +11,7 @@ spec:
     spec:
       template:
         spec:
-          serviceAccountName: pipeline
+          serviceAccountName: database-psql-backup
           volumes:
             - name: backup
               persistentVolumeClaim:
