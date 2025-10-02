@@ -1,7 +1,7 @@
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: firefly-pguser-firefly
+  name: firefly-initial-data
   namespace: firefly
   annotations:
     argocd.argoproj.io/sync-wave: "30"
@@ -10,16 +10,13 @@ spec:
     kind: ClusterSecretStore
     name: doppler-cluster
   target:
-    name: firefly-db-pguser-firefly
+    name: firefly-initial-data
     template:
       engineVersion: v2
-      metadata:
-        labels:
-          postgres-operator.crunchydata.com/cluster: firefly-db
-          postgres-operator.crunchydata.com/pguser: firefly
       data:
-        password: "{{ .password }}"
-        verifier: ""
+        initial-data.sql: |-
+          create user firefly password '{{ .password }}';
+          create database firefly owner firefly;
   data:
     - secretKey: password
       remoteRef:

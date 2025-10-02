@@ -1,20 +1,22 @@
-apiVersion: postgres-operator.crunchydata.com/v1beta1
-kind: PostgresCluster
+kind: SGCluster
+apiVersion: stackgres.io/v1
 metadata:
   name: firefly-db
   namespace: firefly
 spec:
-  postgresVersion: 16
-  instances:
-    - name: firefly-db
-      dataVolumeClaimSpec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 10Gi
-  users:
-    - name: firefly
-      databases:
-        - firefly
-    - name: postgres
+  instances: 1
+  sgInstanceProfile: "size-small"
+  nonProductionOptions:
+    disableClusterPodAntiAffinity: true
+  pods:
+    persistentVolume:
+      size: 10Gi
+  postgres:
+    version: latest
+  initialData:
+    scripts:
+      - name: create-database-user
+        scriptFrom:
+          secretKeyRef:
+            name: firefly-initial-data
+            key: initial-data.sql
