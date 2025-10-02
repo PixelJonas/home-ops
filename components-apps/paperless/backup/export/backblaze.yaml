@@ -1,0 +1,7 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: paperless-ng-export
+
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-export-b2
