@@ -3,6 +3,6 @@ kind: OperatorGroup
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-  name: stackgres-operator
-  namespace: stackgres-operator
+  name: cloudnative-pg
+  namespace: cloudnative-pg
 spec:

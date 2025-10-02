@@ -1,22 +1,20 @@
-kind: SGCluster
-apiVersion: stackgres.io/v1
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
 metadata:
   name: firefly-db
   namespace: firefly
 spec:
   instances: 1
-  sgInstanceProfile: "size-small"
-  nonProductionOptions:
-    disableClusterPodAntiAffinity: true
-  pods:
-    persistentVolume:
-      size: 10Gi
-  postgres:
-    version: latest
-  managedSql:
-    scripts:
-      - name: create-database-user
-        scriptFrom:
-          secretKeyRef:
-            name: firefly-initial-data
-            key: initial-data.sql
+
+  superuserSecret:
+    name: firefly-db-postgres-secret
+
+  bootstrap:
+    initdb:
+      database: firefly
+      owner: firefly
+      secret:
+        name: firefly-db-firefly-secret
+
+  storage:
+    size: 5Gi

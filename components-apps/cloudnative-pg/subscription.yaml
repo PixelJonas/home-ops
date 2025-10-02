@@ -3,13 +3,13 @@ kind: Subscription
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
-  name: stackgres-community
-  namespace: stackgres-operator
+  name: cloudnative-pg
+  namespace: cloudnative-pg-operator
 spec:
   channel: stable
   installPlanApproval: Automatic
-  name: stackgres-community
-  source: community-operators
+  name: cloudnative-pg
+  source: certified-operators
   sourceNamespace: openshift-marketplace
   config:
     env: []
