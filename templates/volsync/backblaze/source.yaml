@@ -2,7 +2,7 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: template-backup-b2
+  name: backup-b2
   annotations:
     argocd.argoproj.io/sync-wave: "200"
 spec:
