@@ -6,7 +6,7 @@ metadata:
     storageclass.kubernetes.io/is-default-class: "false"
 provisioner: csi.san.synology.com
 parameters:
-  fsType: btrfs
+  csi.storage.k8s.io/fstype: "ext4"
   dsm: 10.10.10.40
   location: /volume1
 reclaimPolicy: Delete
