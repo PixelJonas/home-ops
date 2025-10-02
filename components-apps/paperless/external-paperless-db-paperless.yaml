@@ -1,8 +1,8 @@
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: n8n-db-n8n-secret
-  namespace: n8n
+  name: paperless-db-paperless-secret
+  namespace: paperless
   annotations:
     argocd.argoproj.io/sync-wave: "30"
 spec:
@@ -10,15 +10,15 @@ spec:
     kind: ClusterSecretStore
     name: doppler-cluster
   target:
-    name: n8n-db-n8n-secret
+    name: paperless-db-paperless-secret
     template:
       engineVersion: v2
       type: kubernetes.io/basic-auth
       data:
-        username: "n8n"
+        username: "paperless"
         password: "{{ .password }}"
 
   data:
     - secretKey: password
       remoteRef:
-        key: N8N_POSTGRES_USER_PASSWORD
+        key: PAPERLESS_POSTGRES_USER_PASSWORD

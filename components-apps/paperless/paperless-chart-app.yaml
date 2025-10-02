@@ -1,0 +1,334 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: paperless-ng
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: paperless
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.3.0
+    helm:
+      values: |-
+
+        defaultPodOptions:  
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          paperless:
+            containers:
+              paperless:
+                image:
+                  repository: ghcr.io/paperless-ngx/paperless-ngx
+                  tag: 2.18.4
+                  pullPolicy: IfNotPresent
+                command: "/usr/src/paperless/custom-scripts/docker-entrypoint.sh"
+                args: ["/usr/local/bin/supervisord", "-c", "/etc/supervisord.conf"]
+                env:
+                  # -- Project name
+                  COMPOSE_PROJECT_NAME: paperless
+                  # -- Redis to use
+                  PAPERLESS_REDIS: redis://localhost:6379
+                  PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.apps.sno-cluster.janz.digital,https://paperless.janz.digital"
+                  PAPERLESS_ALLOWED_HOSTS: "paperless.apps.sno-cluster.janz.digital,paperless.janz.digital,localhost"
+                  PAPERLESS_CORS_ALLOWED_HOSTS: "https://paperless.apps.sno-cluster.janz.digital,https://paperless.janz.digital"
+                  PAPERLESS_URL: "https://paperless.janz.digital"
+                  # -- OCR languages to install
+                  PAPERLESS_OCR_LANGUAGE: deu
+                  PAPERLESS_OCR_LANGUAGES: deu
+                  PAPERLESS_CUSTOM_PACKAGES: "pdftk qpdf poppler-utils"
+                  PAPERLESS_TIME_ZONE: Europe/Berlin
+                  PAPERLESS_CONSUMER_POLLING: 30
+                  PAPERLESS_OCR_DESKEW: true
+                  PAPERLESS_TIKA_ENABLED: 1
+                  PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://localhost:3000
+                  PAPERLESS_TIKA_ENDPOINT: http://localhost:9998
+                  PAPERLESS_CONSUMPTION_DIR: /consume
+                  PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/custom-scripts/pdf_rm_blank.sh
+                  PAPERLESS_POST_CONSUME_SCRIPT: /usr/src/paperless/custom-scripts/paperless_post_consume.sh
+                  PAPERLESS_ENABLE_HTTP_REMOTE_USER: "true"
+                  PAPERLESS_HTTP_REMOTE_USER_HEADER_NAME: "HTTP_CF_ACCESS_AUTHENTICATED_USER_EMAIL"
+                  PAPERLESS_DBHOST: "paperless-db-rw"
+                  PAPERLESS_DBPORT: "5432"
+                  PAPERLESS_DBUSER: "paperless"
+                  PAPERLESS_DBPASS:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-db-paperless-secret
+                        key: password
+                probes:
+                  startup:
+                    custom: true
+                    enabled: true
+                    spec:
+                      failureThreshold: 30
+                      initialDelaySeconds: 60
+                      periodSeconds: 5
+                      tcpSocket:
+                        port: 8000
+                      timeoutSeconds: 1
+                  liveness:
+                    custom: true
+                    enabled: true
+                    spec:
+                      failureThreshold: 30
+                      initialDelaySeconds: 0
+                      periodSeconds: 5
+                      exec:
+                        command:
+                          - /bin/bash
+                          - "-c"
+                          - echo "Healthy" > /usr/src/paperless/consume/foo && cat /usr/src/paperless/consume/foo && rm /usr/src/paperless/consume/foo
+              broker:
+                image: 
+                  repository: redis
+                  tag: 8.2.1
+                  pullPolicy: IfNotPresent
+              tika:
+                image: 
+                  repository: docker.io/apache/tika
+                  tag: 2.9.0.0
+                  pullPolicy: IfNotPresent
+              gotenberg:
+                image:
+                  repository: docker.io/gotenberg/gotenberg
+                  tag: 8.23.2
+                env:
+                  - name: CHROMIUM_DISABLE_ROUTES
+                    value: "1"
+
+        service:
+          paperless:
+            controller: paperless
+            ports:
+              http:
+                port: 8000
+
+        persistence:
+          data:
+            enabled: true
+            globalMounts:
+              - path: /usr/src/paperless/data
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 3Gi
+          media:
+            enabled: true
+            globalMounts:
+              - path: /usr/src/paperless/media
+            accessMode: ReadWriteOnce            
+            storageClass: lvms-vg1
+            size: 15Gi
+          export:
+            enabled: true
+            globalMounts:
+              - path: /usr/src/paperless/export
+            accessMode: ReadWriteOnce            
+            storageClass: nfs
+            size: 20Gi
+          consume:
+            globalMounts:
+              - path: /consume
+            existingClaim: nfs-paperless-consume
+          custom-scripts:
+            name: paperless-ng-custom-scripts
+            enabled: true
+            type: secret
+            defaultMode: 0777
+            globalMounts:
+              - path: /usr/src/paperless/custom-scripts
+
+
+
+        secrets:
+          custom-scripts:
+            enabled: true
+            suffix: custom-scripts
+            stringData:
+              docker-entrypoint.sh: |-
+                #!/usr/bin/env bash
+
+                set -e
+
+                install_packages() {
+                  echo "Installing packages..."
+
+                  local packages="$1"
+                  read -ra packages <<<"$packages"
+
+                  # Check that it is not empty
+                  if [ ${#packages[@]} -eq 0 ]; then
+                    return
+                  fi
+                  apt-get update
+
+                  for package in "${packages[@]}"; do
+                    pkg="$package"
+
+                    if dpkg -s "$pkg" &>/dev/null; then
+                      echo "Package $pkg already installed!"
+                      continue
+                    fi
+
+                    if ! apt-cache show "$pkg" &>/dev/null; then
+                      echo "Package $pkg not found! :("
+                      continue
+                    fi
+
+                    echo "Installing package $pkg..."
+                    if ! apt-get -y install "$pkg" &>/dev/null; then
+                      echo "Could not install $pkg"
+                      exit 1
+                    fi
+                  done
+                }
+
+                # Install additional packages if specified
+                if [[ -n "$PAPERLESS_CUSTOM_PACKAGES" ]]; then
+                  install_packages "$PAPERLESS_CUSTOM_PACKAGES"
+                fi
+
+                exec "/init"
+
+              pdf_rm_blank.sh: |-
+                #!/usr/bin/env bash
+
+                DOCUMENT_FILE_NAME=${1}
+
+                echo "
+                Document ${DOCUMENT_ID} is about to be consumed.
+                "
+
+                IN="$DOCUMENT_FILE_NAME"
+                OUT="${DOCUMENT_FILE_NAME}_tmp"
+                PAGES=$(pdfinfo "$IN" | grep ^Pages: | tr -dc '0-9')
+                echo "Starting to remove blank pages from $IN"
+                non_blank() {
+                    for i in $(seq 1 $PAGES)
+                    do
+                        if [ $(convert -density 25 "$IN[$((i-1))]" -define histogram:unique-colors=true -format %c histogram:info:- | wc -l) -gt 100 ]
+                        then
+                            echo $i
+                            #echo $i 1>&2
+                        fi
+                        echo -n . 1>&2
+                    done | tee out.tmp
+                    echo 1>&2
+                }
+
+                set +x
+                pdftk "$IN" cat $(non_blank) output "$OUT"
+                rm out.tmp
+                mv "$OUT" "$IN"
+                echo "finishing removing blank pages from $IN"
+
+              paperless_post_consume.sh: |-
+                #!/usr/bin/env bash
+
+                echo "
+                A document with an id of ${DOCUMENT_ID} was just consumed.  I know the
+                following additional information about it:
+                * Generated File Name: ${DOCUMENT_FILE_NAME}
+                * Archive Path: ${DOCUMENT_ARCHIVE_PATH}
+                * Source Path: ${DOCUMENT_SOURCE_PATH}
+                * Created: ${DOCUMENT_CREATED}
+                * Added: ${DOCUMENT_ADDED}
+                * Modified: ${DOCUMENT_MODIFIED}
+                * Thumbnail Path: ${DOCUMENT_THUMBNAIL_PATH}
+                * Download URL: ${DOCUMENT_DOWNLOAD_URL}
+                * Thumbnail URL: ${DOCUMENT_THUMBNAIL_URL}
+                * Correspondent: ${DOCUMENT_CORRESPONDENT}
+                * Tags: ${DOCUMENT_TAGS}
+                It was consumed with the passphrase ${PASSPHRASE}
+                "
+                /usr/src/paperless/custom-scripts/shrinkpdf.sh ${DOCUMENT_ARCHIVE_PATH} ${DOCUMENT_ARCHIVE_PATH}_shrinked 200
+                mv ${DOCUMENT_ARCHIVE_PATH}_shrinked ${DOCUMENT_ARCHIVE_PATH}
+
+              shrinkpdfhere.sh: |-
+                #!/bin/sh              
+                dpi=${1:-150}
+                find . -type f -name '*.pdf' -exec sh -c '/usr/src/paperless/custom-scripts/shrinkpdf.sh "$1" "$(dirname "$1")"/"$(basename "$1" .pdf)".compressed.pdf $2' sh {} "$dpi" \;
+                
+              shrinkpdf.sh: |-
+                #!/bin/sh
+                shrink ()
+                {
+                        gs                                      \
+                          -q -dNOPAUSE -dBATCH -dSAFER          \
+                          -sDEVICE=pdfwrite                     \
+                          -dCompatibilityLevel=1.3              \
+                          -dPDFSETTINGS=/screen                 \
+                          -dEmbedAllFonts=true                  \
+                          -dSubsetFonts=true                    \
+                          -dAutoRotatePages=/None               \
+                          -dColorImageDownsampleType=/Bicubic   \
+                          -dColorImageResolution=$3             \
+                          -dGrayImageDownsampleType=/Bicubic    \
+                          -dGrayImageResolution=$3              \
+                          -dMonoImageDownsampleType=/Subsample  \
+                          -dMonoImageResolution=$3              \
+                          -sOutputFile="$2"                     \
+                          "$1"
+                }
+
+                check_smaller ()
+                {
+                        # If $1 and $2 are regular files, we can compare file sizes to
+                        # see if we succeeded in shrinking. If not, we copy $1 over $2:
+                        if [ ! -f "$1" -o ! -f "$2" ]; then
+                                return 0;
+                        fi
+                        ISIZE="$(echo $(wc -c "$1") | cut -f1 -d\ )"
+                        OSIZE="$(echo $(wc -c "$2") | cut -f1 -d\ )"
+                        if [ "$ISIZE" -lt "$OSIZE" ]; then
+                                echo "Input smaller than output, doing straight copy" >&2
+                                cp "$1" "$2"
+                        fi
+                }
+
+                usage ()
+                {
+                        echo "Reduces PDF filesize by lossy recompressing with Ghostscript."
+                        echo "Not guaranteed to succeed, but usually works."
+                        echo "  Usage: $1 infile [outfile] [resolution_in_dpi]"
+                }
+
+                IFILE="$1"
+
+                # Need an input file:
+                if [ -z "$IFILE" ]; then
+                        usage "$0"
+                        exit 1
+                fi
+
+                # Output filename defaults to "-" (stdout) unless given:
+                if [ ! -z "$2" ]; then
+                        OFILE="$2"
+                else
+                        OFILE="-"
+                fi
+
+                # Output resolution defaults to 72 unless given:
+                if [ ! -z "$3" ]; then
+                        res="$3"
+                else
+                        res="72"
+                fi
+
+                shrink "$IFILE" "$OFILE" "$res" || exit $?
+
+                check_smaller "$IFILE" "$OFILE"
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
