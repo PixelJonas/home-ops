@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - ./data
   - ./database
+  - ./media
