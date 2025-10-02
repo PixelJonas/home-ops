@@ -16,7 +16,7 @@ patches:
       kind: ReplicationSource
       name: backup
     path: minio.yaml
-  
+
   - target:
       group: external-secrets.io
       version: v1beta1
@@ -30,7 +30,7 @@ patches:
       kind: ReplicationSource
       name: backup-b2
     path: backblaze.yaml
-  
+
   - target:
       group: external-secrets.io
       version: v1beta1
@@ -44,3 +44,10 @@ patches:
       kind: CronJob
       name: psql-backup
     path: cron.yaml
+
+  - target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: RoleBinding
+      name: psql-backup
+    path: rolebinding.yaml
