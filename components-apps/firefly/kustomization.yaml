@@ -14,3 +14,4 @@ resources:
   - firefly.yaml
   - postgresql-database.yaml
   - privileged-rolebinding.yaml
+  - ./backup
