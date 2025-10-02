@@ -5,5 +5,5 @@ resources:
   - namespace.yaml
   - external-n8n-credentials.yaml
   - external-n8n-db-firefly.yaml
-  #- n8n.yaml
+  - n8n.yaml
   - postgresql-database.yaml
