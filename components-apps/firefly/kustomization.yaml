@@ -6,6 +6,7 @@ resources:
   - anyuid-rolebinding.yaml
   - external-firefly-credentials.yaml
   - external-firefly-initial-data.yaml
+  - sgscript-initial-data.yaml
   - firefly-backup-app.yaml
   - firefly-cronjob.yaml
   - firefly-importer-cronjob.yaml
