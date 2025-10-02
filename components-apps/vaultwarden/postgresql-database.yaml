@@ -7,6 +7,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "100"
 spec:
   instances: 1
+  enablePDB: false
 
   superuserSecret:
     name: vaultwarden-db-postgres-secret

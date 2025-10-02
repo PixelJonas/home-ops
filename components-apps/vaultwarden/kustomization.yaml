@@ -8,4 +8,3 @@ resources:
   - external-vaultwarden-db-firefly.yaml
   - external-vaultwarden-db-superuser.yaml
   - external-vaultwarden-credentials.yaml
-#  - vaultwarden-backup-app.yaml

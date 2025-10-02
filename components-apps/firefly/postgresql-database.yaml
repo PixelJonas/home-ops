@@ -7,7 +7,8 @@ metadata:
     argocd.argoproj.io/sync-wave: "100"
 spec:
   instances: 1
-
+  enablePDB: false
+  
   superuserSecret:
     name: firefly-db-postgres-secret
 
