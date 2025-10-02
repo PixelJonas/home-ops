@@ -10,4 +10,4 @@ resources:
   - external-paperless-ai-credentials.yaml
   - postgresql-database.yaml
   - ./backup
-  #- paperless-ai-chart-app.yaml
+  - paperless-ai-chart-app.yaml
