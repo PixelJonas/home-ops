@@ -25,6 +25,7 @@ projects:
       - https://github.com/pixeljonas/home-ops
       - https://github.com/redhat-cop/gitops-catalog
       - https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+      - https://backube.github.io/helm-charts/
     destinations: |
       - namespace: '*'
         server: https://kubernetes.default.svc
