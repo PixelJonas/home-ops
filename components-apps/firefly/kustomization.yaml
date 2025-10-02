@@ -5,7 +5,8 @@ resources:
   - namespace.yaml
   - anyuid-rolebinding.yaml
   - external-firefly-credentials.yaml
-  - external-firefly-initial-data.yaml
+  - external-firefly-db-firefly-secret.yaml
+  - external-firefly-db-superuser-secret.yaml
   - sgscript-initial-data.yaml
   - firefly-backup-app.yaml
   - firefly-cronjob.yaml
