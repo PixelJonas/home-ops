@@ -116,6 +116,13 @@ applications:
     source:
       path: components-infra/cloudflared
 
+  volsync:
+    annotations:
+      argocd.argoproj.io/sync-wave: "22"
+      argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    source:
+      path: components-infra/volsync
+
   node-config:
     annotations:
       argocd.argoproj.io/sync-wave: "99"
