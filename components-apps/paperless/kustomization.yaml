@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   #  - paperless-chart-app.yaml
+  - namespace.yaml
   - paperless-consume-pvc.yaml
   - external-paperless-db-paperless.yaml
   - external-paperless-ai-credentials.yaml
