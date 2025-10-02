@@ -25,7 +25,6 @@ projects:
       - https://github.com/pixeljonas/home-ops
       - https://github.com/redhat-cop/gitops-catalog
       - https://bjw-s-labs.github.io/helm-charts
-      - registry-1.docker.io/bitnamicharts
     destinations: |
       - namespace: '*'
         server: https://kubernetes.default.svc

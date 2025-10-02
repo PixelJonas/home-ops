@@ -75,7 +75,7 @@ spec:
                   DB_PASSWORD:
                     valueFrom:
                       secretKeyRef:
-                        name: firefly-db-postgresql
+                        name: firefly-pguser-firefly
                         key: password
                   TRUSTED_PROXIES: 
                     valueFrom:
