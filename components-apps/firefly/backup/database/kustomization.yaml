@@ -6,6 +6,9 @@ namespace: firefly
 
 resources:
   - ../../../../templates/psql-backup
+  - ../../../../templates/volsync/base
+  - ../../../../templates/volsync/backblaze
+
 
 patches:
   - target:
