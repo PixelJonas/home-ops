@@ -3,7 +3,7 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
-  #  - vaultwarden.yaml
+  - vaultwarden.yaml
   - postgresql-database.yaml
   - external-vaultwarden-db-firefly.yaml
   - external-vaultwarden-db-superuser.yaml
