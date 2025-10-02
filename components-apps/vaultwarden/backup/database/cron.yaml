@@ -1,0 +1,14 @@
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/volumes/0/persistentVolumeClaim/claimName
+  value: database-syno-db-backup
+
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/containers/0/env
+  value:
+    - name: POSTGRES_USER
+      value: vaultwarden
+    - name: POSTGRES_POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: vaultwarden-db-vaultwarden-secret
+          key: password
