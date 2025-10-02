@@ -8,7 +8,7 @@ metadata:
 spec:
   channel: stable
   installPlanApproval: Automatic
-  name: cstackgres-community
+  name: stackgres-community
   source: community-operators
   sourceNamespace: openshift-marketplace
   config:
