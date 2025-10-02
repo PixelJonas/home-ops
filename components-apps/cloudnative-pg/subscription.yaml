@@ -6,7 +6,7 @@ metadata:
   name: cloudnative-pg
   namespace: cloudnative-pg-operator
 spec:
-  channel: stable
+  channel: stable-v1
   installPlanApproval: Automatic
   name: cloudnative-pg
   source: certified-operators
