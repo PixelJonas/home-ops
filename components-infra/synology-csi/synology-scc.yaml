@@ -6,7 +6,7 @@ allowHostDirVolumePlugin: true
 allowHostNetwork: true
 allowPrivilegedContainer: true
 allowedCapabilities:
-  - 'SYS_ADMIN'
+  - "SYS_ADMIN"
 defaultAddCapabilities: []
 fsGroup:
   type: RunAsAny
@@ -25,4 +25,4 @@ users:
   - system:serviceaccount:synology-csi:csi-node-sa
   - system:serviceaccount:synology-csi:csi-snapshotter-sa
 volumes:
-  - '*'
+  - "*"
