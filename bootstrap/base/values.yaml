@@ -24,7 +24,7 @@ projects:
     sourceRepos:
       - https://github.com/pixeljonas/home-ops
       - https://github.com/redhat-cop/gitops-catalog
-      - registry-1.docker.io/bitnamicharts
+      - https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
     destinations: |
       - namespace: '*'
         server: https://kubernetes.default.svc
