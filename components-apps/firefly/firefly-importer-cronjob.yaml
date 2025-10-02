@@ -18,6 +18,7 @@ spec:
               values: [0]
       template:
         spec:
+          serviceAccountName: default
           volumes:
             - name: import
               persistentVolumeClaim:
