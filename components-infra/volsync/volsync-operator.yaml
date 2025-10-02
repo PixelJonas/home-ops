@@ -20,7 +20,7 @@ spec:
         metrics:
           disableAuth: true
 
-  project: cluster-apps
+  project: cluster-config
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
