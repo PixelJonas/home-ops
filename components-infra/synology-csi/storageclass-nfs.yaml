@@ -5,9 +5,9 @@ metadata:
 provisioner: csi.san.synology.com
 parameters:
   protocol: "nfs"
-  dsm: '10.10.10.40'
-  location: '/volume1/openshift'
-  mountPermissions: '0775'
+  dsm: "10.10.10.40"
+  location: "/volume1/openshift"
+  mountPermissions: "0775"
 mountOptions:
   - nfsvers=4.1
 reclaimPolicy: Delete
