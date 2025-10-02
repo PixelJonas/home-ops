@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  #  - paperless-chart-app.yaml
+  - paperless-consume-pvc.yaml
+  - external-paperless-db-paperless.yaml
+  - external-paperless-ai-credentials.yaml
+  - postgresql-database.yaml
+  #- paperless-ai-chart-app.yaml

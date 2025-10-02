@@ -1,0 +1,117 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: paperless-gpt
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: paperless
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.3.0
+    helm:
+      values: |-
+
+        controllers:
+          paperlessai:
+            containers:
+              paperlessai:
+                image:
+                  repository: ghcr.io/icereed/paperless-gpt
+                  tag: unreleased
+                  pullPolicy: IfNotPresent
+                env:
+                  PAPERLESS_BASE_URL: "https://paperless.apps.sno-cluster.janz.digital/"
+                  PAPERLESS_API_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-ai-credentials
+                        key: paperless-api-key
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-ai-credentials
+                        key: paperless-api-key
+                  PAPERLESS_PUBLIC_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-ai-credentials
+                        key: paperless-public-url
+                  LLM_PROVIDER: "openai"
+                  LLM_MODEL: "gpt-4.1"
+                  LLM_LANGUAGE: "German"
+                  OPENAI_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-ai-credentials
+                        key: paperless-ai-openai-key
+                  OCR_PROVIDER: "llm"
+                  VISION_LLM_PROVIDER: "openai"
+                  VISION_LLM_MODEL: "gpt-4.1"
+                  OCR_PROCESS_MODE: "image"
+                  CREATE_LOCAL_HOCR: "true"
+                  LOCAL_HOCR_PATH: "/app/local_files/hocr"
+                  CREATE_LOCAL_PDF: "true"
+                  LOCAL_PDF_PATH: "/app/local_files/pdf"
+                  OCR_LIMIT_PAGES: "5"
+                  PDF_SKIP_EXISTING_OCR: "false"
+                  PDF_UPLOAD: "true"
+                  PDF_REPLACE: "true"
+                  PDF_OCR_TAGGING: "true"
+                  PDF_OCR_COMPLETE_TAG: "paperless-gpt-ocr-complete"
+
+        service:
+          paperlessai:
+            controller: paperlessai
+            ports:
+              http:
+                port: 8080
+
+        ingress:
+          paperlessai:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: paperlessai.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: paperlessai
+                      port: http
+
+        persistence:
+          prompts:
+            enabled: true
+            globalMounts:
+              - path: /app/prompts
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 3Gi
+          database:
+            enabled: true
+            globalMounts:
+              - path: /app/db
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 5Gi
+          local-files:
+            enabled: true
+            globalMounts:
+              - path: /app/local_files
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 20Gi
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
