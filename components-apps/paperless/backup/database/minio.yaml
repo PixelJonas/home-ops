@@ -4,4 +4,4 @@
 
 - op: replace
   path: /spec/restic/repository
-  value: restic-config-data
+  value: restic-config-database
