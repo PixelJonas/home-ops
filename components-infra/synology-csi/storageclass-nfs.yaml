@@ -2,6 +2,8 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: synology-nfs-storage
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
 provisioner: csi.san.synology.com
 parameters:
   protocol: "nfs"
