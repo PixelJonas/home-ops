@@ -61,6 +61,14 @@ applications:
     source:
       path: components-infra/nfs
 
+  nfs-backup:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: nfs-provisioner
+    source:
+      path: components-infra/nfs-backup
+
 
   certificates:
     annotations:
