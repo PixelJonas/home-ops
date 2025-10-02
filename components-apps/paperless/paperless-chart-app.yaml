@@ -36,9 +36,9 @@ spec:
                   COMPOSE_PROJECT_NAME: paperless
                   # -- Redis to use
                   PAPERLESS_REDIS: redis://localhost:6379
-                  PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.apps.sno-cluster.janz.digital,https://paperless.janz.digital"
-                  PAPERLESS_ALLOWED_HOSTS: "paperless.apps.sno-cluster.janz.digital,paperless.janz.digital,localhost"
-                  PAPERLESS_CORS_ALLOWED_HOSTS: "https://paperless.apps.sno-cluster.janz.digital,https://paperless.janz.digital"
+                  PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.apps.altus.janz.digital,https://paperless.janz.digital"
+                  PAPERLESS_ALLOWED_HOSTS: "paperless.apps.altus.janz.digital,paperless.janz.digital,localhost"
+                  PAPERLESS_CORS_ALLOWED_HOSTS: "https://paperless.apps.altus.janz.digital,https://paperless.janz.digital"
                   PAPERLESS_URL: "https://paperless.janz.digital"
                   # -- OCR languages to install
                   PAPERLESS_OCR_LANGUAGE: deu
