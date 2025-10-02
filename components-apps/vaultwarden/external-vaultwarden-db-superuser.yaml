@@ -1,7 +1,7 @@
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: vaultwarden-db-vaultwarden-secret
+  name: vaultwarden-db-postgres-secret
   namespace: vaultwarden
   annotations:
     argocd.argoproj.io/sync-wave: "30"
