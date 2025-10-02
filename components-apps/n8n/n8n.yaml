@@ -24,7 +24,7 @@ spec:
             searches:
               - svc.cluster.local
               - cluster.local
-              - sno-cluster.janz.digital
+              - altus.janz.digital
               - janz.lan
               - janz.digital
 
