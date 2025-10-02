@@ -2,6 +2,7 @@ apiVersion: stackgres.io/v1
 kind: SGScript
 metadata:
   name: firefly-initial-data
+  namespace: firefly
 spec:
   scripts:
     - name: initial-data
