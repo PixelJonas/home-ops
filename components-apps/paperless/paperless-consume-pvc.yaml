@@ -9,11 +9,6 @@ spec:
     - ReadWriteMany
   capacity:
     storage: 1Gi
-  claimRef:
-    apiVersion: v1
-    kind: PersistentVolumeClaim
-    name: nfs-paperless-consume
-    namespace: paperless
   nfs:
     path: /volume1/configs/paperless/consume
     server: 10.10.10.40
