@@ -22,6 +22,11 @@ spec:
         client-info.yml: |
           clients:
             - host: {{ .synoip | toString }}
+              port: 5000
+              https: false
+              username: csi
+              password: {{ .synopass | toString }}
+            - host: {{ .synoip | toString }}
               port: 5001
               https: true
               username: csi
