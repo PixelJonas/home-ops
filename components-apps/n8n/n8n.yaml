@@ -3,7 +3,7 @@ kind: Application
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "111"
-  name: n8n
+  name: n8n-app
   namespace: openshift-gitops
 spec:
   destination:
