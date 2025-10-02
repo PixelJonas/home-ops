@@ -34,20 +34,14 @@ projects:
         kind: '*'
 
 applications:
-  crunchy-postgres:
+  stackgres:
     annotations:
       argocd.argoproj.io/sync-wave: "200"
     source:
-      path: components-apps/crunchy-postgres
+      path: components-apps/stackgres
 
   firefly:
     annotations:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/firefly
-
-  vaultwarden:
-    annotations:
-      argocd.argoproj.io/sync-wave: "300"
-    source:
-      path: components-apps/vaultwarden
