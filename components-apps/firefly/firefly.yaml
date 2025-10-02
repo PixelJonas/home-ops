@@ -29,7 +29,7 @@ spec:
                   APP_ENV: prod
                   ALLOW_WEBHOOKS: true
                   DB_CONNECTION: pgsql
-                  DB_HOST: firefly-db-pods
+                  DB_HOST: firefly-db-rw.firefly.svc.cluster.local
                   DB_PORT: 5432
                   DB_DATABASE: firefly
                   DB_USERNAME: firefly
@@ -75,7 +75,7 @@ spec:
                   DB_PASSWORD:
                     valueFrom:
                       secretKeyRef:
-                        name: firefly-pguser-firefly
+                        name: firefly-db-firefly-secret
                         key: password
                   TRUSTED_PROXIES: 
                     valueFrom:
