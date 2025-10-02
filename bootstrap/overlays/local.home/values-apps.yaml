@@ -51,3 +51,9 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/vaultwarden
+
+  n8n:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/n8n
