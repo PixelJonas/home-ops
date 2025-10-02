@@ -6,5 +6,4 @@ namespace: openshift-storage
 resources:
   - namespace.yaml
   - nfs-provisioner-app.yaml
-  - nfs-backup-provisioner-app.yaml
   - storageclass-nfs-custom.yaml

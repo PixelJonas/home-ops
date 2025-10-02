@@ -4,10 +4,3 @@ metadata:
   labels:
     openshift.io/cluster-monitoring: "true"
   name: nfs-provisioner
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  labels:
-    openshift.io/cluster-monitoring: "true"
-  name: nfs-backup-provisioner
