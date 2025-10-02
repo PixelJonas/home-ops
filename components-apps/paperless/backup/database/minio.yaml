@@ -1,0 +1,7 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: syno-paperless-db-backup
+
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-data

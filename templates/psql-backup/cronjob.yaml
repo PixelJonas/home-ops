@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: template-backup
+  name: psql-backup
   namespace: template
   annotations:
     argocd.argoproj.io/sync-wave: "200"

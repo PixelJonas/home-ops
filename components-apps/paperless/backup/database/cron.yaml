@@ -1,0 +1,14 @@
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/volumes/0/persistentVolumeClaim/claimName
+  value: syno-paperless-db-backup
+
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/containers/0/env
+  value: 
+    - name: POSTGRES_USER
+      value: paperless
+    - name: POSTGRES_POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: paperless-db-paperless-secret
+          key: password
