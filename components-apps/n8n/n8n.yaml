@@ -48,7 +48,7 @@ spec:
                   DB_POSTGRESDB_PASSWORD:
                     valueFrom:
                       secretKeyRef:
-                        name: n8n-db-postgresql
+                        name: n8n-db-n8n-secret
                         key: password
                   N8N_HOST:
                     valueFrom:
