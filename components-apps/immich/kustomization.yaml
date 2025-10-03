@@ -7,4 +7,4 @@ resources:
   - external-immich-credentials.yaml
   - anyuid-rolebinding.yaml
   - privileged-rolebinding.yaml
-#- backup
+  - backup
