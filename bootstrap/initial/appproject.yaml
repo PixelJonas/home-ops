@@ -5,11 +5,11 @@ metadata:
   namespace: openshift-gitops
 spec:
   clusterResourceWhitelist:
-  - group: '*'
-    kind: '*'
+    - group: "*"
+      kind: "*"
   description: Project for bootstrap cluster app
   destinations:
-  - namespace: '*'
-    server: https://kubernetes.default.svc
+    - namespace: "*"
+      server: https://kubernetes.default.svc
   sourceRepos:
-  - https://github.com/pixeljonas/home-ops
+    - https://github.com/pixeljonas/home-ops

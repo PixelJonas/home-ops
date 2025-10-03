@@ -4,11 +4,11 @@ metadata:
   name: openshift-api
   namespace: openshift-config
   annotations:
-    argocd.argoproj.io/sync-wave: '0'
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   secretName: openshift-api-certificate
   issuerRef:
     name: cloudflare-issuer
     kind: ClusterIssuer
   dnsNames:
-  - api.altus.janz.digital
+    - api.altus.janz.digital

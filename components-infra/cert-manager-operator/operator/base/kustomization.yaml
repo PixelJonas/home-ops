@@ -7,6 +7,6 @@ commonAnnotations:
 namespace: cert-manager-operator
 
 resources:
-- operator-namespace.yaml
-- operator-group.yaml
-- subscription.yaml
+  - operator-namespace.yaml
+  - operator-group.yaml
+  - subscription.yaml

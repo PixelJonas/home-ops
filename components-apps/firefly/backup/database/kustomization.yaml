@@ -9,7 +9,6 @@ resources:
   - ../../../../templates/volsync/base
   - ../../../../templates/volsync/backblaze
 
-
 patches:
   - target:
       group: volsync.backube

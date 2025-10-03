@@ -27,8 +27,8 @@ spec:
             - name: firefly-import-cron
               image: docker.io/fireflyiii/data-importer:latest-cli
               volumeMounts:
-              - name: import
-                mountPath: /import
+                - name: import
+                  mountPath: /import
               env:
                 - name: TZ
                   value: Europe/Berlin
@@ -75,7 +75,7 @@ spec:
                     secretKeyRef:
                       name: firefly-credentials
                       key: mailpassword
-                - name: TRUSTED_PROXIES 
+                - name: TRUSTED_PROXIES
                   valueFrom:
                     secretKeyRef:
                       name: firefly-credentials
