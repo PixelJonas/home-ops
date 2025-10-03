@@ -1,0 +1,80 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: ntfy-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: ntfy
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.3.0
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          ntfy:
+            containers:
+              ntfy:
+                image:
+                  repository: docker.io/binwiederhier/ntfy
+                  tag: v2.14
+                  pullPolicy: IfNotPresent
+                args: ["serve"]
+                env:
+                  TZ: Europe/Berlin
+                  NTFY_BASE_URL: https://ntfy.janz.digital
+                  NTFY_CACHE_FILE: /config/cache.db
+                  NTFY_AUTH_FILE: /config/auth.db
+                  NTFY_AUTH_DEFAULT_ACCESS: deny-all
+                  NTFY_BEHIND_PROXY: true
+                  NTFY_ATTACHMENT_CACHE_DIR: /config/attachments
+                  NTFY_ENABLE_LOGIN: true
+                  NTFY_ENABLE_METRICS: true
+                  NTFY_LISTEN_HTTP: 8000
+
+        persistence:
+          config:
+            globalMounts:
+              - path: /config
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 5Gi
+
+        service:
+          ntfy:
+            controller: ntfy
+            ports:
+              http:
+                port: 8000
+
+        ingress:
+          ntfy:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: ntfy.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: ntfy
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
