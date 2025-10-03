@@ -1,6 +1,6 @@
 - op: replace
   path: /spec/sourcePVC
-  value: openwebui-app-config
+  value: openwebui-app
 
 - op: replace
   path: /spec/restic/repository
