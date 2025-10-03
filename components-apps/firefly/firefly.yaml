@@ -77,7 +77,7 @@ spec:
                       secretKeyRef:
                         name: firefly-db-firefly-secret
                         key: password
-                  TRUSTED_PROXIES: 
+                  TRUSTED_PROXIES:
                     valueFrom:
                       secretKeyRef:
                         name: firefly-credentials
