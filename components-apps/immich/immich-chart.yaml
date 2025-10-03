@@ -6,9 +6,9 @@ metadata:
     argocd.argoproj.io/sync-wave: "51"
 spec:
   destination:
-    namespace: immich
+    namespace: immich-app
     server: https://kubernetes.default.svc
-  project: cluster-config
+  project: cluster-apps
   source:
     chart: app-template
     repoURL: https://bjw-s-labs.github.io/helm-charts
