@@ -1,0 +1,139 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: immich
+  annotations:
+    argocd.argoproj.io/sync-wave: "51"
+spec:
+  destination:
+    namespace: immich
+    server: https://kubernetes.default.svc
+  project: cluster-config
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.3.0
+    helm:
+      values: |-
+
+        controllers:
+          server:
+            containers:
+              server:
+                image:
+                  repository: ghcr.io/immich-app/immich-server
+                  tag: v2.0.0
+                  pullPolicy: IfNotPresent
+                env:
+                  DB_DATABASE_NAME: immich
+                  IMMICH_IGNORE_MOUNT_CHECK_ERRORS: true
+                  REDIS_HOSTNAME: immich-redis.immich.svc.cluster.local
+                  DB_HOSTNAME: immich-database.immich.svc.cluster.local
+                  DB_USERNAME:
+                    valueFrom: 
+                      secretKeyRef:
+                        name: immich-credentials
+                        key: user
+                  DB_PASSWORD:
+                    valueFrom: 
+                      secretKeyRef:
+                        name: immich-credentials
+                        key: password
+          machine-learning:
+            containers:
+              machine-learning:
+                image:
+                  repository: ghcr.io/immich-app/immich-machine-learning
+                  tag: v2.0.0
+                  pullPolicy: IfNotPresent
+                env:
+                  REDIS_HOSTNAME: immich-redis.immich.svc.cluster.local
+          redis:
+            containers:
+              redis:
+                image:
+                  repository: docker.io/valkey/valkey
+                  tag: 8-bookworm@sha256:facc1d2c3462975c34e10fccb167bfa92b0e0dbd992fc282c29a61c3243afb11
+                  pullPolicy: IfNotPresent
+          database:
+            containers:
+              database:
+                image:
+                  repository: ghcr.io/immich-app/postgres
+                  tag: 17-vectorchord0.3.0-pgvectors0.3.0
+                  pullPolicy: IfNotPresent
+                env:
+                  POSTGRES_DB: immich
+                  POSTGRES_INITDB_ARGS: '--data-checksums'
+                  POSTGRES_USER:
+                    valueFrom: 
+                      secretKeyRef:
+                        name: immich-credentials
+                        key: user                    
+                  POSTGRES_PASSWORD:
+                    valueFrom: 
+                      secretKeyRef:
+                        name: immich-credentials
+                        key: password
+
+        service:
+          database:
+            controller: database
+            ports:
+              http:
+                port: 5432
+          server:
+            controller: server
+            ports:
+              http:
+                port: 2283
+          redis:
+            controller: redis
+            ports:
+              http:
+                port: 6379
+          machine-learning:
+            controller: machine-learning
+            ports:
+              http:
+                port: 3003
+
+        ingress:
+          immich:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: immich.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: server
+                      port: http
+
+
+        persistence:
+          library:
+            enabled: true
+            advancedMounts:
+              server:
+                server:
+                  - path: /data
+            accessMode: ReadWriteOnce
+            storageClass: nfs
+            size: 2000Gi
+          cache:
+            enabled: true
+            globalMounts:
+              - path: /cache
+            accessMode: ReadWriteOnce
+            storageClass: nfs
+            size: 20Gi
+          database:
+            enabled: true
+            globalMounts:
+              - path: /var/lib/postgresql/data
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 20Gi
