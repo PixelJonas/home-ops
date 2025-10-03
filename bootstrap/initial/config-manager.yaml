@@ -13,7 +13,7 @@ spec:
   source:
     path: bootstrap/overlays/local.home
     repoURL: https://github.com/pixeljonas/home-ops.git
-    targetRevision: 'HEAD'
+    targetRevision: "HEAD"
   syncPolicy:
     automated:
       prune: false

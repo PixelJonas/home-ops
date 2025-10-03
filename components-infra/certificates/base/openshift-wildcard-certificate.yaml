@@ -4,12 +4,12 @@ metadata:
   name: openshift-wildcard
   namespace: openshift-ingress
   annotations:
-    argocd.argoproj.io/sync-wave: '0'
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   secretName: openshift-wildcard-certificate
   issuerRef:
     name: cloudflare-issuer
     kind: ClusterIssuer
-  commonName: '*.apps.altus.janz.digital'
+  commonName: "*.apps.altus.janz.digital"
   dnsNames:
-  - '*.apps.altus.janz.digital'
+    - "*.apps.altus.janz.digital"

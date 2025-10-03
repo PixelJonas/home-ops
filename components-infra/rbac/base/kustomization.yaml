@@ -1,2 +1,2 @@
 resources:
-- cluster-admins-rolebinding.yaml
+  - cluster-admins-rolebinding.yaml

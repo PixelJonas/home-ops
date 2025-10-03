@@ -1,4 +1,4 @@
 resources:
-- ../../../operator/base
-- ../../../instance/base
-- ../../../issuers/base
+  - ../../../operator/base
+  - ../../../instance/base
+  - ../../../issuers/base

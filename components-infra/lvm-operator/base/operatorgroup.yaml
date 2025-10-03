@@ -5,5 +5,5 @@ metadata:
   namespace: openshift-storage
 spec:
   targetNamespaces:
-  - openshift-storage
+    - openshift-storage
   upgradeStrategy: Default

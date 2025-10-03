@@ -4,5 +4,5 @@ metadata:
   name: demo-helm-charts
 spec:
   connectionConfig:
-    url: 'https://gnunn-gitops.github.io/helm-charts'
+    url: "https://gnunn-gitops.github.io/helm-charts"
   name: Demo Helm Charts

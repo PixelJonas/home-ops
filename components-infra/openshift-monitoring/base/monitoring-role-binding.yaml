@@ -7,6 +7,6 @@ roleRef:
   kind: ClusterRole
   name: cluster-monitoring-view
 subjects:
-- kind: ServiceAccount
-  name: external-monitor-reader
-  namespace: openshift-monitoring
+  - kind: ServiceAccount
+    name: external-monitor-reader
+    namespace: openshift-monitoring

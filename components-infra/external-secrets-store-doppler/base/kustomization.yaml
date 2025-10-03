@@ -1,2 +1,2 @@
 resources:
-- clustersecretstore-doppler.yaml
+  - clustersecretstore-doppler.yaml

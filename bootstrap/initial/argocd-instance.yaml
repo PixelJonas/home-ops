@@ -9,17 +9,20 @@ spec:
   extraConfig:
     exec.enabled: "true"
     resource.respectRBAC: "normal"
-    resource.ignoreResourceUpdatesEnabled: 'true'
+    resource.ignoreResourceUpdatesEnabled: "true"
     resource.compareoptions: |
       ignoreAggregatedRoles: true
-    resource.customizations.ignoreResourceUpdates.external-secrets.io_ExternalSecret: |
+    resource.customizations.ignoreResourceUpdates.external-secrets.io_ExternalSecret:
+      |
       jsonPointers:
       - /status/refreshTime
-    resource.customizations.ignoreResourceUpdates.ocs.openshift.io_StorageCluster: |
+    resource.customizations.ignoreResourceUpdates.ocs.openshift.io_StorageCluster:
+      |
       jsonPointers:
       - /status
       - /metadata/resourceVersion
-    resource.customizations.ignoreResourceUpdates.ocs.openshift.io_StorageSystem: |
+    resource.customizations.ignoreResourceUpdates.ocs.openshift.io_StorageSystem:
+      |
       jsonPointers:
       - /status
       - /metadata/resourceVersion
@@ -35,7 +38,7 @@ spec:
   kustomizeBuildOptions: "--enable-helm --enable-alpha-plugins"
   controller:
     extraCommandArgs:
-      - '--persist-resource-health=false'
+      - "--persist-resource-health=false"
     resources:
       limits:
         memory: 4Gi
@@ -367,7 +370,7 @@ spec:
   ha:
     enabled: false
   rbac:
-    defaultPolicy: 'role:none'
+    defaultPolicy: "role:none"
     policy: |
       p, role:none, *, *, */*, deny
       g, system:cluster-admins, role:admin

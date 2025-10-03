@@ -15,7 +15,7 @@ patches:
       kind: ReplicationSource
       name: backup
     path: minio.yaml
-  
+
   - target:
       group: external-secrets.io
       version: v1beta1
@@ -29,7 +29,7 @@ patches:
       kind: ReplicationSource
       name: backup-b2
     path: backblaze.yaml
-  
+
   - target:
       group: external-secrets.io
       version: v1beta1

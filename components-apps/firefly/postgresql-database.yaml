@@ -8,7 +8,7 @@ metadata:
 spec:
   instances: 1
   enablePDB: false
-  
+
   superuserSecret:
     name: firefly-db-postgres-secret
 

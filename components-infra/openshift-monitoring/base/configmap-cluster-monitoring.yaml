@@ -5,7 +5,7 @@ metadata:
   namespace: openshift-monitoring
 data:
   config.yaml: |
-  
+
     alertmanagerMain:
       enableUserAlertmanagerConfig: true
     enableUserWorkload: true

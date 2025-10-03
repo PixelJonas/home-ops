@@ -2,17 +2,17 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 helmCharts:
-- name: argocd-app-of-app
-  version: 0.4.1
-  repo: https://gnunn-gitops.github.io/helm-charts
-  valuesFile: values-infra.yaml
-  namespace: openshift-gitops
-  
-- name: argocd-app-of-app
-  version: 0.4.1
-  repo: https://gnunn-gitops.github.io/helm-charts
-  valuesFile: values-apps.yaml
-  namespace: openshift-gitops
+  - name: argocd-app-of-app
+    version: 0.4.1
+    repo: https://gnunn-gitops.github.io/helm-charts
+    valuesFile: values-infra.yaml
+    namespace: openshift-gitops
+
+  - name: argocd-app-of-app
+    version: 0.4.1
+    repo: https://gnunn-gitops.github.io/helm-charts
+    valuesFile: values-apps.yaml
+    namespace: openshift-gitops
 
 resources:
-- ../../base
+  - ../../base

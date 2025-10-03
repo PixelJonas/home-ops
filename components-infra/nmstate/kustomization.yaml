@@ -1,6 +1,6 @@
 resources:
-- github.com/redhat-cop/gitops-catalog/nmstate/aggregate/overlays/default
-- node-network-configuration-policy.yaml
+  - github.com/redhat-cop/gitops-catalog/nmstate/aggregate/overlays/default
+  - node-network-configuration-policy.yaml
 
 patches:
   - patch: |-
