@@ -39,12 +39,6 @@
       "/components-infra/.+\\.yaml$/",
     ],
   },
-  kubernetes: {
-    managerFilePatterns: [
-      "/components-apps/.+\\.yaml$/",
-      "/components-infra/.+\\.yaml$/",
-    ],
-  },
   "helm-values": {
     managerFilePatterns: [
       "/components-apps/.+\\.yaml$/",
