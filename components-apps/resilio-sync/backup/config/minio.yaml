@@ -1,6 +1,6 @@
 - op: replace
   path: /spec/sourcePVC
-  value: openwebui-app
+  value: resilio-sync-app-config
 
 - op: replace
   path: /spec/restic/repository
