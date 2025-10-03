@@ -159,8 +159,6 @@ spec:
             globalMounts:
               - path: /usr/src/paperless/custom-scripts
 
-
-
         secrets:
           custom-scripts:
             enabled: true
