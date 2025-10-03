@@ -16,11 +16,7 @@ spec:
     helm:
       values: |-
 
-        defaultPodOptions:
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
-
+      
         controllers:
           ntfy:
             containers:
