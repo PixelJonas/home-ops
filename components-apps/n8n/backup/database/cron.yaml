@@ -13,7 +13,6 @@
           name: n8n-db-n8n-secret
           key: password
 
-
 - op: replace
   path: /spec/jobTemplate/spec/template/spec/containers/0/args
   value:
@@ -22,7 +21,7 @@
 
       echo -----------------------------------
       echo "Backing up N8N using CLI"
-      kubectl exec deploy/n8n-app -c n8n -- /bin/bash -c "n8n export:workflow --all" > /backup/backup.json
+      kubectl exec deploy/n8n-app -c n8n -- /bin/sh -c "n8n export:workflow --all" > /backup/backup.json
       echo -----------------------------------
         ls -lah /backup
       echo -----------------------------------
