@@ -16,7 +16,7 @@ spec:
     helm:
       values: |-
 
-      
+
         controllers:
           ntfy:
             containers:
@@ -36,7 +36,7 @@ spec:
                   NTFY_ATTACHMENT_CACHE_DIR: /config/attachments
                   NTFY_ENABLE_LOGIN: true
                   NTFY_ENABLE_METRICS: true
-                  NTFY_LISTEN_HTTP: 8000
+                  NTFY_LISTEN_HTTP: 0.0.0.0:8000
 
         persistence:
           config:
