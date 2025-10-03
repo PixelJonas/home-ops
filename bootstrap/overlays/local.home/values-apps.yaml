@@ -81,3 +81,9 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/resilio-sync
+
+  spoolman:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/spoolman
