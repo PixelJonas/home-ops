@@ -1,0 +1,30 @@
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/volumes/0/persistentVolumeClaim/claimName
+  value: database-syno-db-backup
+
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/containers/0/env
+  value:
+    - name: POSTGRES_USER
+      valueFrom:
+        secretKeyRef:
+          name: immich-credentials
+          key: user
+    - name: POSTGRES_POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: immich-credentials
+          key: password
+
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/containers/0/args
+  value:
+    - |-
+      set -e
+
+      echo -----------------------------------
+      echo "Backing up $POSTGRES_USER database"
+      kubectl exec immich --container database -- /bin/bash -c "PGPASSWORD=$POSTGRES_POSTGRES_PASSWORD pg_dumpall -U postgres" > /backup/backup.sql
+      echo -----------------------------------
+        ls -lah /backup
+      echo -----------------------------------

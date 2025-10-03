@@ -1,0 +1,7 @@
+- op: replace
+  path: /spec/storageClassName
+  value: pmb-backup
+
+- op: replace
+  path: /spec/resources/requests/storage
+  value: 200Gi

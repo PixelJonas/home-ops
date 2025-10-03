@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: library-
+namespace: immich
+
+resources:
+  - ../../../../templates/volsync/base
+
+patches:
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    path: minio.yaml
+
+  - target:
+      group: external-secrets.io
+      version: v1beta1
+      kind: ExternalSecret
+      name: external-restic-config
+    path: minio-secret.yaml
