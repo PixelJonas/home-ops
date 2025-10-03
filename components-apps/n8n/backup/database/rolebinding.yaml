@@ -1,0 +1,6 @@
+- op: replace
+  path: /subjects
+  value:
+    - kind: ServiceAccount
+      name: database-psql-backup
+      namespace: n8n

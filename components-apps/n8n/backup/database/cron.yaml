@@ -1,0 +1,28 @@
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/volumes/0/persistentVolumeClaim/claimName
+  value: database-syno-db-backup
+
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/containers/0/env
+  value:
+    - name: POSTGRES_USER
+      value: n8n
+    - name: POSTGRES_POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: n8n-db-n8n-secret
+          key: password
+
+
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/containers/0/args
+  value:
+    - |-
+      set -e
+
+      echo -----------------------------------
+      echo "Backing up N8N using CLI"
+      kubectl exec deploy/n8n-app -c n8n -- /bin/bash -c "n8n export:workflow --all" > /backup/backup.json
+      echo -----------------------------------
+        ls -lah /backup
+      echo -----------------------------------
