@@ -24,7 +24,7 @@
 
       echo -----------------------------------
       echo "Backing up $POSTGRES_USER database"
-      kubectl exec immich --container database -- /bin/bash -c "PGPASSWORD=$POSTGRES_POSTGRES_PASSWORD pg_dumpall -U postgres" > /backup/backup.sql
+      kubectl exec immich-app-database --container database -- /bin/bash -c "PGPASSWORD=$POSTGRES_POSTGRES_PASSWORD pg_dumpall -U postgres" > /backup/backup.sql
       echo -----------------------------------
         ls -lah /backup
       echo -----------------------------------
