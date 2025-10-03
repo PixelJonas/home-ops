@@ -7,3 +7,4 @@ resources:
   - external-n8n-db-n8n.yaml
   - n8n.yaml
   - postgresql-database.yaml
+  - backup
