@@ -18,7 +18,7 @@ spec:
           server: 10.10.10.40
           path: /volume1/pmb-backup
           reclaimPolicy: Retain
-          mountOptions: 
+          mountOptions:
             - "nfsvers=4"
             - "noac"
 

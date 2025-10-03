@@ -16,7 +16,7 @@ spec:
     helm:
       values: |-
 
-        defaultPodOptions:  
+        defaultPodOptions:
           securityContext:
             runAsUser: 0
             runAsGroup: 0
@@ -55,7 +55,7 @@ spec:
                     service:
                       identifier: resilio
                       port: http
-           
+
 
         persistence:
           config:
@@ -75,7 +75,7 @@ spec:
             accessMode: ReadWriteOnce
             globalMounts:
               - path: /downloads
-            size: 10Gi  
+            size: 10Gi
           sync:
             storageClass: nfs
             accessMode: ReadWriteOnce

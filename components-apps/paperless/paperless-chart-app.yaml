@@ -16,7 +16,7 @@ spec:
     helm:
       values: |-
 
-        defaultPodOptions:  
+        defaultPodOptions:
           securityContext:
             runAsUser: 0
             runAsGroup: 0
@@ -87,12 +87,12 @@ spec:
                           - "-c"
                           - echo "Healthy" > /usr/src/paperless/consume/foo && cat /usr/src/paperless/consume/foo && rm /usr/src/paperless/consume/foo
               broker:
-                image: 
+                image:
                   repository: redis
                   tag: 8.2.1
                   pullPolicy: IfNotPresent
               tika:
-                image: 
+                image:
                   repository: docker.io/apache/tika
                   tag: 2.9.0.0
                   pullPolicy: IfNotPresent
@@ -137,14 +137,14 @@ spec:
             enabled: true
             globalMounts:
               - path: /usr/src/paperless/media
-            accessMode: ReadWriteOnce            
+            accessMode: ReadWriteOnce
             storageClass: lvms-vg1
             size: 15Gi
           export:
             enabled: true
             globalMounts:
               - path: /usr/src/paperless/export
-            accessMode: ReadWriteOnce            
+            accessMode: ReadWriteOnce
             storageClass: nfs
             size: 20Gi
           consume:
@@ -266,10 +266,10 @@ spec:
                 mv ${DOCUMENT_ARCHIVE_PATH}_shrinked ${DOCUMENT_ARCHIVE_PATH}
 
               shrinkpdfhere.sh: |-
-                #!/bin/sh              
+                #!/bin/sh
                 dpi=${1:-150}
                 find . -type f -name '*.pdf' -exec sh -c '/usr/src/paperless/custom-scripts/shrinkpdf.sh "$1" "$(dirname "$1")"/"$(basename "$1" .pdf)".compressed.pdf $2' sh {} "$dpi" \;
-                
+
               shrinkpdf.sh: |-
                 #!/bin/sh
                 shrink ()

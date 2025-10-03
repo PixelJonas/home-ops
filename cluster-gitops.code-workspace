@@ -3,6 +3,7 @@
     "prettier.enable": true,
     "editor.formatOnSave": true,
     "files.autoSave": "afterDelay",
+    "files.trimTrailingWhitespace": true,
     "editor.formatOnPaste": true,
     "editor.tabSize": 2,
     "editor.suggestSelection": "first",
@@ -15,22 +16,22 @@
     "terminal.integrated.defaultProfile.linux": "zsh",
     "gitlens.keymap": "alternate",
     "[html]": {
-      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
     "[javascript]": {
-      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
     "[json]": {
-      "editor.defaultFormatter": "vscode.json-language-features",
+      "editor.defaultFormatter": "vscode.json-language-features"
     },
     "[jsonc]": {
-      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
     "[python]": {
-      "editor.formatOnType": true,
+      "editor.formatOnType": true
     },
     "[yaml]": {
-      "editor.defaultFormatter": "redhat.vscode-yaml",
+      "editor.defaultFormatter": "redhat.vscode-yaml"
     },
     "git.alwaysSignOff": true,
     "git.autofetch": true,
@@ -42,8 +43,8 @@
       "**/.classpath": true,
       "**/.project": true,
       "**/.settings": true,
-      "**/.factorypath": true,
+      "**/.factorypath": true
     },
-    "diffEditor.ignoreTrimWhitespace": false,
-  },
+    "diffEditor.ignoreTrimWhitespace": false
+  }
 }

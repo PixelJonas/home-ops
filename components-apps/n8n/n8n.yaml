@@ -16,7 +16,7 @@ spec:
     helm:
       values: |-
 
-        defaultPodOptions:  
+        defaultPodOptions:
           dnsPolicy: None
           dnsConfig:
             nameservers:

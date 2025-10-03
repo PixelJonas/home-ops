@@ -17,7 +17,7 @@ spec:
       values: |-
 
 
-        defaultPodOptions:  
+        defaultPodOptions:
           securityContext:
             runAsUser: 0
             runAsGroup: 0

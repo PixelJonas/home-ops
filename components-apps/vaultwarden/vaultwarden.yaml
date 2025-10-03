@@ -26,8 +26,8 @@ spec:
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
-                  DATA_FOLDER: "config"   
-                  ROCKET_PORT: 8000         
+                  DATA_FOLDER: "config"
+                  ROCKET_PORT: 8000
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
