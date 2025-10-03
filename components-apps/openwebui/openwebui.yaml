@@ -27,7 +27,7 @@ spec:
               openwebui:
                 image:
                   repository: ghcr.io/open-webui/open-webui
-                  tag: git-1623396
+                  tag: git-8334149-cuda
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
