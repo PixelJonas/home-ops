@@ -1,6 +1,6 @@
 - op: replace
   path: /spec/sourcePVC
-  value: immich-library
+  value: immich-app-library
 
 - op: replace
   path: /spec/restic/repository
