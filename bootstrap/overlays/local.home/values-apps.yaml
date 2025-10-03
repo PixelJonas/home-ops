@@ -69,3 +69,9 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/immich
+
+  openwebui:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/openwebui

@@ -1,0 +1,79 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: openwebui
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: openwebui
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.3.0
+    helm:
+      values: |-
+
+        defaultPodOptions:  
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          openwebui:
+            containers:
+              openwebui:
+                image:
+                  repository: ghcr.io/open-webui/open-webui
+                  tag: git-1623396
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  WEBUI_URL: https://gpt.apps.altus.janz.digital
+                  ENABLE_ADMIN_EXPORT: "true"
+                  ENV: "prod"
+                  ENABLE_PERSISTENT_CONFIG: "true"
+                  PORT: 8080
+                  ENABLE_REALTIME_CHAT_SAVE: true
+
+
+                securityContext:
+                  privileged: true
+        persistence:
+          config:
+            globalMounts:
+              - path: /app/backend/data
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 5Gi
+
+        service:
+          openwebui:
+            controller: openwebui
+            ports:
+              http:
+                port: 8080
+
+        ingress:
+          openwebui:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: gpt.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: openwebui
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
