@@ -27,6 +27,7 @@ spec:
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
+                  DATA_DIR: /data
 
         persistence:
           data:
