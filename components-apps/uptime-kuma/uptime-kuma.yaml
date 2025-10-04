@@ -1,0 +1,66 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: uptime-kuma-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: uptime-kuma
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.3.0
+    helm:
+      values: |-
+
+
+        controllers:
+          uptime-kuma:
+            containers:
+              uptime-kuma:
+                image:
+                  repository: louislam/uptime-kuma
+                  tag: 2.0.0-beta-rootless.3
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+
+        persistence:
+          data:
+            globalMounts:
+              - path: /data
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 5Gi
+
+        service:
+          uptime-kuma:
+            controller: uptime-kuma
+            ports:
+              http:
+                port: 3001
+
+        ingress:
+          uptime-kuma:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: status.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: uptime-kuma
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
