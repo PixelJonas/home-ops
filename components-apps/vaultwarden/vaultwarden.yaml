@@ -28,6 +28,15 @@ spec:
                   TZ: Europe/Berlin
                   DATA_FOLDER: "config"
                   ROCKET_PORT: 8000
+                  ROCKET_ENV: prod
+                  ROCKET_WORKERS: 15
+                  LOG_LEVEL: "error"
+                  EXTENDED_LOGGING: "true"
+                  DOMAIN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: vaultwarden-credentials
+                        key: domain
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
