@@ -85,7 +85,7 @@ spec:
                   - "streamableHttp"
                   - "--stateful"
                   - '--stdio'
-                  - 'MCP_EMAIL_SERVER_FULL_NAME=/.n8n/mcp-email-server "uvx" "mcp-email-server@latest" "stdio"'
+                  - 'MCP_EMAIL_SERVER_CONFIG_PATH=/.n8n/mcp-email-server "uvx" "mcp-email-server@latest" "stdio"'
                 env:
                   TZ: Europe/Berlin
                   MCP_EMAIL_SERVER_ACCOUNT_NAME:
