@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - external-n8n-credentials.yaml
   - external-n8n-db-n8n.yaml
+  - external-unifi-mcp-credentials.yaml
   - n8n.yaml
   - postgresql-database.yaml
   - backup
