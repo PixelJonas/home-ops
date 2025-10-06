@@ -66,6 +66,8 @@ spec:
                 args:
                   - "--port"
                   - "3000"
+                  - "--outputTransport"
+                  - "streamableHttp"
                   - '--stdio'
                   - ' "npx" "@nloui/paperless-mcp" "${PAPERLESS_URL}" "${API_KEY}" '
                 env:
