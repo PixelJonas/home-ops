@@ -77,7 +77,7 @@ spec:
               fastmail-mcp:
                 image:
                   repository: docker.io/supercorp/supergateway
-                  tag: 3.4.2
+                  tag: 3.4.2-uvx
                 args:
                   - "--port"
                   - "3000"
@@ -85,14 +85,44 @@ spec:
                   - "streamableHttp"
                   - "--stateful"
                   - '--stdio'
-                  - ' "npx" "github:MadLlama25/fastmail-mcp"'
+                  - ' "uvx" "mcp-email-server@latest"'
                 env:
                   TZ: Europe/Berlin
-                  FASTMAIL_API_TOKEN:
+                  MCP_EMAIL_SERVER_ACCOUNT_NAME:
                     valueFrom:
                       secretKeyRef:
                         name: fastmail-mcp-credentials
-                        key: apikey
+                        key: account_name
+                  MCP_EMAIL_SERVER_FULL_NAME:
+                    valueFrom:
+                      secretKeyRef:
+                        name: fastmail-mcp-credentials
+                        key: full_name
+                  MCP_EMAIL_SERVER_EMAIL_ADDRESS:
+                    valueFrom:
+                      secretKeyRef:
+                        name: fastmail-mcp-credentials
+                        key: mail_from
+                  MCP_EMAIL_SERVER_USER_NAME:
+                    valueFrom:
+                      secretKeyRef:
+                        name: fastmail-mcp-credentials
+                        key: username
+                  MCP_EMAIL_SERVER_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: fastmail-mcp-credentials
+                        key: password
+                  MCP_EMAIL_SERVER_IMAP_HOST:
+                    valueFrom:
+                      secretKeyRef:
+                        name: fastmail-mcp-credentials
+                        key: imap-host
+                  MCP_EMAIL_SERVER_IMAP_PORT:
+                    valueFrom:
+                      secretKeyRef:
+                        name: fastmail-mcp-credentials
+                        key: imap-port
 
           n8n:
             containers:
