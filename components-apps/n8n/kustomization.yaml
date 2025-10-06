@@ -7,6 +7,7 @@ resources:
   - external-n8n-db-n8n.yaml
   - external-unifi-mcp-credentials.yaml
   - external-paperless-mcp-credentials.yaml
+  - external-fastmail-mcp-credentials.yaml
   - n8n.yaml
   - postgresql-database.yaml
   - backup
