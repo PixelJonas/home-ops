@@ -70,7 +70,7 @@ spec:
                   - "streamableHttp"
                   - "--stateful"
                   - '--stdio'
-                  - ' "npx" "@nloui/paperless-mcp" "${PAPERLESS_URL}" "${API_KEY}" '
+                  - ' "npx" "@baruchiro/paperless-mcp" "${PAPERLESS_URL}" "${API_KEY}" '
                 env:
                   TZ: Europe/Berlin
                   PAPERLESS_URL: http://paperless-ng.paperless.svc.cluster.local:8000
