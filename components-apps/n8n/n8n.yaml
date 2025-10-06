@@ -64,7 +64,8 @@ spec:
                   repository: ghcr.io/supercorp-ai/supergateway
                   tag: v2.7.0
                 args:
-                  - "--stdio npx -y @nloui/paperless-mcp ${PAPERLESS_URL} ${API_KEY}"
+                  - '--stdio'
+                  - ' "npx -y @nloui/paperless-mcp ${PAPERLESS_URL} ${API_KEY}" '
                   - "--port 3000"
                 env:
                   TZ: Europe/Berlin
