@@ -30,31 +30,33 @@ spec:
 
         controllers:
           unifi-mcp:
-            image:
-              repository: ghcr.io/sirkirby/unifi-network-mcp
-              tag: 0.1.3
-              pullPolicy: IfNotPresent
-            env:
-              TZ: Europe/Berlin
-              UNIFI_PORT: 443
-              UNIFI_SITE: default
-              UNIFI_VERIFY_SSL: false
-              UNIFI_MCP_HTTP_ENABLED: false
-              UNIFI_HOST:
-                valueFrom:
-                  secretKeyRef:
-                    name: unifi-mcp-credentials
-                    key: host
-              UNIFI_USERNAME:
-                valueFrom:
-                  secretKeyRef:
-                    name: unifi-mcp-credentials
-                    key: username
-              UNIFI_PASSWORD:
-                valueFrom:
-                  secretKeyRef:
-                    name: unifi-mcp-credentials
-                    key: password
+            containers:
+              unifi-mcp:
+                image:
+                  repository: ghcr.io/sirkirby/unifi-network-mcp
+                  tag: 0.1.3
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  UNIFI_PORT: 443
+                  UNIFI_SITE: default
+                  UNIFI_VERIFY_SSL: false
+                  UNIFI_MCP_HTTP_ENABLED: false
+                  UNIFI_HOST:
+                    valueFrom:
+                      secretKeyRef:
+                        name: unifi-mcp-credentials
+                        key: host
+                  UNIFI_USERNAME:
+                    valueFrom:
+                      secretKeyRef:
+                        name: unifi-mcp-credentials
+                        key: username
+                  UNIFI_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: unifi-mcp-credentials
+                        key: password
           n8n:
             containers:
               n8n:
