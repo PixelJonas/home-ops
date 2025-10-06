@@ -41,7 +41,7 @@ spec:
                   UNIFI_PORT: 443
                   UNIFI_SITE: default
                   UNIFI_VERIFY_SSL: false
-                  UNIFI_MCP_HTTP_ENABLED: false
+                  UNIFI_MCP_HTTP_ENABLED: true
                   UNIFI_HOST:
                     valueFrom:
                       secretKeyRef:
