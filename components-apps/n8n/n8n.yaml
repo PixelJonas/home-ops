@@ -61,13 +61,14 @@ spec:
             containers:
               paperless-mcp:
                 image:
-                  repository: ghcr.io/supercorp-ai/supergateway
-                  tag: v2.7.0
+                  repository: docker.io/supercorp/supergateway
+                  tag: 3.4.2
                 args:
                   - "--port"
                   - "3000"
                   - "--outputTransport"
                   - "streamableHttp"
+                  - "--stateful"
                   - '--stdio'
                   - ' "npx" "@nloui/paperless-mcp" "${PAPERLESS_URL}" "${API_KEY}" '
                 env:
