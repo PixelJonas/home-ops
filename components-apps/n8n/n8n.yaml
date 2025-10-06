@@ -71,7 +71,7 @@ spec:
                       secretKeyRef:
                         name: paperless-mcp-credentials
                         key: apikey
-                    paperless-mcp:
+
           fastmail-mcp:
             containers:
               fastmail-mcp:
