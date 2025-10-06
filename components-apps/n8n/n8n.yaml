@@ -209,6 +209,12 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 5Gi
+          config:
+            globalMounts:
+              - path: /.config
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 1Gi
 
         service:
           n8n:
