@@ -201,11 +201,6 @@ spec:
             ports:
               http:
                 port: 3000
-          fastmail-mcp:
-            controller: fastmail-mcp
-            ports:
-              http:
-                port: 3000
           n8n-pgvector:
             controller: n8n-pgvector
             ports:
