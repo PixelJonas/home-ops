@@ -71,59 +71,26 @@ spec:
                       secretKeyRef:
                         name: paperless-mcp-credentials
                         key: apikey
-
-          fastmail-mcp:
+          n8n-pgvector:
             containers:
-              fastmail-mcp:
+              database:
                 image:
-                  repository: docker.io/supercorp/supergateway
-                  tag: 3.4.2-uvx
-                args:
-                  - "--port"
-                  - "3000"
-                  - "--outputTransport"
-                  - "streamableHttp"
-                  - "--stateful"
-                  - '--stdio'
-                  - 'MCP_EMAIL_SERVER_CONFIG_PATH=/.n8n/mcp-email-server "uvx" "mcp-email-server@latest" "stdio"'
+                  repository: pgvector/pgvector
+                  tag: 0.8.1-pg18-trixie
+                  pullPolicy: IfNotPresent
                 env:
-                  TZ: Europe/Berlin
-                  MCP_EMAIL_SERVER_ACCOUNT_NAME:
+                  POSTGRES_DB: n8n
+                  POSTGRES_INITDB_ARGS: '--data-checksums'
+                  POSTGRES_USER:
                     valueFrom:
                       secretKeyRef:
-                        name: fastmail-mcp-credentials
-                        key: account_name
-                  MCP_EMAIL_SERVER_FULL_NAME:
+                        name: n8n-pgvector-credentials
+                        key: user
+                  POSTGRES_PASSWORD:
                     valueFrom:
                       secretKeyRef:
-                        name: fastmail-mcp-credentials
-                        key: full_name
-                  MCP_EMAIL_SERVER_EMAIL_ADDRESS:
-                    valueFrom:
-                      secretKeyRef:
-                        name: fastmail-mcp-credentials
-                        key: mail_from
-                  MCP_EMAIL_SERVER_USER_NAME:
-                    valueFrom:
-                      secretKeyRef:
-                        name: fastmail-mcp-credentials
-                        key: username
-                  MCP_EMAIL_SERVER_PASSWORD:
-                    valueFrom:
-                      secretKeyRef:
-                        name: fastmail-mcp-credentials
+                        name: n8n-pgvector-credentials
                         key: password
-                  MCP_EMAIL_SERVER_IMAP_HOST:
-                    valueFrom:
-                      secretKeyRef:
-                        name: fastmail-mcp-credentials
-                        key: imap-host
-                  MCP_EMAIL_SERVER_IMAP_PORT:
-                    valueFrom:
-                      secretKeyRef:
-                        name: fastmail-mcp-credentials
-                        key: imap-port
-
           n8n:
             containers:
               n8n:
@@ -209,7 +176,15 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 5Gi
-            
+          n8n-pgvector:
+            advancedMounts:
+              n8n-pgvector:
+                n8n-pgvector:
+                  - path: /var/lib/postgresql/data
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 5Gi
+
         service:
           n8n:
             controller: n8n
@@ -231,6 +206,11 @@ spec:
             ports:
               http:
                 port: 3000
+          n8n-pgvector:
+            controller: n8n-pgvector
+            ports:
+              http:
+                port: 5432
 
         ingress:
           n8n:
