@@ -230,7 +230,7 @@ spec:
               http:
                 port: 5432
           ollama:
-            controller: n8n-pgvector
+            controller: ollama
             ports:
               http:
                 port: 11434
