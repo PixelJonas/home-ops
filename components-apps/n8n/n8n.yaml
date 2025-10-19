@@ -29,6 +29,21 @@ spec:
               - janz.digital
 
         controllers:
+          ollama:
+            containers:
+              ollama:
+                resources:
+                  limits:
+                    nvidia.com/gpu: 1
+                image:
+                  repository: docker.io/ollama/ollama
+                  tag: 0.12.6
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  OLLAMA_HOST: "0.0.0.0:11434"
+ 
+ 
           unifi-mcp:
             containers:
               unifi-mcp:
@@ -184,6 +199,14 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 5Gi
+          ollama:
+            advancedMounts:
+              ollama:
+                ollama:
+                  - path: /root/.ollama
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 30Gi
 
         service:
           n8n:
@@ -206,6 +229,11 @@ spec:
             ports:
               http:
                 port: 5432
+          ollama:
+            controller: n8n-pgvector
+            ports:
+              http:
+                port: 11434
 
         ingress:
           n8n:
