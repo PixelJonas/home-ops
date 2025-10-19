@@ -206,7 +206,7 @@ spec:
                   - path: /.ollama
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
-            size: 50Gi
+            size: 250Gi
 
         service:
           n8n:
