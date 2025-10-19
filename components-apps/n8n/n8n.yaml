@@ -203,7 +203,7 @@ spec:
             advancedMounts:
               ollama:
                 ollama:
-                  - path: /root/.ollama
+                  - path: /.ollama
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 30Gi
