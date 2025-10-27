@@ -112,8 +112,8 @@ spec:
             containers:
               n8n:
                 image:
-                  repository: docker.io/n8nio/n8n
-                  tag: 1.116.1
+                  repository: ghcr.io/n8n-io/n8n
+                  tag: 1.117.1
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
