@@ -27,6 +27,12 @@ spec:
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
+                  SB_FOLDER: /space
+                  SB_USER:
+                    valueFrom:
+                      secretKeyRef:
+                        name: silverbullet-credentials
+                        key: user-credentials
                   SB_AUTH_TOKEN:
                     valueFrom:
                       secretKeyRef:
