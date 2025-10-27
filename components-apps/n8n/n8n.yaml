@@ -29,22 +29,27 @@ spec:
               - janz.digital
 
         controllers:
-          ollama:
+          vllm:
             containers:
-              ollama:
+              vllm:
                 resources:
                   limits:
                     nvidia.com/gpu: 1
                 image:
-                  repository: docker.io/ollama/ollama
-                  tag: 0.12.6
+                  repository: docker.io/vllm/vllm-openai
+                  tag: v0.11.0
                   pullPolicy: IfNotPresent
+                command: ["/bin/sh", "-c"]
+                args: [
+                        "vllm serve ibm-granite/granite-3.1-8b-instruct --enable-auto-tool-choice --tool-call-parser granite --trust-remote-code --enable-chunked-prefill --max_num_batched_tokens 1024"
+                      ]
                 env:
                   TZ: Europe/Berlin
-                  OLLAMA_HOST: "0.0.0.0:11434"
-                  OLLAMA_FLASH_ATTENTION: "1"
-                  OLLAMA_KEEP_ALIVE: "-1"
- 
+                  HUGGING_FACE_HUB_TOKEN: 
+                     valueFrom:
+                      secretKeyRef:
+                        name: n8n-credentials
+                        key: huggingface-token
  
           unifi-mcp:
             containers:
@@ -184,6 +189,10 @@ spec:
           cache:
             globalMounts:
               - path: /.cache
+            advancedMounts:
+              vllm:
+                vllm:
+                  - path: /.cache_old/huggingface
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 1Gi
@@ -201,14 +210,20 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 5Gi
-          ollama:
+          vllm:
             advancedMounts:
-              ollama:
-                ollama:
-                  - path: /.ollama
+              vllm:
+                vllm:
+                  - path: /.cache
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 250Gi
+          shm:
+            type: emptyDir
+            medium: Memory
+            sizeLimit: 4Gi
+            globalMounts:
+              - path: /dev/shm
 
         service:
           n8n:
@@ -231,11 +246,11 @@ spec:
             ports:
               http:
                 port: 5432
-          ollama:
-            controller: ollama
+          vllm:
+            controller: vllm
             ports:
               http:
-                port: 11434
+                port: 8000
 
         ingress:
           n8n:
