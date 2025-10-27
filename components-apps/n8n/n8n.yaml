@@ -214,6 +214,14 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 250Gi
+          vllm-config:
+            advancedMounts:
+              vllm:
+                vllm:
+                  - path: /.config
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 1Gi
           shm:
             type: emptyDir
             medium: Memory
