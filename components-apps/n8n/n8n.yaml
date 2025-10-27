@@ -29,27 +29,22 @@ spec:
               - janz.digital
 
         controllers:
-          vllm:
+          ollama:
             containers:
-              vllm:
+              ollama:
                 resources:
                   limits:
                     nvidia.com/gpu: 1
                 image:
-                  repository: docker.io/vllm/vllm-openai
-                  tag: v0.11.0
+                  repository: docker.io/ollama/ollama
+                  tag: 0.12.6
                   pullPolicy: IfNotPresent
-                command: ["/bin/sh", "-c"]
-                args: [
-                        "vllm serve mistralai/Mistral-7B-Instruct-v0.3 --enable-auto-tool-choice --tool-call-parser mistral --chat-template examples/tool_chat_template_mistral_parallel.jinja --trust-remote-code --enable-chunked-prefill --max_num_batched_tokens 1024 --dtype auto --api-key secrettoken"
-                      ]
                 env:
                   TZ: Europe/Berlin
-                  HUGGING_FACE_HUB_TOKEN: 
-                     valueFrom:
-                      secretKeyRef:
-                        name: n8n-credentials
-                        key: huggingface-token
+                  OLLAMA_HOST: "0.0.0.0:11434"
+                  OLLAMA_FLASH_ATTENTION: "1"
+                  OLLAMA_KEEP_ALIVE: "-1"
+ 
  
           unifi-mcp:
             containers:
@@ -206,28 +201,14 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 5Gi
-          vllm:
+          ollama:
             advancedMounts:
-              vllm:
-                vllm:
-                  - path: /.cache/huggingface
+              ollama:
+                ollama:
+                  - path: /.ollama
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 250Gi
-          vllm-config:
-            advancedMounts:
-              vllm:
-                vllm:
-                  - path: /.config
-            storageClass: lvms-vg1
-            accessMode: ReadWriteOnce
-            size: 1Gi
-          shm:
-            type: emptyDir
-            medium: Memory
-            sizeLimit: 4Gi
-            globalMounts:
-              - path: /dev/shm
 
         service:
           n8n:
@@ -250,11 +231,11 @@ spec:
             ports:
               http:
                 port: 5432
-          vllm:
-            controller: vllm
+          ollama:
+            controller: ollama
             ports:
               http:
-                port: 8000
+                port: 11434
 
         ingress:
           n8n:
