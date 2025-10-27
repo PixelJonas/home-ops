@@ -41,7 +41,7 @@ spec:
                   pullPolicy: IfNotPresent
                 command: ["/bin/sh", "-c"]
                 args: [
-                        "vllm serve ibm-granite/granite-3.1-8b-instruct --enable-auto-tool-choice --tool-call-parser granite --trust-remote-code --enable-chunked-prefill --max_num_batched_tokens 1024 --dtype auto --api-key secrettoken"
+                        "vllm serve ibm-granite/granite-3.1-8b-instruct --enable-auto-tool-choice --tool-call-parser granite --trust-remote-code --enable-chunked-prefill --max_num_batched_tokens 1024 --dtype auto --max-model-len 37296 --api-key secrettoken"
                       ]
                 env:
                   TZ: Europe/Berlin
