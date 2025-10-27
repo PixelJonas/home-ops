@@ -1,0 +1,95 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: silverbullet-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: silverbullet
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.3.0
+    helm:
+      values: |-
+
+
+        controllers:
+          silverbullet:
+            containers:
+              silverbullet:
+                image:
+                  repository: ghcr.io/silverbulletmd/silverbullet
+                  tag: 2.1.9
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  SB_AUTH_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: silverbullet-credentials
+                        key: auth-token
+              silverbullet-mcp:
+                image:
+                  repository: ghcr.io/ahmad-a0/silverbullet-mcp
+                  tag: v1.0.0
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  SB_AUTH_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: silverbullet-credentials
+                        key: auth-token
+                  MCP_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: silverbullet-credentials
+                        key: mcp-token
+                  SB_API_BASE_URL: http://localhost:3000
+                  PORT: 4000
+
+        persistence:
+          data:
+            globalMounts:
+              - path: /space
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 20Gi
+
+        service:
+          silverbullet:
+            controller: silverbullet
+            ports:
+              http:
+                port: 3000
+          silverbullet-mcp:
+            controller: silverbullet
+            ports:
+              http:
+                port: 4000
+
+        ingress:
+          silverbullet:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: wiki.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: silverbullet
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

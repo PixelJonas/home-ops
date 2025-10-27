@@ -99,3 +99,9 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/uptime-kuma
+
+  silverbullet:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/silverbullet
