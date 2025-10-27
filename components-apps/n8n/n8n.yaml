@@ -189,10 +189,6 @@ spec:
           cache:
             globalMounts:
               - path: /.cache
-            advancedMounts:
-              vllm:
-                vllm:
-                  - path: /.cache_old/huggingface
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 1Gi
@@ -214,7 +210,7 @@ spec:
             advancedMounts:
               vllm:
                 vllm:
-                  - path: /.cache
+                  - path: /.cache/huggingface
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 250Gi
