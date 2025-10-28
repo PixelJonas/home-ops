@@ -170,7 +170,8 @@ spec:
                         key: host
                   N8N_PORT: 8080
                   NODE_ENV: production
-                  NODE_FUNCTION_ALLOW_BUILTIN: crypto
+                  NODE_FUNCTION_ALLOW_BUILTIN: "*"
+                  NODE_FUNCTION_ALLOW_EXTERNAL: "*"
                   WEBHOOK_URL:
                     valueFrom:
                       secretKeyRef:
