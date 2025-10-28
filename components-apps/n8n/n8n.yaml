@@ -30,14 +30,10 @@ spec:
 
         controllers:
           ollama:
-            pod:
-              resources:
-                limits:
-                  nvidia.com/gpu: 1
             containers:
               n8n-docling:
                 image:
-                  repository: ghcr.io/docling-project/docling-serve
+                  repository: ghcr.io/docling-project/docling-serve-cu126
                   tag: v1.7.1
                   pullPolicy: IfNotPresent
               ollama:
