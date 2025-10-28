@@ -30,11 +30,17 @@ spec:
 
         controllers:
           ollama:
+            pod:
+              resources:
+                limits:
+                  nvidia.com/gpu: 1
             containers:
+              n8n-docling:
+                image:
+                  repository: ghcr.io/docling-project/docling-serve
+                  tag: v1.7.1
+                  pullPolicy: IfNotPresent
               ollama:
-                resources:
-                  limits:
-                    nvidia.com/gpu: 1
                 image:
                   repository: docker.io/ollama/ollama
                   tag: 0.12.6
@@ -274,6 +280,11 @@ spec:
             ports:
               http:
                 port: 11434
+          docling:
+            controller: ollama
+            ports:
+              http:
+                port: 5001
           qdrant:
             controller: n8n-qdrant
             ports:
