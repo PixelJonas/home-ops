@@ -108,6 +108,36 @@ spec:
                       secretKeyRef:
                         name: n8n-pgvector-credentials
                         key: password
+          n8n-qdrant:
+            containers:
+              n8n-qdrant:
+                image:
+                  repository: docker.io/qdrant/qdrant
+                  tag: v1-gpu-nvidia
+                  pullPolicy: IfNotPresent
+                env:
+                  QDRANT__LOG_LEVEL: INFO
+                  QDRANT__SERVICE__ENABLE_TLS: "0"
+                  QDRANT__STORAGE__STORAGE_PATH: /qdrant/data/storage
+                  QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/data/snapshots
+                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__SNAPSHOTS_STORAGE: s3
+                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__BUCKET: n8n-qdrant
+                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__REGION: us-east-1
+                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__ENDPOINT_URL:                     
+                    valueFrom:
+                      secretKeyRef:
+                        name: n8n-qdrant-credentials
+                        key: s3-endpoint-url
+                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__ACCESS_KEY:                     
+                    valueFrom:
+                      secretKeyRef:
+                        name: n8n-qdrant-credentials
+                        key: s3-access-key
+                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__SECRET_KEY:                     
+                    valueFrom:
+                      secretKeyRef:
+                        name: n8n-qdrant-credentials
+                        key: s3-secret-key
           n8n:
             containers:
               n8n:
@@ -209,6 +239,14 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 250Gi
+          qdrant:
+            advancedMounts:
+              n8n-qdrant:
+                n8n-qdrant:
+                  - path: /qdrant/data
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 25Gi
 
         service:
           n8n:
@@ -236,6 +274,11 @@ spec:
             ports:
               http:
                 port: 11434
+          qdrant:
+            controller: n8n-qdrant
+            ports:
+              http:
+                port: 6333
 
         ingress:
           n8n:
