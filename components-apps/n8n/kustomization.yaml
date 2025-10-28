@@ -8,6 +8,7 @@ resources:
   - external-unifi-mcp-credentials.yaml
   - external-paperless-mcp-credentials.yaml
   - external-n8n-pgcvector-credentials.yaml
+  - external-n8n-qdrant-credentials.yaml
   - n8n.yaml
   - postgresql-database.yaml
   - backup
