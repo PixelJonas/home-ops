@@ -36,6 +36,8 @@ spec:
                   repository: ghcr.io/docling-project/docling-serve-cu126
                   tag: v1.7.1
                   pullPolicy: IfNotPresent
+                env:
+                  DOCLING_SERVE_ENABLE_REMOTE_SERVICES: "true"
               ollama:
                 image:
                   repository: docker.io/ollama/ollama
@@ -168,6 +170,7 @@ spec:
                         key: host
                   N8N_PORT: 8080
                   NODE_ENV: production
+                  NODE_FUNCTION_ALLOW_BUILTIN: crypto
                   WEBHOOK_URL:
                     valueFrom:
                       secretKeyRef:
