@@ -30,18 +30,20 @@ spec:
 
         controllers:
           ollama:
-            resources:
-              limits:
-                nvidia.com/gpu: 1
-            image:
-              repository: docker.io/ollama/ollama
-              tag: 0.12.6
-              pullPolicy: IfNotPresent
-            env:
-              TZ: Europe/Berlin
-              OLLAMA_HOST: "0.0.0.0:11434"
-              OLLAMA_FLASH_ATTENTION: "1"
-              OLLAMA_KEEP_ALIVE: "-1"
+            containers:
+              ollama:
+                resources:
+                  limits:
+                    nvidia.com/gpu: 1
+                image:
+                  repository: docker.io/ollama/ollama
+                  tag: 0.12.6
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  OLLAMA_HOST: "0.0.0.0:11434"
+                  OLLAMA_FLASH_ATTENTION: "1"
+                  OLLAMA_KEEP_ALIVE: "-1"
  
  
           unifi-mcp:
