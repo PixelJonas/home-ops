@@ -30,24 +30,18 @@ spec:
 
         controllers:
           ollama:
-            containers:
-              n8n-docling:
-                image:
-                  repository: ghcr.io/docling-project/docling-serve-cu126
-                  tag: v1.7.1
-                  pullPolicy: IfNotPresent
-                env:
-                  DOCLING_SERVE_ENABLE_REMOTE_SERVICES: "true"
-              ollama:
-                image:
-                  repository: docker.io/ollama/ollama
-                  tag: 0.12.6
-                  pullPolicy: IfNotPresent
-                env:
-                  TZ: Europe/Berlin
-                  OLLAMA_HOST: "0.0.0.0:11434"
-                  OLLAMA_FLASH_ATTENTION: "1"
-                  OLLAMA_KEEP_ALIVE: "-1"
+            resources:
+              limits:
+                nvidia.com/gpu: 1
+            image:
+              repository: docker.io/ollama/ollama
+              tag: 0.12.6
+              pullPolicy: IfNotPresent
+            env:
+              TZ: Europe/Berlin
+              OLLAMA_HOST: "0.0.0.0:11434"
+              OLLAMA_FLASH_ATTENTION: "1"
+              OLLAMA_KEEP_ALIVE: "-1"
  
  
           unifi-mcp:
@@ -280,11 +274,6 @@ spec:
             ports:
               http:
                 port: 11434
-          docling:
-            controller: ollama
-            ports:
-              http:
-                port: 5001
           qdrant:
             controller: n8n-qdrant
             ports:
