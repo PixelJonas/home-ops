@@ -22,7 +22,7 @@ spec:
               server:
                 image:
                   repository: ghcr.io/immich-app/immich-server
-                  tag: v2.0.1
+                  tag: v2.2.1
                   pullPolicy: IfNotPresent
                 env:
                   DB_DATABASE_NAME: immich
