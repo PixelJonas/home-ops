@@ -82,10 +82,6 @@ spec:
             globalMounts:
               - path: /sync
             size: 10Gi
-          audiobooks:
-            existingClaim: nfs-resilio-audiobooks
-            globalMounts:
-              - path: /audiobooks
 
   syncPolicy:
     automated:
