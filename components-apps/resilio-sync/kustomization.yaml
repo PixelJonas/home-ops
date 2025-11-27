@@ -5,6 +5,5 @@ resources:
   - namespace.yaml
   - anyuid-rolebinding.yaml
   - privileged-rolebinding.yaml
-  - nsf-audiobooks.yaml
   - resilio-sync-app.yaml
   - backup
