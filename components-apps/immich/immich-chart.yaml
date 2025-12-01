@@ -52,8 +52,8 @@ spec:
             containers:
               redis:
                 image:
-                  repository: docker.io/valkey/valkey
-                  tag: 8.1.4
+                  repository: ghcr.io/valkey-io/valkey
+                  tag: 9.0.0
                   pullPolicy: IfNotPresent
           database:
             containers:
