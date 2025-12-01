@@ -44,8 +44,8 @@ spec:
                   OLLAMA_HOST: "0.0.0.0:11434"
                   OLLAMA_FLASH_ATTENTION: "1"
                   OLLAMA_KEEP_ALIVE: "-1"
- 
- 
+
+
           unifi-mcp:
             containers:
               unifi-mcp:
@@ -123,17 +123,17 @@ spec:
                   QDRANT__STORAGE__SNAPSHOTS_CONFIG__SNAPSHOTS_STORAGE: s3
                   QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__BUCKET: n8n-qdrant
                   QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__REGION: us-east-1
-                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__ENDPOINT_URL:                     
+                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__ENDPOINT_URL:
                     valueFrom:
                       secretKeyRef:
                         name: n8n-qdrant-credentials
                         key: s3-endpoint-url
-                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__ACCESS_KEY:                     
+                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__ACCESS_KEY:
                     valueFrom:
                       secretKeyRef:
                         name: n8n-qdrant-credentials
                         key: s3-access-key
-                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__SECRET_KEY:                     
+                  QDRANT__STORAGE__SNAPSHOTS_CONFIG__S3_CONFIG__SECRET_KEY:
                     valueFrom:
                       secretKeyRef:
                         name: n8n-qdrant-credentials
