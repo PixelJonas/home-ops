@@ -140,6 +140,22 @@ spec:
                         key: s3-secret-key
           n8n:
             containers:
+              n8n-task:
+                 image:
+                  repository: ghcr.io/n8nio/runners
+                  tag: 1.123.3
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  GENERIC_TIMEZONE: Europe/Berlin
+                  N8N_RUNNERS_TASK_BROKER_URI: http://n8n-app-n8n-task-broker.n8n.svc.cluster.local:5679
+                  N8N_RUNNERS_AUTH_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: n8n-credentials
+                        key: runner-auth
+                  NODE_FUNCTION_ALLOW_BUILTIN: "*"
+                  NODE_FUNCTION_ALLOW_EXTERNAL: "*"
               n8n:
                 image:
                   repository: ghcr.io/n8n-io/n8n
@@ -175,6 +191,15 @@ spec:
                         key: webhookurl
                   N8N_HIRING_BANNER_ENABLED: false
                   N8N_RUNNERS_ENABLED: true
+                  N8N_RUNNERS_MODE: external
+                  N8N_RUNNERS_BROKER_LISTEN_ADDRESS: 0.0.0.0
+                  N8N_RUNNERS_BROKER_PORT: 5679
+                  N8N_NATIVE_PYTHON_RUNNER: true
+                  N8N_RUNNERS_AUTH_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: n8n-credentials
+                        key: runner-auth
                   N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: false
                   N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE: true
                   N8N_SMTP_SSL: true
@@ -256,6 +281,11 @@ spec:
             ports:
               http:
                 port: 8080
+          n8n-task-broker:
+            controller: n8n
+            ports:
+              http:
+                port: 5679
           unifi-mcp:
             controller: unifi-mcp
             ports:
