@@ -187,6 +187,7 @@ spec:
                   NODE_ENV: production
                   NODE_FUNCTION_ALLOW_BUILTIN: "*"
                   NODE_FUNCTION_ALLOW_EXTERNAL: "*"
+                  N8N_RUNNERS_EXTERNAL_ALLOW: "*"
                   WEBHOOK_URL:
                     valueFrom:
                       secretKeyRef:
