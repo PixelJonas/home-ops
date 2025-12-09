@@ -138,7 +138,7 @@ spec:
                       secretKeyRef:
                         name: n8n-qdrant-credentials
                         key: s3-secret-key
-          n8n:
+          n8n-tasks:
             containers:
               n8n-task:
                  image:
@@ -156,6 +156,8 @@ spec:
                         key: runner-auth
                   NODE_FUNCTION_ALLOW_BUILTIN: "*"
                   NODE_FUNCTION_ALLOW_EXTERNAL: "*"
+          n8n:
+            containers:
               n8n:
                 image:
                   repository: ghcr.io/n8n-io/n8n
