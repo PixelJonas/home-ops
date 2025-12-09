@@ -248,12 +248,6 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 5Gi
-          n8n-pgvector:
-            globalMounts:
-              - path: /var/lib/postgresql/data
-            storageClass: lvms-vg1
-            accessMode: ReadWriteOnce
-            size: 5Gi
           ollama:
             advancedMounts:
               ollama:
