@@ -142,9 +142,9 @@ spec:
             containers:
               n8n-tasks:
                 image:
-                  repository: ghcr.io/n8n-io/runners
-                  tag: 1.123.3
-                  pullPolicy: IfNotPresent
+                  repository: ghcr.io/pixeljonas/n8n-custom-runner
+                  tag: latest
+                  pullPolicy: Always
                 env:
                   TZ: Europe/Berlin
                   GENERIC_TIMEZONE: Europe/Berlin
