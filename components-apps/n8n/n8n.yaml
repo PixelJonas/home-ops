@@ -272,8 +272,8 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 25Gi
-          custom-scripts:
-            name: paperless-ng-custom-scripts
+          task-runners-config:
+            name: n8n-app-task-runners-config
             enabled: true
             advancedMounts:
               n8n-tasks:
@@ -289,7 +289,7 @@ spec:
         secrets:
           task-runners-config:
             enabled: true
-            suffix: custom-scripts
+            suffix: task-runners-config
             stringData:
               n8n-task-runners.json: |-
                 {
