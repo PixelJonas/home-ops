@@ -90,7 +90,7 @@ spec:
                         key: apikey
           n8n-pgvector:
             containers:
-              database:
+              n8n-pgvector:
                 image:
                   repository: pgvector/pgvector
                   tag: 0.8.1-pg18-trixie
