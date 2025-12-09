@@ -249,10 +249,8 @@ spec:
             accessMode: ReadWriteOnce
             size: 5Gi
           n8n-pgvector:
-            advancedMounts:
-              n8n-pgvector:
-                n8n-pgvector:
-                  - path: /var/lib/postgresql/data
+            globalMounts:
+              - path: /var/lib/postgresql/data
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 5Gi
