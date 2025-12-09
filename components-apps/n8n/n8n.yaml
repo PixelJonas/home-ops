@@ -278,7 +278,7 @@ spec:
             advancedMounts:
               n8n-tasks:
                 n8n-tasks:
-                  - path: /etc
+                  - path: /etc/n8n-task-runners.json
                     subPath: n8n-task-runners.json
             type: secret
             items:
