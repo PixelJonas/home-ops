@@ -53,7 +53,7 @@ spec:
               redis:
                 image:
                   repository: ghcr.io/valkey-io/valkey
-                  tag: 9.0.0
+                  tag: 9.0.1
                   pullPolicy: IfNotPresent
           database:
             containers:
