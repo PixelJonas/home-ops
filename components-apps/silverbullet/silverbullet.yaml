@@ -41,7 +41,7 @@ spec:
               silverbullet-mcp:
                 image:
                   repository: ghcr.io/ahmad-a0/silverbullet-mcp
-                  tag: v1.0.0
+                  tag: v1.0.1
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
