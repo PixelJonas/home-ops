@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: firefly-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: firefly-fints-import
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.5.0
+    helm:
+      values: |-
+
+        controllers:
+          firefly-importer:
+            containers:
+              firefly-importer:
+                image:
+                  repository: docker.io/benkl/firefly-iii-fints-importer
+                  tag: latest
+                  pullPolicy: Always
+                env:
+                  TZ: Europe/Berlin
+                  APP_ENV: prod
+        persistence:
+          config:
+            globalMounts:
+              - path: /app/configurations
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 1Gi
+
+        service:
+          firefly-importer:
+            controller: firefly-importer
+            ports:
+              http:
+                port: 8080
+
+        ingress:
+          firefly-importer:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: firefly-import.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: firefly-importer
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
