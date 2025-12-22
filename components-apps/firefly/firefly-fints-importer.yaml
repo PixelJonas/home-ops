@@ -3,7 +3,7 @@ kind: Application
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "111"
-  name: firefly-app
+  name: firefly-importer-app
   namespace: openshift-gitops
 spec:
   destination:
