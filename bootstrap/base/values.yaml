@@ -35,13 +35,13 @@ projects:
         kind: '*'
 
 applications:
-  external-secrets:
-    annotations:
-      argocd.argoproj.io/sync-wave: "1"
-    destination:
-      namespace: external-secrets-operator
-    source:
-      path: components-infra/external-secrets-operator/base
+  # external-secrets:
+  #   annotations:
+  #     argocd.argoproj.io/sync-wave: "1"
+  #   destination:
+  #     namespace: external-secrets-operator
+  #   source:
+  #     path: components-infra/external-secrets-operator/base
 
   gitops-alerting:
     annotations:
