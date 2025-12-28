@@ -14,9 +14,9 @@ spec:
       limits:
         cpu: 500m
         memory: 512Mi
-  channel: tech-preview-v0.1
+  channel: stable-v1
   installPlanApproval: Automatic
   name: openshift-external-secrets-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
-  startingCSV: external-secrets-operator.v0.1.0
+  startingCSV: external-secrets-operator.v1.0.0
