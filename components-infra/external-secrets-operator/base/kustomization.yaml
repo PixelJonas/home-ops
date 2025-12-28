@@ -2,4 +2,4 @@ resources:
   - namespace.yaml
 #  - operator-group.yaml
 #  - subscription.yaml
-  - externalsecrets.yaml
+#  - externalsecrets.yaml
