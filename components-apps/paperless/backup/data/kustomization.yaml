@@ -18,7 +18,7 @@ patches:
 
   - target:
       group: external-secrets.io
-      version: v1beta1
+      version: v1
       kind: ExternalSecret
       name: external-restic-config
     path: minio-secret.yaml
@@ -32,7 +32,7 @@ patches:
 
   - target:
       group: external-secrets.io
-      version: v1beta1
+      version: v1
       kind: ExternalSecret
       name: external-restic-config-b2
     path: backblaze-secret.yaml
