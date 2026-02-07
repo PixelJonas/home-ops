@@ -23,7 +23,7 @@ spec:
               uptime-kuma:
                 image:
                   repository: louislam/uptime-kuma
-                  tag: 2.0.2
+                  tag: 2.1.0
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
