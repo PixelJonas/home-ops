@@ -8,21 +8,17 @@ data:
 
     alertmanagerMain:
       enableUserAlertmanagerConfig: true
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 10Gi
+          volumeMode: Filesystem
     enableUserWorkload: true
-    nodeExporter:
-      collectors:
-        buddyinfo: {}
-        cpufreq: {}
-        ksmd: {}
-        mountstats: {}
-        netclass: {}
-        netdev: {}
-        processes: {}
-        systemd: {}
-        tcpstat: {}
     prometheusK8s:
       volumeClaimTemplate:
-        metadata: {}
         spec:
           accessModes:
           - ReadWriteOnce
@@ -30,4 +26,3 @@ data:
             requests:
               storage: 40Gi
           volumeMode: Filesystem
-        status: {}
