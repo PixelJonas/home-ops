@@ -37,7 +37,7 @@ spec:
                     nvidia.com/gpu: 1
                 image:
                   repository: docker.io/ollama/ollama
-                  tag: 0.16.1
+                  tag: 0.16.3
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
