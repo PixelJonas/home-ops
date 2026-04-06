@@ -258,6 +258,8 @@ spec:
                   N8N_RUNNERS_BROKER_LISTEN_ADDRESS: 0.0.0.0
                   N8N_RUNNERS_BROKER_PORT: 5679
                   N8N_NATIVE_PYTHON_RUNNER: true
+                  N8N_RUNNERS_TASK_TIMEOUT: 36000
+                  N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT: 36000
                   N8N_RUNNERS_AUTH_TOKEN:
                     valueFrom:
                       secretKeyRef:
