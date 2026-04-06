@@ -46,6 +46,70 @@ spec:
                   OLLAMA_KEEP_ALIVE: "-1"
 
 
+          bm25-embed:
+            containers:
+              bm25-embed:
+                image:
+                  repository: docker.io/library/python
+                  tag: "3.12-slim"
+                  pullPolicy: IfNotPresent
+                command:
+                  - /bin/sh
+                  - -c
+                args:
+                  - |
+                    set -eu
+                    export HOME=/cache
+                    export PYTHONUSERBASE=/cache/pyuser
+                    export PIP_CACHE_DIR=/cache/pip
+                    export PATH=$PYTHONUSERBASE/bin:$PATH
+                    export FASTEMBED_CACHE_PATH=/cache/fastembed
+                    mkdir -p "$PYTHONUSERBASE" "$PIP_CACHE_DIR" "$FASTEMBED_CACHE_PATH"
+                    pip install --user --quiet --disable-pip-version-check \
+                      'fastapi==0.115.*' \
+                      'uvicorn[standard]==0.32.*' \
+                      'fastembed==0.4.*'
+                    exec python -m uvicorn app:app \
+                      --host 0.0.0.0 --port 8000 \
+                      --app-dir /app
+                env:
+                  TZ: Europe/Berlin
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 512Mi
+                  limits:
+                    cpu: "1"
+                    memory: 1Gi
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 90
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 60
+                      periodSeconds: 10
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      failureThreshold: 30
+                      periodSeconds: 10
+
           unifi-mcp:
             containers:
               unifi-mcp:
@@ -282,8 +346,78 @@ spec:
             items:
               - key: n8n-task-runners.json
                 path: n8n-task-runners.json
+          bm25-cache:
+            advancedMounts:
+              bm25-embed:
+                bm25-embed:
+                  - path: /cache
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 2Gi
+          bm25-app:
+            enabled: true
+            type: configMap
+            name: n8n-app-bm25-app
+            advancedMounts:
+              bm25-embed:
+                bm25-embed:
+                  - path: /app
 
+        configMaps:
+          bm25-app:
+            enabled: true
+            suffix: bm25-app
+            data:
+              app.py: |
+                from contextlib import asynccontextmanager
+                from fastapi import FastAPI
+                from pydantic import BaseModel
+                from fastembed import SparseTextEmbedding
 
+                MODEL_NAME = "Qdrant/bm25"
+                _model: SparseTextEmbedding | None = None
+
+                @asynccontextmanager
+                async def lifespan(app: FastAPI):
+                    global _model
+                    _model = SparseTextEmbedding(model_name=MODEL_NAME)
+                    # Warm up so the first real request isn't slow
+                    list(_model.embed(["warmup"]))
+                    yield
+
+                app = FastAPI(lifespan=lifespan)
+
+                class EmbedRequest(BaseModel):
+                    texts: list[str]
+                    is_query: bool = False
+
+                class SparseVector(BaseModel):
+                    indices: list[int]
+                    values: list[float]
+
+                class EmbedResponse(BaseModel):
+                    model: str
+                    embeddings: list[SparseVector]
+
+                @app.get("/healthz")
+                def healthz():
+                    return {"ok": _model is not None, "model": MODEL_NAME}
+
+                @app.post("/embed/bm25", response_model=EmbedResponse)
+                def embed_bm25(req: EmbedRequest) -> EmbedResponse:
+                    assert _model is not None
+                    # BM25 in fastembed has separate passage/query methods;
+                    # query embeddings omit document-length normalization.
+                    iterator = (
+                        _model.query_embed(req.texts)
+                        if req.is_query
+                        else _model.embed(req.texts)
+                    )
+                    out = [
+                        SparseVector(indices=e.indices.tolist(), values=e.values.tolist())
+                        for e in iterator
+                    ]
+                    return EmbedResponse(model=MODEL_NAME, embeddings=out)
         secrets:
           task-runners-config:
             enabled: true
@@ -382,7 +516,12 @@ spec:
             ports:
               http:
                 port: 6333
-
+          bm25-embed:
+            controller: bm25-embed
+            ports:
+              http:
+                port: 8000
+                
         ingress:
           n8n:
             enabled: true
