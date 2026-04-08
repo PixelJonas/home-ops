@@ -143,8 +143,8 @@ spec:
                 env:
                   TZ: Europe/Berlin
                   PRESIDIO_SCORE_THRESHOLD: "0.7"
-                  PRESIDIO_MIN_ENTITY_LENGTH: "3"
-                  PRESIDIO_DENYLIST: "re,cap,von,cc,an,vg,hi,ok,tel,mail,info,gmbh,bcc,fwd,aw,betreff,datum,sitz,best regards"
+                  PRESIDIO_MIN_ENTITY_LENGTH: "4"
+                  PRESIDIO_DENYLIST: "re,cap,von,cc,an,vg,hi,ok,tel,mail,info,gmbh,bcc,fwd,aw,betreff,datum,sitz,best regards,moin,montag,dienstag,mittwoch,donnerstag,freitag,samstag,sonntag,openshift,lego"
                 resources:
                   requests:
                     cpu: 250m
