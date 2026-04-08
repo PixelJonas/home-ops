@@ -111,6 +111,73 @@ spec:
                       failureThreshold: 30
                       periodSeconds: 10
 
+          presidio-api:
+            containers:
+              presidio-api:
+                image:
+                  repository: docker.io/library/python
+                  tag: "3.12-slim"
+                  pullPolicy: IfNotPresent
+                command:
+                  - /bin/sh
+                  - -c
+                args:
+                  - |
+                    set -eu
+                    export HOME=/cache
+                    export PYTHONUSERBASE=/cache/pyuser
+                    export PIP_CACHE_DIR=/cache/pip
+                    export PATH=$PYTHONUSERBASE/bin:$PATH
+                    mkdir -p "$PYTHONUSERBASE" "$PIP_CACHE_DIR"
+                    pip install --user --quiet --disable-pip-version-check \
+                      'fastapi==0.115.*' \
+                      'uvicorn[standard]==0.32.*' \
+                      'presidio-analyzer==2.2.*' \
+                      'presidio-anonymizer==2.2.*' \
+                      'spacy==3.8.*'
+                    python -m spacy download en_core_web_md 2>/dev/null || true
+                    python -m spacy download de_core_news_md 2>/dev/null || true
+                    exec python -m uvicorn app:app \
+                      --host 0.0.0.0 --port 8000 \
+                      --app-dir /app
+                env:
+                  TZ: Europe/Berlin
+                resources:
+                  requests:
+                    cpu: 250m
+                    memory: 512Mi
+                  limits:
+                    cpu: "1"
+                    memory: 1Gi
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 120
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 90
+                      periodSeconds: 10
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      failureThreshold: 40
+                      periodSeconds: 10
+
           unifi-mcp:
             containers:
               unifi-mcp:
@@ -365,6 +432,22 @@ spec:
               bm25-embed:
                 bm25-embed:
                   - path: /app
+          presidio-cache:
+            advancedMounts:
+              presidio-api:
+                presidio-api:
+                  - path: /cache
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 2Gi
+          presidio-app:
+            enabled: true
+            type: configMap
+            name: n8n-app-presidio-app
+            advancedMounts:
+              presidio-api:
+                presidio-api:
+                  - path: /app
 
         configMaps:
           bm25-app:
@@ -421,6 +504,125 @@ spec:
                         for e in iterator
                     ]
                     return EmbedResponse(model=MODEL_NAME, embeddings=out)
+          presidio-app:
+            enabled: true
+            suffix: presidio-app
+            data:
+              app.py: |
+                from __future__ import annotations
+                import re
+                from contextlib import asynccontextmanager
+                from collections import defaultdict
+                from fastapi import FastAPI
+                from pydantic import BaseModel
+                from presidio_analyzer import AnalyzerEngine
+                from presidio_analyzer.nlp_engine import NlpEngineProvider
+
+                _analyzer: AnalyzerEngine | None = None
+
+                CATEGORY_PREFIXES = {
+                    "PERSON": "PERSON",
+                    "EMAIL_ADDRESS": "EMAIL",
+                    "PHONE_NUMBER": "PHONE",
+                    "LOCATION": "ADDRESS",
+                    "IBAN_CODE": "FINANCIAL",
+                    "CREDIT_CARD": "FINANCIAL",
+                    "IP_ADDRESS": "IP",
+                    "URL": "URL",
+                    "DATE_TIME": "DATE",
+                    "NRP": "NRP",
+                    "MEDICAL_LICENSE": "MEDICAL",
+                    "US_SSN": "SSN",
+                }
+
+                @asynccontextmanager
+                async def lifespan(app: FastAPI):
+                    global _analyzer
+                    provider = NlpEngineProvider(nlp_configuration={
+                        "nlp_engine_name": "spacy",
+                        "models": [
+                            {"lang_code": "en", "model_name": "en_core_web_md"},
+                            {"lang_code": "de", "model_name": "de_core_news_md"},
+                        ],
+                    })
+                    nlp_engine = provider.create_engine()
+                    _analyzer = AnalyzerEngine(
+                        nlp_engine=nlp_engine,
+                        supported_languages=["en", "de"],
+                    )
+                    # Warm up
+                    _analyzer.analyze(text="Jonas Janz jonas@example.com", language="de")
+                    yield
+
+                app = FastAPI(lifespan=lifespan)
+
+                class AnonymizeRequest(BaseModel):
+                    text: str
+                    language: str = "de"
+
+                class PiiMapping(BaseModel):
+                    original: str
+                    placeholder: str
+                    entity_type: str
+
+                class AnonymizeResponse(BaseModel):
+                    sanitized_text: str
+                    contains_pii: bool
+                    mappings: list[PiiMapping]
+
+                @app.get("/healthz")
+                def healthz():
+                    return {"ok": _analyzer is not None}
+
+                @app.post("/anonymize", response_model=AnonymizeResponse)
+                def anonymize(req: AnonymizeRequest) -> AnonymizeResponse:
+                    assert _analyzer is not None
+                    results = _analyzer.analyze(
+                        text=req.text,
+                        language=req.language,
+                        score_threshold=0.4,
+                    )
+
+                    # Build consistent mapping: same text -> same placeholder
+                    entity_counters: dict[str, int] = defaultdict(int)
+                    seen: dict[str, str] = {}  # original_text -> placeholder
+                    mappings: list[PiiMapping] = []
+
+                    # Sort by position (start) so we process left-to-right
+                    results = sorted(results, key=lambda r: r.start)
+
+                    for result in results:
+                        original = req.text[result.start:result.end]
+                        if not original.strip():
+                            continue
+
+                        # Normalise for dedup (case-insensitive)
+                        norm = original.strip().lower()
+                        if norm in seen:
+                            continue
+
+                        prefix = CATEGORY_PREFIXES.get(result.entity_type, result.entity_type)
+                        entity_counters[prefix] += 1
+                        placeholder = f"[{prefix}_{entity_counters[prefix]}]"
+
+                        seen[norm] = placeholder
+                        mappings.append(PiiMapping(
+                            original=original,
+                            placeholder=placeholder,
+                            entity_type=result.entity_type,
+                        ))
+
+                    # Apply replacements longest-first to avoid partial matches
+                    sanitized = req.text
+                    for m in sorted(mappings, key=lambda x: len(x.original), reverse=True):
+                        escaped = re.escape(m.original)
+                        sanitized = re.sub(escaped, m.placeholder, sanitized)
+
+                    return AnonymizeResponse(
+                        sanitized_text=sanitized,
+                        contains_pii=len(mappings) > 0,
+                        mappings=mappings,
+                    )
         secrets:
           task-runners-config:
             enabled: true
@@ -523,6 +725,11 @@ spec:
                 port: 6333
           bm25-embed:
             controller: bm25-embed
+            ports:
+              http:
+                port: 8000
+          presidio-api:
+            controller: presidio-api
             ports:
               http:
                 port: 8000
