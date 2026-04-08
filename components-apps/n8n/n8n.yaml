@@ -142,6 +142,9 @@ spec:
                       --app-dir /app
                 env:
                   TZ: Europe/Berlin
+                  PRESIDIO_SCORE_THRESHOLD: "0.7"
+                  PRESIDIO_MIN_ENTITY_LENGTH: "3"
+                  PRESIDIO_DENYLIST: "re,cap,von,cc,an,vg,hi,ok,tel,mail,info,gmbh,bcc,fwd,aw,betreff,datum,sitz,best regards"
                 resources:
                   requests:
                     cpu: 250m
@@ -510,7 +513,7 @@ spec:
             data:
               app.py: |
                 from __future__ import annotations
-                import re
+                import os, re
                 from contextlib import asynccontextmanager
                 from collections import defaultdict
                 from fastapi import FastAPI
@@ -533,6 +536,18 @@ spec:
                     "NRP": "NRP",
                     "MEDICAL_LICENSE": "MEDICAL",
                     "US_SSN": "SSN",
+                }
+
+                # Read tunables from environment variables
+                SCORE_THRESHOLD = float(os.environ.get("PRESIDIO_SCORE_THRESHOLD", "0.7"))
+                MIN_ENTITY_LENGTH = int(os.environ.get("PRESIDIO_MIN_ENTITY_LENGTH", "3"))
+                FALSE_POSITIVE_DENYLIST = {
+                    w.strip().lower()
+                    for w in os.environ.get(
+                        "PRESIDIO_DENYLIST",
+                        "re,cap,von,cc,an,vg,hi,ok,tel,mail,info,gmbh,bcc,fwd,aw,betreff,datum,sitz,best regards"
+                    ).split(",")
+                    if w.strip()
                 }
 
                 @asynccontextmanager
@@ -580,7 +595,7 @@ spec:
                     results = _analyzer.analyze(
                         text=req.text,
                         language=req.language,
-                        score_threshold=0.4,
+                        score_threshold=SCORE_THRESHOLD,
                     )
 
                     # Build consistent mapping: same text -> same placeholder
@@ -593,11 +608,21 @@ spec:
 
                     for result in results:
                         original = req.text[result.start:result.end]
-                        if not original.strip():
+                        stripped = original.strip()
+                        if not stripped:
+                            continue
+
+                        # Skip too-short matches (e.g. "Re", "CC")
+                        if len(stripped) < MIN_ENTITY_LENGTH:
                             continue
 
                         # Normalise for dedup (case-insensitive)
-                        norm = original.strip().lower()
+                        norm = stripped.lower()
+
+                        # Skip known false positives
+                        if norm in FALSE_POSITIVE_DENYLIST:
+                            continue
+
                         if norm in seen:
                             continue
 
