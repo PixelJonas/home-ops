@@ -90,8 +90,8 @@ spec:
                       httpGet:
                         path: /healthz
                         port: 8000
-                      initialDelaySeconds: 90
-                      periodSeconds: 30
+                      initialDelaySeconds: 10
+                      periodSeconds: 5
                   readiness:
                     enabled: true
                     custom: true
@@ -99,7 +99,7 @@ spec:
                       httpGet:
                         path: /healthz
                         port: 8000
-                      initialDelaySeconds: 60
+                      initialDelaySeconds: 20
                       periodSeconds: 10
                   startup:
                     enabled: true
@@ -160,7 +160,7 @@ spec:
                       httpGet:
                         path: /healthz
                         port: 8000
-                      initialDelaySeconds: 120
+                      initialDelaySeconds: 10
                       periodSeconds: 30
                   readiness:
                     enabled: true
@@ -169,7 +169,7 @@ spec:
                       httpGet:
                         path: /healthz
                         port: 8000
-                      initialDelaySeconds: 90
+                      initialDelaySeconds: 20
                       periodSeconds: 10
                   startup:
                     enabled: true
