@@ -23,7 +23,7 @@ spec:
               silverbullet:
                 image:
                   repository: ghcr.io/silverbulletmd/silverbullet
-                  tag: 2.5.2
+                  tag: 2.6.1
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
