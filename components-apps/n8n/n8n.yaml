@@ -15,7 +15,7 @@ spec:
     targetRevision: 4.6.2
     helm:
       values: |-
-
+        
         defaultPodOptions:
           dnsPolicy: None
           dnsConfig:
@@ -52,7 +52,7 @@ spec:
               bm25-embed:
                 image:
                   repository: docker.io/library/python
-                  tag: "3.14.4
+                  tag: 3.14.4
                   pullPolicy: IfNotPresent
                 command:
                   - /bin/sh
