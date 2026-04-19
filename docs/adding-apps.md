@@ -50,11 +50,13 @@ metadata:
 Always use chart `app-template` from `https://bjw-s-labs.github.io/helm-charts`, current version **4.6.2**.
 The Application must live in namespace `openshift-gitops` and project `cluster-apps`.
 
+**Naming:** the App-of-Apps ApplicationSet creates an ArgoCD Application named after the key in `values-apps.yaml` (e.g. `mealie`). The inner Helm chart Application **must use a different name** to avoid conflicts — convention is `<app-name>-app` (e.g. `mealie-app`). This also affects PVC names: a persistence key `data` on app `mealie-app` produces PVC `mealie-app-data`.
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: <app-name>
+  name: <app-name>-app
   namespace: openshift-gitops
   annotations:
     argocd.argoproj.io/sync-wave: "111"
@@ -118,7 +120,7 @@ spec:
       selfHeal: true
 ```
 
-The PVC created for a persistence key `data` on an app named `<app-name>` will be named `<app-name>-data`.
+The PVC created for a persistence key `data` on an app named `<app-name>-app` will be named `<app-name>-app-data`.
 This name is what the volsync backup patches reference as `sourcePVC`.
 
 ---
