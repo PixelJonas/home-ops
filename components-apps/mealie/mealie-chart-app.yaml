@@ -1,13 +1,13 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: mealie
+  name: mealie-app
   namespace: openshift-gitops
   annotations:
     argocd.argoproj.io/sync-wave: "111"
 spec:
   destination:
-    namespace: mealie-app
+    namespace: mealie
     server: "https://kubernetes.default.svc"
   source:
     chart: app-template
