@@ -116,7 +116,7 @@ spec:
               presidio-api:
                 image:
                   repository: docker.io/library/python
-                  tag: "3.14.4
+                  tag: 3.14.4
                   pullPolicy: IfNotPresent
                 command:
                   - /bin/sh
