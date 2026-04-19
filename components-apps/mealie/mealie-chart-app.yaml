@@ -7,7 +7,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "111"
 spec:
   destination:
-    namespace: mealie
+    namespace: mealie-app
     server: "https://kubernetes.default.svc"
   source:
     chart: app-template
