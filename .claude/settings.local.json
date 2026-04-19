@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(./scripts/validate_manifests.sh -d components-apps/mealie)"
-    ]
-  }
-}
