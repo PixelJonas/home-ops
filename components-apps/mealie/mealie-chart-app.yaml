@@ -1,0 +1,100 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mealie
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: mealie
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          mealie:
+            containers:
+              mealie:
+                image:
+                  repository: ghcr.io/mealie-recipes/mealie
+                  tag: v3.16.0
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  ALLOW_SIGNUP: "false"
+                  BASE_URL: "https://mealie.janz.digital"
+                  DB_ENGINE: sqlite
+                probes:
+                  startup:
+                    custom: true
+                    enabled: true
+                    spec:
+                      failureThreshold: 30
+                      initialDelaySeconds: 30
+                      periodSeconds: 5
+                      httpGet:
+                        path: /api/app/about
+                        port: 9000
+                  liveness:
+                    custom: true
+                    enabled: true
+                    spec:
+                      failureThreshold: 5
+                      periodSeconds: 30
+                      httpGet:
+                        path: /api/app/about
+                        port: 9000
+
+        service:
+          mealie:
+            controller: mealie
+            ports:
+              http:
+                port: 9000
+
+        ingress:
+          mealie:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: mealie.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: mealie
+                      port: http
+              - host: mealie.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: mealie
+                      port: http
+
+        persistence:
+          data:
+            enabled: true
+            globalMounts:
+              - path: /app/data
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 5Gi
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,6 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: mealie-data
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-data
