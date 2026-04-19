@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - anyuid-rolebinding.yaml
+  - external-secret-smtp.yaml
   - mealie-chart-app.yaml
   - namespace.yaml
   - ./backup

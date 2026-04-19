@@ -34,6 +34,9 @@ spec:
                   ALLOW_SIGNUP: "false"
                   BASE_URL: "https://mealie.janz.digital"
                   DB_ENGINE: sqlite
+                envFrom:
+                  - secretRef:
+                      name: mealie-smtp-secret
                 probes:
                   startup:
                     custom: true
