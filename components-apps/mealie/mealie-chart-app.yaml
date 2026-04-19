@@ -37,6 +37,8 @@ spec:
                 envFrom:
                   - secretRef:
                       name: mealie-smtp-secret
+                  - secretRef:
+                      name: mealie-openai-secret
                 probes:
                   startup:
                     custom: true
