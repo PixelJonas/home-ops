@@ -38,7 +38,8 @@ spec:
                   EMAIL_FROM_NAME: "Cal.diy"
                   # Disable telemetry
                   NEXT_TELEMETRY_DISABLED: "1"
-                  ALLOWED_HOSTNAMES: '"cal.janz.digital","cal.apps.altus.janz.digital","caldiy-app-caldiy.caldiy.svc.cluster.local","localhost"'
+                  DO_NOT_TRACK: "1"
+                  ALLOWED_HOSTNAMES: '"janz.digital","apps.altus.janz.digital","caldiy.svc.cluster.local", "cluster.local","localhost"'
                 envFrom:
                   - secretRef:
                       name: caldiy-app-secret
