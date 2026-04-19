@@ -1,0 +1,20 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: caldiy-db
+  namespace: caldiy
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+
+  bootstrap:
+    initdb:
+      database: caldiy
+      owner: caldiy
+      secret:
+        name: caldiy-db-secret
+
+  storage:
+    size: 5Gi
