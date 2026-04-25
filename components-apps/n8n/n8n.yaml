@@ -52,7 +52,7 @@ spec:
               bm25-embed:
                 image:
                   repository: docker.io/library/python
-                  tag: 3.12-slim # renovate: ignore
+                  tag: 3.14.4
                   pullPolicy: IfNotPresent
                 command:
                   - /bin/sh
