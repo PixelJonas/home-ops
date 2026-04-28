@@ -75,6 +75,7 @@ spec:
                       --app-dir /app
                 env:
                   TZ: Europe/Berlin
+                  PYTHONUNBUFFERED: "1"
                 resources:
                   requests:
                     cpu: 100m
@@ -458,23 +459,36 @@ spec:
             suffix: bm25-app
             data:
               app.py: |
-                from contextlib import asynccontextmanager
+                import logging
+                from threading import Lock, Thread
                 from fastapi import FastAPI
                 from pydantic import BaseModel
                 from fastembed import SparseTextEmbedding
 
+                logger = logging.getLogger("uvicorn.error")
+
                 MODEL_NAME = "Qdrant/bm25"
                 _model: SparseTextEmbedding | None = None
+                _model_lock = Lock()
 
-                @asynccontextmanager
-                async def lifespan(app: FastAPI):
+                def get_model() -> SparseTextEmbedding:
                     global _model
-                    _model = SparseTextEmbedding(model_name=MODEL_NAME)
-                    # Warm up so the first real request isn't slow
-                    list(_model.embed(["warmup"]))
-                    yield
+                    if _model is None:
+                        with _model_lock:
+                            if _model is None:
+                                logger.info("Loading BM25 model %s", MODEL_NAME)
+                                _model = SparseTextEmbedding(model_name=MODEL_NAME)
+                                logger.info("BM25 model %s ready", MODEL_NAME)
+                    return _model
 
-                app = FastAPI(lifespan=lifespan)
+                app = FastAPI()
+
+                @app.on_event("startup")
+                def _kick_off_model_load() -> None:
+                    # Run in a background thread so uvicorn can start serving
+                    # /healthz immediately; the lock in get_model() makes any
+                    # concurrent first /embed call wait for this download.
+                    Thread(target=get_model, name="bm25-model-loader", daemon=True).start()
 
                 class EmbedRequest(BaseModel):
                     texts: list[str]
@@ -490,17 +504,17 @@ spec:
 
                 @app.get("/healthz")
                 def healthz():
-                    return {"ok": _model is not None, "model": MODEL_NAME}
+                    return {"ok": True, "model": MODEL_NAME, "loaded": _model is not None}
 
                 @app.post("/embed/bm25", response_model=EmbedResponse)
                 def embed_bm25(req: EmbedRequest) -> EmbedResponse:
-                    assert _model is not None
+                    model = get_model()
                     # BM25 in fastembed has separate passage/query methods;
                     # query embeddings omit document-length normalization.
                     iterator = (
-                        _model.query_embed(req.texts)
+                        model.query_embed(req.texts)
                         if req.is_query
-                        else _model.embed(req.texts)
+                        else model.embed(req.texts)
                     )
                     out = [
                         SparseVector(indices=e.indices.tolist(), values=e.values.tolist())
