@@ -17,6 +17,12 @@
   schedule: ["on saturday"],
   packageRules: [
     {
+      // python:3.12-slim is pinned; 3.14.x segfaults onnxruntime in bm25-embed
+      matchDepNames: ["docker.io/library/python"],
+      matchFileNames: ["components-apps/n8n/n8n.yaml"],
+      enabled: false,
+    },
+    {
       matchUpdateTypes: ["minor", "patch"],
       automerge: true,
       automergeType: "branch",
