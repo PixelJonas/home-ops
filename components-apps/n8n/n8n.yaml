@@ -15,7 +15,6 @@ spec:
     targetRevision: 4.6.2
     helm:
       values: |-
-        
         defaultPodOptions:
           dnsPolicy: None
           dnsConfig:
@@ -772,7 +771,6 @@ spec:
             ports:
               http:
                 port: 8000
-                
         ingress:
           n8n:
             enabled: true

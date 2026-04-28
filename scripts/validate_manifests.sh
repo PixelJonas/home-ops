@@ -47,6 +47,21 @@ do
   esac
 done
 
+if ! command -v yamllint &>/dev/null; then
+  echo "yamllint not found — install with: brew install yamllint"
+  exit 1
+fi
+
+echo "Running yamllint..."
+yamllint .
+yamllint_response=$?
+if [ $yamllint_response -ne 0 ]; then
+  echo -e "${ERROR_COLOR}yamllint failed${NO_COLOR}"
+  exit 1
+fi
+echo "yamllint passed."
+echo
+
 errors=0
 
 for i in $(find "${KUSTOMIZE_DIRS}" -name "kustomization.yaml" -exec dirname {} \;)
