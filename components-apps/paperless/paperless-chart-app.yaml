@@ -211,35 +211,95 @@ spec:
 
               pdf_rm_blank.sh: |-
                 #!/usr/bin/env bash
+                # Removes blank pages from scanned PDFs before paperless-ngx consumption.
+                # Uses mean brightness + SD: a page must be near-white AND low-variance to be blank.
 
-                DOCUMENT_FILE_NAME=${1}
+                set -euo pipefail
 
-                echo "
-                Document ${DOCUMENT_ID} is about to be consumed.
-                "
+                DOCUMENT_FILE_NAME="${1:-}"
+                echo "Document ${DOCUMENT_ID:-unknown} is about to be consumed."
+
+                if [[ -z "$DOCUMENT_FILE_NAME" ]]; then
+                  echo "ERROR: No document path provided." >&2
+                  exit 1
+                fi
+                if [[ ! -f "$DOCUMENT_FILE_NAME" ]]; then
+                  echo "ERROR: File not found: $DOCUMENT_FILE_NAME" >&2
+                  exit 1
+                fi
 
                 IN="$DOCUMENT_FILE_NAME"
-                OUT="${DOCUMENT_FILE_NAME}_tmp"
-                PAGES=$(pdfinfo "$IN" | grep ^Pages: | tr -dc '0-9')
-                echo "Starting to remove blank pages from $IN"
-                non_blank() {
-                    for i in $(seq 1 $PAGES)
-                    do
-                        if [ $(convert -density 25 "$IN[$((i-1))]" -define histogram:unique-colors=true -format %c histogram:info:- | wc -l) -gt 100 ]
-                        then
-                            echo $i
-                            #echo $i 1>&2
-                        fi
-                        echo -n . 1>&2
-                    done | tee out.tmp
-                    echo 1>&2
-                }
+                OUT="${DOCUMENT_FILE_NAME}.$$.tmp"
 
-                set +x
-                pdftk "$IN" cat $(non_blank) output "$OUT"
-                rm out.tmp
+                # Thresholds: blank = mean >= 97% brightness AND sd <= 3.5% variation
+                BRIGHTNESS_THRESHOLD="97.0"
+                SD_THRESHOLD="3.5"
+                DENSITY=150
+
+                trap 'rm -f "$OUT"' EXIT
+
+                echo "Starting blank page removal: $IN"
+
+                PAGES=$(pdfinfo "$IN" 2>/dev/null | grep -E '^Pages:' | tr -dc '0-9')
+                if [[ -z "$PAGES" ]] || [[ "$PAGES" -eq 0 ]]; then
+                  echo "WARNING: Could not determine page count; skipping blank removal." >&2
+                  exit 0
+                fi
+                echo "Total pages: $PAGES"
+
+                non_blank_pages=()
+
+                for i in $(seq 1 "$PAGES"); do
+                  page_index=$((i - 1))
+
+                  MEAN=$(convert -density "$DENSITY" "${IN}[${page_index}]" \
+                    -colorspace Gray \
+                    -format "%[fx:mean*100]" info: 2>/dev/null) || MEAN=""
+
+                  SD=$(convert -density "$DENSITY" "${IN}[${page_index}]" \
+                    -colorspace Gray \
+                    -format "%[fx:standard_deviation*100]" info: 2>/dev/null) || SD=""
+
+                  if [[ -z "$MEAN" ]] || [[ -z "$SD" ]]; then
+                    echo "  Page $i: ImageMagick failed; keeping page (fail-safe)." >&2
+                    non_blank_pages+=("$i")
+                    continue
+                  fi
+
+                  IS_BLANK=$(awk -v mean="$MEAN" -v sd="$SD" \
+                    -v bt="$BRIGHTNESS_THRESHOLD" -v st="$SD_THRESHOLD" \
+                    'BEGIN { print (mean >= bt && sd <= st) ? "yes" : "no" }')
+
+                  if [[ "$IS_BLANK" == "yes" ]]; then
+                    echo "  Page $i: BLANK (mean=${MEAN}%, sd=${SD}%) - removing."
+                  else
+                    echo "  Page $i: non-blank (mean=${MEAN}%, sd=${SD}%) - keeping."
+                    non_blank_pages+=("$i")
+                  fi
+                done
+
+                KEEP_COUNT=${#non_blank_pages[@]}
+
+                if [[ "$KEEP_COUNT" -eq 0 ]]; then
+                  echo "WARNING: All pages classified blank; keeping original unchanged." >&2
+                  exit 0
+                fi
+
+                if [[ "$KEEP_COUNT" -eq "$PAGES" ]]; then
+                  echo "No blank pages found; file unchanged."
+                  exit 0
+                fi
+
+                echo "Keeping $KEEP_COUNT of $PAGES pages: ${non_blank_pages[*]}"
+                pdftk "$IN" cat "${non_blank_pages[@]}" output "$OUT"
+
+                if [[ ! -s "$OUT" ]] || ! head -c 4 "$OUT" | grep -q '%PDF'; then
+                  echo "ERROR: pdftk produced invalid output; keeping original." >&2
+                  exit 1
+                fi
+
                 mv "$OUT" "$IN"
-                echo "finishing removing blank pages from $IN"
+                echo "Finished: $IN ($KEEP_COUNT of $PAGES pages kept)"
 
               paperless_post_consume.sh: |-
                 #!/usr/bin/env bash
