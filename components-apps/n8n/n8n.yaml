@@ -186,7 +186,7 @@ spec:
               unifi-mcp:
                 image:
                   repository: ghcr.io/sirkirby/unifi-network-mcp
-                  tag: 0.14.8
+                  tag: 0.14.13
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
