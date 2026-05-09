@@ -248,7 +248,7 @@ spec:
               n8n-qdrant:
                 image:
                   repository: docker.io/qdrant/qdrant
-                  tag: v1.17.1
+                  tag: v1.18
                   pullPolicy: IfNotPresent
                 env:
                   QDRANT__LOG_LEVEL: INFO
