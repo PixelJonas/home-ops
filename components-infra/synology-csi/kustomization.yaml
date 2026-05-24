@@ -15,3 +15,13 @@ resources:
   - https://raw.githubusercontent.com/SynologyOpenSource/synology-csi/refs/heads/main/deploy/kubernetes/v1.20/node.yml
   - https://raw.githubusercontent.com/SynologyOpenSource/synology-csi/refs/heads/main/deploy/kubernetes/v1.20/snapshotter/snapshotter.yaml
 
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: DaemonSet
+      name: synology-csi-node
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/1/image
+        value: synology/synology-csi@sha256:a9e5bc672a704440e839accb3758c283ffa19ed28930b888985841a0b5dbc134
