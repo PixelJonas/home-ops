@@ -180,49 +180,6 @@ spec:
                         port: 8000
                       failureThreshold: 40
                       periodSeconds: 10
-
-          unifi-mcp:
-            containers:
-              unifi-mcp:
-                image:
-                  repository: ghcr.io/sirkirby/unifi-network-mcp
-                  tag: 0.19.1
-                  pullPolicy: IfNotPresent
-                env:
-                  TZ: Europe/Berlin
-                  UNIFI_PORT: 443
-                  UNIFI_SITE: default
-                  UNIFI_VERIFY_SSL: false
-                  UNIFI_MCP_HTTP_ENABLED: true
-                  UNIFI_HOST:
-                    valueFrom:
-                      secretKeyRef:
-                        name: unifi-mcp-credentials
-                        key: host
-                  UNIFI_USERNAME:
-                    valueFrom:
-                      secretKeyRef:
-                        name: unifi-mcp-credentials
-                        key: username
-                  UNIFI_PASSWORD:
-                    valueFrom:
-                      secretKeyRef:
-                        name: unifi-mcp-credentials
-                        key: password
-          paperless-mcp:
-            containers:
-              paperless-mcp:
-                image:
-                  repository: ghcr.io/baruchiro/paperless-mcp
-                  tag: latest
-                env:
-                  TZ: Europe/Berlin
-                  PAPERLESS_URL: https://paperless.apps.altus.janz.digital
-                  PAPERLESS_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: paperless-mcp-credentials
-                        key: apikey
           n8n-pgvector:
             containers:
               n8n-pgvector:
@@ -736,16 +693,6 @@ spec:
             ports:
               http:
                 port: 5679
-          unifi-mcp:
-            controller: unifi-mcp
-            ports:
-              http:
-                port: 3000
-          paperless-mcp:
-            controller: paperless-mcp
-            ports:
-              http:
-                port: 3000
           n8n-pgvector:
             controller: n8n-pgvector
             ports:
