@@ -23,7 +23,7 @@ spec:
               ntfy:
                 image:
                   repository: docker.io/binwiederhier/ntfy
-                  tag: v2.22
+                  tag: v2.23
                   pullPolicy: IfNotPresent
                 args: ["serve"]
                 env:
