@@ -36,6 +36,7 @@ spec:
                   - "4000"
                 env:
                   GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-credentials.json
+                  DATABASE_URL: sqlite:///data/litellm.db
                   LITELLM_MASTER_KEY:
                     valueFrom:
                       secretKeyRef:
@@ -48,6 +49,12 @@ spec:
                         key: VERTEX_PROJECT_ID
 
         persistence:
+          data:
+            globalMounts:
+              - path: /data
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 1Gi
           config:
             type: configMap
             name: litellm-config
