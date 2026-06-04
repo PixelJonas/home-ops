@@ -1,0 +1,156 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: odysseus-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: odysseus
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          odysseus:
+            containers:
+              odysseus:
+                image:
+                  repository: image-registry.openshift-image-registry.svc:5000/odysseus/odysseus
+                  tag: latest
+                  pullPolicy: Always
+                env:
+                  TZ: Europe/Berlin
+                  APP_BIND: "0.0.0.0"
+                  APP_PORT: "7000"
+                  AUTH_ENABLED: "true"
+                  SECURE_COOKIES: "true"
+                  LOCALHOST_BYPASS: "false"
+                  LLM_HOSTS: "litellm-litellm.litellm.svc.cluster.local:4000"
+                  SEARXNG_INSTANCE: "http://odysseus-searxng.odysseus.svc.cluster.local:8080"
+                  CHROMADB_HOST: "odysseus-chromadb.odysseus.svc.cluster.local"
+                  CHROMADB_PORT: "8000"
+                  ODYSSEUS_ADMIN_USER: "jonas"
+                  ODYSSEUS_ADMIN_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: odysseus-credentials
+                        key: ODYSSEUS_ADMIN_PASSWORD
+                probes:
+                  startup:
+                    enabled: true
+                    spec:
+                      httpGet:
+                        path: /
+                        port: 7000
+                      initialDelaySeconds: 10
+                      periodSeconds: 5
+                      failureThreshold: 30
+
+          chromadb:
+            containers:
+              chromadb:
+                image:
+                  repository: docker.io/chromadb/chroma
+                  tag: latest
+                  pullPolicy: IfNotPresent
+                env:
+                  ANONYMIZED_TELEMETRY: "FALSE"
+
+          searxng:
+            containers:
+              searxng:
+                image:
+                  repository: docker.io/searxng/searxng
+                  tag: 2026.5.31-7159b8aed
+                  pullPolicy: IfNotPresent
+                probes:
+                  startup:
+                    enabled: true
+                    spec:
+                      httpGet:
+                        path: /
+                        port: 8080
+                      initialDelaySeconds: 5
+                      periodSeconds: 5
+                      failureThreshold: 20
+
+        persistence:
+          data:
+            advancedMounts:
+              odysseus:
+                odysseus:
+                  - path: /app/data
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 5Gi
+
+          chromadb-data:
+            advancedMounts:
+              chromadb:
+                chromadb:
+                  - path: /chroma/chroma
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 2Gi
+
+          searxng-config:
+            type: configMap
+            name: searxng-config
+            advancedMounts:
+              searxng:
+                searxng:
+                  - path: /etc/searxng/settings.yml
+                    subPath: settings.yml
+                    readOnly: true
+
+        service:
+          odysseus:
+            controller: odysseus
+            ports:
+              http:
+                port: 7000
+
+          chromadb:
+            controller: chromadb
+            ports:
+              http:
+                port: 8000
+
+          searxng:
+            controller: searxng
+            ports:
+              http:
+                port: 8080
+
+        ingress:
+          odysseus:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: ai.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: odysseus
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

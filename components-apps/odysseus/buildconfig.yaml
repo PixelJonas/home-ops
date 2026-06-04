@@ -1,0 +1,29 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: odysseus
+  namespace: odysseus
+  annotations:
+    argocd.argoproj.io/sync-wave: "50"
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/pewdiepie-archdaemon/odysseus.git
+      ref: main
+  strategy:
+    type: Docker
+    dockerStrategy: {}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: odysseus:latest
+  resources:
+    limits:
+      memory: 4Gi
+      cpu: "2"
+    requests:
+      memory: 2Gi
+      cpu: "1"
+  triggers:
+    - type: ConfigChange

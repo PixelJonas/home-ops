@@ -1,0 +1,10 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: odysseus
+  namespace: odysseus
+  annotations:
+    argocd.argoproj.io/sync-wave: "50"
+spec:
+  lookupPolicy:
+    local: true
