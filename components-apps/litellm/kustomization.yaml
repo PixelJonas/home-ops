@@ -5,5 +5,7 @@ resources:
   - namespace.yaml
   - anyuid-rolebinding.yaml
   - external-litellm-credentials.yaml
+  - external-litellm-db.yaml
   - litellm-config.yaml
+  - postgresql-database.yaml
   - litellm-app.yaml
