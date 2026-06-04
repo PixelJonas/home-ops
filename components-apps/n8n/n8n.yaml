@@ -36,7 +36,7 @@ spec:
                     nvidia.com/gpu: 1
                 image:
                   repository: docker.io/ollama/ollama
-                  tag: 0.21.2
+                  tag: 0.24.0
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -186,7 +186,7 @@ spec:
               unifi-mcp:
                 image:
                   repository: ghcr.io/sirkirby/unifi-network-mcp
-                  tag: 0.14.8
+                  tag: 0.19.1
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -248,7 +248,7 @@ spec:
               n8n-qdrant:
                 image:
                   repository: docker.io/qdrant/qdrant
-                  tag: v1.17.1
+                  tag: v1.18.1
                   pullPolicy: IfNotPresent
                 env:
                   QDRANT__LOG_LEVEL: INFO
@@ -294,7 +294,7 @@ spec:
               n8n:
                 image:
                   repository: ghcr.io/n8n-io/n8n
-                  tag: 2.18.3
+                  tag: 2.23.1
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin

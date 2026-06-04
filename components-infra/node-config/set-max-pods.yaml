@@ -8,5 +8,5 @@ spec:
     matchLabels:
       increased-max-pods: enabled
   kubeletConfig:
-    podsPerCore: 11
+    podsPerCore: 20
     maxPods: 352
