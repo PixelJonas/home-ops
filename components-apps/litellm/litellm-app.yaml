@@ -1,0 +1,91 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: litellm-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: litellm
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          litellm:
+            containers:
+              litellm:
+                image:
+                  repository: ghcr.io/berriai/litellm
+                  tag: v1.86.3
+                  pullPolicy: IfNotPresent
+                args:
+                  - "--config"
+                  - "/etc/litellm/config.yaml"
+                  - "--port"
+                  - "4000"
+                env:
+                  GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-credentials.json
+                  LITELLM_MASTER_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: litellm-credentials
+                        key: LITELLM_MASTER_KEY
+                  VERTEX_PROJECT_ID:
+                    valueFrom:
+                      secretKeyRef:
+                        name: litellm-credentials
+                        key: VERTEX_PROJECT_ID
+
+        persistence:
+          config:
+            type: configMap
+            name: litellm-config
+            globalMounts:
+              - path: /etc/litellm
+                readOnly: true
+          secrets:
+            type: secret
+            name: litellm-credentials
+            globalMounts:
+              - path: /secrets
+                readOnly: true
+
+        service:
+          litellm:
+            controller: litellm
+            ports:
+              http:
+                port: 4000
+
+        ingress:
+          litellm:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: litellm.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: litellm
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

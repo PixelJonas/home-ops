@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+  namespace: litellm
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+data:
+  config.yaml: |
+    model_list:
+      - model_name: claude-opus-4-6
+        litellm_params:
+          model: vertex_ai/claude-opus-4-6
+          vertex_project: os.environ/VERTEX_PROJECT_ID
+          vertex_location: global
+          vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
+
+      - model_name: claude-opus-4-6-1m
+        litellm_params:
+          model: vertex_ai/claude-opus-4-6
+          vertex_project: os.environ/VERTEX_PROJECT_ID
+          vertex_location: global
+          vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
+          max_tokens: 128000
+
+      - model_name: claude-sonnet-4-6
+        litellm_params:
+          model: vertex_ai/claude-sonnet-4-6
+          vertex_project: os.environ/VERTEX_PROJECT_ID
+          vertex_location: global
+          vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
+
+      - model_name: claude-sonnet-4-6-1m
+        litellm_params:
+          model: vertex_ai/claude-sonnet-4-6
+          vertex_project: os.environ/VERTEX_PROJECT_ID
+          vertex_location: global
+          vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
+          max_tokens: 128000
+
+      - model_name: claude-haiku-4-5
+        litellm_params:
+          model: vertex_ai/claude-haiku-4-5-20251001
+          vertex_project: os.environ/VERTEX_PROJECT_ID
+          vertex_location: global
+          vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
+
+    general_settings:
+      master_key: os.environ/LITELLM_MASTER_KEY
+
+    litellm_settings:
+      drop_params: true
+      set_verbose: false
