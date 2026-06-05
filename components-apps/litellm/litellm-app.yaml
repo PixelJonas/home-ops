@@ -36,6 +36,7 @@ spec:
                   - "4000"
                 env:
                   GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-credentials.json
+                  STORE_MODEL_IN_DB: "true"
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
