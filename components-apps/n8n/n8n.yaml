@@ -251,7 +251,7 @@ spec:
               n8n:
                 image:
                   repository: ghcr.io/n8n-io/n8n
-                  tag: 2.23.1
+                  tag: 2.25.5
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
