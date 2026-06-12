@@ -122,6 +122,14 @@ applications:
     source:
       path: components-infra/volsync
 
+  restic-rest-server:
+    annotations:
+      argocd.argoproj.io/sync-wave: "22"
+    destination:
+      namespace: restic-rest
+    source:
+      path: components-infra/restic-rest-server
+
   node-config:
     annotations:
       argocd.argoproj.io/sync-wave: "99"

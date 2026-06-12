@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: restic-rest-server-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: restic-rest
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+
+        controllers:
+          restic-rest-server:
+            containers:
+              restic-rest-server:
+                image:
+                  repository: restic/rest-server
+                  tag: 0.14.0
+                  pullPolicy: IfNotPresent
+                env:
+                  DISABLE_AUTHENTICATION: "1"
+
+        persistence:
+          data:
+            globalMounts:
+              - path: /data
+            storageClass: nfs
+            accessMode: ReadWriteMany
+            size: 50Gi
+
+        service:
+          restic-rest:
+            controller: restic-rest-server
+            ports:
+              http:
+                port: 8000
+
+  project: cluster-config
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
