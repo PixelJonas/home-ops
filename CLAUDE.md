@@ -69,7 +69,7 @@ See **[docs/adding-apps.md](docs/adding-apps.md)** for the full guide covering:
 - OpenShift-specific requirements (ingress class, sync-wave table)
 - Pod security: when to add `anyuid` vs `privileged` SCC rolebinding
 - Alpine DNS fix for musl-based images
-- volsync backup pattern (MinIO + Backblaze B2) and required Doppler keys
+- volsync backup pattern (restic REST server + Backblaze B2) and required Doppler keys
 
 ## Conventions
 
