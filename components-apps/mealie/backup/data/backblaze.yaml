@@ -1,6 +1,0 @@
-- op: replace
-  path: /spec/sourcePVC
-  value: mealie-app-data
-- op: replace
-  path: /spec/restic/repository
-  value: restic-config-data-b2
