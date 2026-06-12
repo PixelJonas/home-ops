@@ -6,7 +6,7 @@ namespace: n8n
 
 resources:
   - ../../../../templates/psql-backup
-  - ../../../../templates/volsync/base
+  - ../../../../templates/volsync/rest
   - ../../../../templates/volsync/backblaze
 
 patches:
@@ -15,14 +15,14 @@ patches:
       version: v1alpha1
       kind: ReplicationSource
       name: backup
-    path: minio.yaml
+    path: local.yaml
 
   - target:
       group: external-secrets.io
       version: v1
       kind: ExternalSecret
       name: external-restic-config
-    path: minio-secret.yaml
+    path: local-secret.yaml
 
   - target:
       group: volsync.backube

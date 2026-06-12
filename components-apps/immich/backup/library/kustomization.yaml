@@ -5,7 +5,7 @@ namePrefix: library-
 namespace: immich
 
 resources:
-  - ../../../../templates/volsync/base
+  - ../../../../templates/volsync/rest
 
 patches:
   - target:
@@ -13,11 +13,11 @@ patches:
       version: v1alpha1
       kind: ReplicationSource
       name: backup
-    path: minio.yaml
+    path: local.yaml
 
   - target:
       group: external-secrets.io
       version: v1
       kind: ExternalSecret
       name: external-restic-config
-    path: minio-secret.yaml
+    path: local-secret.yaml
