@@ -1,7 +1,0 @@
-- op: replace
-  path: /spec/sourcePVC
-  value: ntfy-app
-
-- op: replace
-  path: /spec/restic/repository
-  value: restic-config-config-b2

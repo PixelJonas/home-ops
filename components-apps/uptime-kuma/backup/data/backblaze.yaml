@@ -1,7 +1,0 @@
-- op: replace
-  path: /spec/sourcePVC
-  value: uptime-kuma-app
-
-- op: replace
-  path: /spec/restic/repository
-  value: restic-config-data-b2
