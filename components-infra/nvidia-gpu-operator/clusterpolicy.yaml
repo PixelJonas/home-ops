@@ -1,0 +1,91 @@
+apiVersion: nvidia.com/v1
+kind: ClusterPolicy
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: gpu-cluster-policy
+spec:
+  daemonsets:
+    rollingUpdate:
+      maxUnavailable: "1"
+    updateStrategy: RollingUpdate
+  dcgm:
+    enabled: false
+  dcgmExporter:
+    config:
+      name: ""
+    enabled: false
+    serviceMonitor:
+      enabled: false
+  devicePlugin:
+    config:
+      default: ""
+      name: ""
+    enabled: true
+    mps:
+      root: /run/nvidia/mps
+  driver:
+    certConfig:
+      name: ""
+    enabled: true
+    kernelModuleConfig:
+      name: ""
+    kernelModuleType: auto
+    licensingConfig:
+      configMapName: ""
+      nlsEnabled: false
+    repoConfig:
+      configMapName: ""
+    upgradePolicy:
+      autoUpgrade: true
+      drain:
+        deleteEmptyDir: false
+        enable: false
+        force: false
+        timeoutSeconds: 300
+      maxParallelUpgrades: 1
+      maxUnavailable: 25%
+      podDeletion:
+        deleteEmptyDir: false
+        force: false
+        timeoutSeconds: 300
+      waitForCompletion:
+        timeoutSeconds: 0
+    useNvidiaDriverCRD: false
+    virtualTopology:
+      config: ""
+  gdrcopy:
+    enabled: false
+  gds:
+    enabled: false
+  gfd:
+    enabled: true
+  mig:
+    strategy: single
+  migManager:
+    enabled: false
+  nodeStatusExporter:
+    enabled: false
+  operator:
+    defaultRuntime: crio
+    initContainer: {}
+    runtimeClass: nvidia
+    use_ocp_driver_toolkit: true
+  sandboxDevicePlugin:
+    enabled: true
+  sandboxWorkloads:
+    defaultWorkload: container
+    enabled: false
+  toolkit:
+    enabled: true
+    installDir: /usr/local/nvidia
+  validator:
+    plugin:
+      env: []
+  vfioManager:
+    enabled: true
+  vgpuDeviceManager:
+    enabled: true
+  vgpuManager:
+    enabled: false

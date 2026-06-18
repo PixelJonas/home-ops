@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: honcho-config
+  namespace: honcho
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+data:
+  LOG_LEVEL: "INFO"
+  AUTH_USE_AUTH: "true"
+  CACHE_ENABLED: "true"
+  CACHE_URL: "redis://honcho-redis.honcho.svc:6379/0"
+  DERIVER_ENABLED: "true"
+  DERIVER_WORKERS: "1"
+  SUMMARY_ENABLED: "true"
+  DREAM_ENABLED: "true"
+  DREAM_MIN_HOURS_BETWEEN_DREAMS: "8"
+  PEER_CARD_ENABLED: "true"
+  METRICS_ENABLED: "false"
+  SENTRY_ENABLED: "false"
+  TELEMETRY_ENABLED: "false"
+  EMBED_MESSAGES: "true"
+  EMBEDDING_VECTOR_DIMENSIONS: "1024"
+  EMBEDDING_MODEL_CONFIG__TRANSPORT: "openai"
+  EMBEDDING_MODEL_CONFIG__MODEL: "bge-m3"
+  EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL: "http://litellm-litellm.litellm.svc:4000/v1"
+  DERIVER_MODEL_CONFIG__TRANSPORT: "openai"
+  DERIVER_MODEL_CONFIG__MODEL: "claude-haiku-4-5"
+  DERIVER_MODEL_CONFIG__OVERRIDES__BASE_URL: "http://litellm-litellm.litellm.svc:4000/v1"
+  SUMMARY_MODEL_CONFIG__TRANSPORT: "openai"
+  SUMMARY_MODEL_CONFIG__MODEL: "claude-haiku-4-5"
+  SUMMARY_MODEL_CONFIG__OVERRIDES__BASE_URL: "http://litellm-litellm.litellm.svc:4000/v1"
+  DREAM_DEDUCTION_MODEL_CONFIG__TRANSPORT: "openai"
+  DREAM_DEDUCTION_MODEL_CONFIG__MODEL: "claude-haiku-4-5"
+  DREAM_DEDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: "http://litellm-litellm.litellm.svc:4000/v1"
+  DREAM_INDUCTION_MODEL_CONFIG__TRANSPORT: "openai"
+  DREAM_INDUCTION_MODEL_CONFIG__MODEL: "claude-haiku-4-5"
+  DREAM_INDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: "http://litellm-litellm.litellm.svc:4000/v1"

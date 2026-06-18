@@ -15,6 +15,22 @@ default:
       targetRevision: HEAD
 
 applications:
+  nfd:
+    annotations:
+      argocd.argoproj.io/sync-wave: "1"
+    destination:
+      namespace: openshift-nfd
+    source:
+      path: components-infra/nfd
+
+  nvidia-gpu-operator:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: nvidia-gpu-operator
+    source:
+      path: components-infra/nvidia-gpu-operator
+
   nmstate:
     annotations:
       argocd.argoproj.io/sync-wave: "2"

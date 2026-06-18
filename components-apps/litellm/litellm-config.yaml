@@ -45,6 +45,12 @@ data:
           vertex_location: global
           vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
 
+      - model_name: bge-m3
+        litellm_params:
+          model: openai/BAAI/bge-m3
+          api_base: http://vllm-vllm.vllm.svc:8000/v1
+          api_key: unused
+
     general_settings:
       master_key: os.environ/LITELLM_MASTER_KEY
 
