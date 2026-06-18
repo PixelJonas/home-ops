@@ -18,3 +18,4 @@ config.yaml
 /bootstrap/talos/talosconfig
 /bootstrap/**/charts/
 /.claude
+CLAUDE.local.md
