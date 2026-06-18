@@ -88,6 +88,11 @@ spec:
                       secretKeyRef:
                         name: honcho-db-connection
                         key: uri
+                  AUTH_JWT_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: honcho-credentials
+                        key: AUTH_JWT_SECRET
                   LLM_OPENAI_API_KEY:
                     valueFrom:
                       secretKeyRef:
