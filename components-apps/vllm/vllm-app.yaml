@@ -33,8 +33,6 @@ spec:
                   - vllm
                   - serve
                   - BAAI/bge-m3
-                  - "--task"
-                  - "embed"
                   - "--port"
                   - "8000"
                   - "--gpu-memory-utilization"
