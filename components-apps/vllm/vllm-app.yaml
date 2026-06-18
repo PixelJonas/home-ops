@@ -30,7 +30,7 @@ spec:
                   tag: v0.23.0
                   pullPolicy: IfNotPresent
                 args:
-                  - "--model"
+                  - "serve"
                   - "BAAI/bge-m3"
                   - "--task"
                   - "embed"
