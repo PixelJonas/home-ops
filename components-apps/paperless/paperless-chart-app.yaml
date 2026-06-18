@@ -228,6 +228,14 @@ spec:
                   exit 1
                 fi
 
+                case "${DOCUMENT_FILE_NAME,,}" in
+                  *.pdf) ;;
+                  *)
+                    echo "Skipping non-PDF file: $DOCUMENT_FILE_NAME"
+                    exit 0
+                    ;;
+                esac
+
                 IN="$DOCUMENT_FILE_NAME"
                 OUT="${DOCUMENT_FILE_NAME}.$$.tmp"
 
