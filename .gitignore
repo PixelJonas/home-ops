@@ -16,5 +16,5 @@ config.yaml
 /tmp
 /bootstrap/talos/*.yaml
 /bootstrap/talos/talosconfig
-/bootstrap/*/charts/*
+/bootstrap/**/charts/
 /.claude
