@@ -29,9 +29,10 @@ spec:
                   repository: vllm/vllm-openai
                   tag: v0.23.0
                   pullPolicy: IfNotPresent
-                args:
-                  - "serve"
-                  - "BAAI/bge-m3"
+                command:
+                  - vllm
+                  - serve
+                  - BAAI/bge-m3
                   - "--task"
                   - "embed"
                   - "--port"
