@@ -1,0 +1,158 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: honcho-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: honcho
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          honcho:
+            containers:
+              honcho:
+                image:
+                  repository: ghcr.io/plastic-labs/honcho
+                  tag: v3.0.10
+                  pullPolicy: IfNotPresent
+                command:
+                  - sh
+                  - docker/entrypoint.sh
+                env:
+                  DB_CONNECTION_URI:
+                    valueFrom:
+                      secretKeyRef:
+                        name: honcho-db-connection
+                        key: uri
+                  AUTH_JWT_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: honcho-credentials
+                        key: AUTH_JWT_SECRET
+                  LLM_OPENAI_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: honcho-credentials
+                        key: LLM_OPENAI_API_KEY
+                envFrom:
+                  - configMapRef:
+                      name: honcho-config
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      initialDelaySeconds: 30
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      initialDelaySeconds: 15
+                      periodSeconds: 10
+
+          deriver:
+            containers:
+              deriver:
+                image:
+                  repository: ghcr.io/plastic-labs/honcho
+                  tag: v3.0.10
+                  pullPolicy: IfNotPresent
+                command:
+                  - /app/.venv/bin/python
+                  - -m
+                  - src.deriver
+                env:
+                  DB_CONNECTION_URI:
+                    valueFrom:
+                      secretKeyRef:
+                        name: honcho-db-connection
+                        key: uri
+                  LLM_OPENAI_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: honcho-credentials
+                        key: LLM_OPENAI_API_KEY
+                envFrom:
+                  - configMapRef:
+                      name: honcho-config
+
+          redis:
+            containers:
+              redis:
+                image:
+                  repository: redis
+                  tag: 8.8.0
+                  pullPolicy: IfNotPresent
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - redis-cli
+                          - ping
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - redis-cli
+                          - ping
+                      initialDelaySeconds: 5
+                      periodSeconds: 5
+
+        service:
+          honcho:
+            controller: honcho
+            ports:
+              http:
+                port: 8000
+          redis:
+            controller: redis
+            ports:
+              http:
+                port: 6379
+
+        ingress:
+          honcho:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: honcho.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: honcho
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

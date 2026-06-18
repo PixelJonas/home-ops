@@ -1,0 +1,22 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: honcho-db
+  namespace: honcho
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+  bootstrap:
+    initdb:
+      database: honcho
+      owner: honcho
+      secret:
+        name: honcho-db-honcho-secret
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector
+        - CREATE EXTENSION IF NOT EXISTS pg_trgm
+  storage:
+    size: 5Gi
+    storageClass: lvms-vg1

@@ -1,0 +1,21 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: honcho-db-connection
+  namespace: honcho
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: honcho-db-connection
+    template:
+      engineVersion: v2
+      data:
+        uri: "postgresql+psycopg://honcho:{{ .password }}@honcho-db-rw.honcho.svc:5432/honcho"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: HONCHO_POSTGRES_USER_PASSWORD
