@@ -38,13 +38,6 @@ data:
           vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
           max_tokens: 128000
 
-      - model_name: claude-haiku-4-5
-        litellm_params:
-          model: vertex_ai/claude-haiku-4-5-20251001
-          vertex_project: os.environ/VERTEX_PROJECT_ID
-          vertex_location: global
-          vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
-
       - model_name: bge-m3
         litellm_params:
           model: openai/BAAI/bge-m3
