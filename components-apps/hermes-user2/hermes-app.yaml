@@ -49,11 +49,6 @@ spec:
                       secretKeyRef:
                         name: hermes-credentials
                         key: API_SERVER_KEY
-                  HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:
-                    valueFrom:
-                      secretKeyRef:
-                        name: hermes-credentials
-                        key: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
                 envFrom:
                   - configMapRef:
                       name: hermes-config
@@ -62,18 +57,16 @@ spec:
                     enabled: true
                     custom: true
                     spec:
-                      httpGet:
-                        path: /health
-                        port: 9119
+                      tcpSocket:
+                        port: 8642
                       initialDelaySeconds: 30
                       periodSeconds: 30
                   readiness:
                     enabled: true
                     custom: true
                     spec:
-                      httpGet:
-                        path: /health
-                        port: 9119
+                      tcpSocket:
+                        port: 8642
                       initialDelaySeconds: 15
                       periodSeconds: 10
 
@@ -92,25 +85,8 @@ spec:
             ports:
               http:
                 port: 8642
-          dashboard:
-            controller: hermes
-            ports:
-              http:
-                port: 9119
 
         ingress:
-          dashboard:
-            enabled: true
-            className: openshift-default
-            annotations:
-              route.openshift.io/termination: "edge"
-            hosts:
-              - host: hermes-user2.apps.altus.janz.digital
-                paths:
-                  - path: /
-                    service:
-                      identifier: dashboard
-                      port: http
           api:
             enabled: true
             className: openshift-default
