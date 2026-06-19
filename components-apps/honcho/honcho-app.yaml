@@ -139,8 +139,8 @@ spec:
                   tag: 0.16.0
                   pullPolicy: IfNotPresent
                 env:
-                  OPENCONCHO_DEFAULT_HONCHO_URL: "http://honcho-app-honcho.honcho.svc.cluster.local:8000"
-                  OPENCONCHO_UPSTREAM_ALLOWLIST: "*.honcho.svc.cluster.local"
+                  OPENCONCHO_DEFAULT_HONCHO_URL: "https://honcho.apps.altus.janz.digital"
+                  OPENCONCHO_UPSTREAM_ALLOWLIST: "*.janz.digital"
                 probes:
                   liveness:
                     enabled: true
