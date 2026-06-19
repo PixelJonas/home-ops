@@ -63,8 +63,8 @@ spec:
                     custom: true
                     spec:
                       httpGet:
-                        path: /v1/models
-                        port: 8642
+                        path: /health
+                        port: 9119
                       initialDelaySeconds: 30
                       periodSeconds: 30
                   readiness:
@@ -72,8 +72,8 @@ spec:
                     custom: true
                     spec:
                       httpGet:
-                        path: /v1/models
-                        port: 8642
+                        path: /health
+                        port: 9119
                       initialDelaySeconds: 15
                       periodSeconds: 10
 
