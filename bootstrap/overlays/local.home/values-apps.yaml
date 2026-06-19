@@ -99,3 +99,15 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/odysseus
+
+  hermes-user1:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/hermes-user1
+
+  hermes-user2:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/hermes-user2
