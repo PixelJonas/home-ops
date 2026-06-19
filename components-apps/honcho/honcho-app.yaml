@@ -132,14 +132,6 @@ spec:
                       periodSeconds: 5
 
           openconcho:
-            pod:
-              securityContext:
-                runAsNonRoot: true
-                runAsUser: 101
-                runAsGroup: 101
-                fsGroup: 101
-                seccompProfile:
-                  type: RuntimeDefault
             containers:
               openconcho:
                 image:
@@ -149,12 +141,6 @@ spec:
                 env:
                   OPENCONCHO_DEFAULT_HONCHO_URL: "http://honcho-app-honcho.honcho.svc:8000"
                   OPENCONCHO_UPSTREAM_ALLOWLIST: "*.honcho.svc"
-                securityContext:
-                  allowPrivilegeEscalation: false
-                  readOnlyRootFilesystem: true
-                  capabilities:
-                    drop:
-                      - ALL
                 probes:
                   liveness:
                     enabled: true
