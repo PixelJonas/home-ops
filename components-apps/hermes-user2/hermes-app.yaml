@@ -1,0 +1,130 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: hermes-user2-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: hermes-user2
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          hermes:
+            containers:
+              hermes:
+                image:
+                  repository: nousresearch/hermes-agent
+                  tag: v2026.6.5
+                  pullPolicy: IfNotPresent
+                command:
+                  - hermes
+                  - gateway
+                  - run
+                env:
+                  OPENAI_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: hermes-credentials
+                        key: OPENAI_API_KEY
+                  HONCHO_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: hermes-credentials
+                        key: HONCHO_API_KEY
+                  API_SERVER_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: hermes-credentials
+                        key: API_SERVER_KEY
+                  HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: hermes-credentials
+                        key: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+                envFrom:
+                  - configMapRef:
+                      name: hermes-config
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /v1/models
+                        port: 8642
+                      initialDelaySeconds: 30
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /v1/models
+                        port: 8642
+                      initialDelaySeconds: 15
+                      periodSeconds: 10
+
+        persistence:
+          data:
+            enabled: true
+            globalMounts:
+              - path: /opt/data
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 10Gi
+
+        service:
+          hermes:
+            controller: hermes
+            ports:
+              http:
+                port: 8642
+          dashboard:
+            controller: hermes
+            ports:
+              http:
+                port: 9119
+
+        ingress:
+          dashboard:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: hermes-user2.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: dashboard
+                      port: http
+          api:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: hermes-user2-api.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: hermes
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
