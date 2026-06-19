@@ -29,10 +29,6 @@ spec:
                   repository: nousresearch/hermes-agent
                   tag: v2026.6.5
                   pullPolicy: IfNotPresent
-                command:
-                  - hermes
-                  - gateway
-                  - run
                 env:
                   OPENAI_API_KEY:
                     valueFrom:
@@ -49,6 +45,11 @@ spec:
                       secretKeyRef:
                         name: hermes-credentials
                         key: API_SERVER_KEY
+                  HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: hermes-credentials
+                        key: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
                 envFrom:
                   - configMapRef:
                       name: hermes-config
@@ -85,6 +86,11 @@ spec:
             ports:
               http:
                 port: 8642
+          dashboard:
+            controller: hermes
+            ports:
+              http:
+                port: 9119
 
         ingress:
           api:
@@ -98,6 +104,18 @@ spec:
                   - path: /
                     service:
                       identifier: hermes
+                      port: http
+          dashboard:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: hermes-user1.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: dashboard
                       port: http
 
   project: cluster-apps
