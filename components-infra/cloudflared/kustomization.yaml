@@ -3,6 +3,5 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
-  - external-cloudflared-config.yaml
-  - external-cloudflared-credentials.yaml
+  - external-cloudflared-token.yaml
   - cloudflared.yaml
