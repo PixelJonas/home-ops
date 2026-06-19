@@ -1,15 +1,15 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: external-cloudflared-config
+  name: external-cloudflared-token
   namespace: cloudflared
 spec:
   secretStoreRef:
     kind: ClusterSecretStore
     name: doppler-cluster
   target:
-    name: cloudflared-config
+    name: cloudflared-token
   data:
-    - secretKey: config.yaml
+    - secretKey: token
       remoteRef:
-        key: CLOUDFLARED_CONFIG
+        key: CF_TUNNEL_K8S_TOKEN
