@@ -136,7 +136,7 @@ spec:
               openconcho:
                 image:
                   repository: ghcr.io/offendingcommit/openconcho-web
-                  tag: v0.16.0
+                  tag: 0.16.0
                   pullPolicy: IfNotPresent
                 env:
                   OPENCONCHO_DEFAULT_HONCHO_URL: "http://honcho-app-honcho.honcho.svc:8000"
