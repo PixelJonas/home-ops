@@ -7,3 +7,4 @@ resources:
   - external-hermes-credentials.yaml
   - hermes-config.yaml
   - hermes-app.yaml
+  - ./backup
