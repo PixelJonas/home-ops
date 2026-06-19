@@ -29,6 +29,9 @@ spec:
                   repository: nousresearch/hermes-agent
                   tag: v2026.6.5
                   pullPolicy: IfNotPresent
+                args:
+                  - gateway
+                  - run
                 env:
                   OPENAI_API_KEY:
                     valueFrom:
