@@ -7,4 +7,7 @@ resources:
   - external-hermes-credentials.yaml
   - hermes-config.yaml
   - hermes-app.yaml
+  - hermes-sa.yaml
+  - hermes-sa-token.yaml
+  - hermes-sa-clusterrolebinding.yaml
   - ./backup
