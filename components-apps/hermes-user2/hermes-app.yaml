@@ -23,26 +23,6 @@ spec:
 
         controllers:
           hermes:
-            initContainers:
-              venv-sync:
-                image:
-                  repository: nousresearch/hermes-agent
-                  tag: v2026.6.19
-                  pullPolicy: IfNotPresent
-                command:
-                  - /bin/bash
-                  - -c
-                  - |
-                    IMAGE_SHA=$(cat /opt/hermes/.hermes_build_sha 2>/dev/null || echo "unknown")
-                    PV_SHA=$(cat /opt/hermes/.venv/.image_build_sha 2>/dev/null || echo "none")
-                    if [ "$IMAGE_SHA" != "$PV_SHA" ]; then
-                      echo "venv-sync: image SHA changed ($PV_SHA -> $IMAGE_SHA), syncing venv..."
-                      cp -a /opt/hermes/.venv/. /mnt/venv-stage/
-                      echo "$IMAGE_SHA" > /mnt/venv-stage/.image_build_sha
-                      echo "venv-sync: done"
-                    else
-                      echo "venv-sync: venv is up to date (SHA=$PV_SHA)"
-                    fi
             containers:
               hermes:
                 image:
@@ -102,17 +82,6 @@ spec:
             accessMode: ReadWriteOnce
             storageClass: lvms-vg1
             size: 10Gi
-          venv:
-            enabled: true
-            accessMode: ReadWriteOnce
-            storageClass: lvms-vg1
-            size: 2Gi
-            advancedMounts:
-              hermes:
-                venv-sync:
-                  - path: /mnt/venv-stage
-                hermes:
-                  - path: /opt/hermes/.venv
 
         service:
           hermes:
