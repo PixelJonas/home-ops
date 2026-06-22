@@ -17,4 +17,5 @@ data:
   HERMES_DASHBOARD_PORT: "9119"
   HERMES_DASHBOARD_INSECURE: "1"
   HERMES_DASHBOARD_BASIC_AUTH_USERNAME: "user1"
+  PYTHONPATH: "/opt/data/.honcho-venv/lib/python3.13/site-packages"
   TZ: "Europe/Berlin"
