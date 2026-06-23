@@ -40,8 +40,8 @@ data:
 
       - model_name: bge-m3
         litellm_params:
-          model: openai/BAAI/bge-m3
-          api_base: http://vllm-app.vllm.svc:8000/v1
+          model: openai/bge-m3
+          api_base: http://10.42.0.99:11434/v1
           api_key: unused
 
     general_settings:
