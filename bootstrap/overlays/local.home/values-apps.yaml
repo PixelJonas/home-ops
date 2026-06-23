@@ -76,12 +76,6 @@ applications:
     source:
       path: components-apps/silverbullet
 
-  vllm:
-    annotations:
-      argocd.argoproj.io/sync-wave: "250"
-    source:
-      path: components-apps/vllm
-
   litellm:
     annotations:
       argocd.argoproj.io/sync-wave: "300"
