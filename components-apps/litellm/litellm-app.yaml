@@ -27,7 +27,7 @@ spec:
               litellm:
                 image:
                   repository: ghcr.io/berriai/litellm
-                  tag: v1.89.2
+                  tag: v1.89.4
                   pullPolicy: IfNotPresent
                 args:
                   - "--config"
