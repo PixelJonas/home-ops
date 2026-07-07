@@ -78,3 +78,4 @@ See **[docs/adding-apps.md](docs/adding-apps.md)** for the full guide covering:
 - **YAML style:** enforced by `.yamllint` — no `document-start` (`---`), line length warnings ignored, truthy values (`yes`/`no`) are allowed.
 - **Renovate:** dependency updates are automated; commit messages follow `chore(deps): update …` convention. Do not manually bump image tags that Renovate tracks.
 - **Secret scanning:** `.gitleaks.toml` defines patterns; never commit keys, tokens, or kubeconfigs (see `.gitignore`).
+- **Occasional CLI tools** (e.g. `pv-migrate` for PV migrations) are declared in `mise.toml` via the `github:` backend rather than vendored as binaries — run via `mise exec -- <tool>` or `mise install` to fetch them.
