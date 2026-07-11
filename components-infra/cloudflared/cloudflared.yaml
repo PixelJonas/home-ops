@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: cloudflared
-          image: cloudflare/cloudflared:2026.6.1
+          image: cloudflare/cloudflared:2026.7.1
           args:
             - tunnel
             - --metrics
