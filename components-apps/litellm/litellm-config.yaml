@@ -7,50 +7,13 @@ metadata:
     argocd.argoproj.io/sync-wave: "30"
 data:
   config.yaml: |
-    model_list:
-      # Opus 4.6, Sonnet 4.6, and Sonnet 5 all get a 1M-token context window
-      # natively on Vertex AI (Agent Platform) — it's not a separate opt-in
-      # model ID there (unlike the direct Anthropic API's context-1m beta
-      # header). The previous "-1m" aliases pointed at the exact same
-      # underlying vertex_ai model string as their non-suffixed counterparts
-      # and only differed by max_tokens, which misleadingly implied a
-      # separate 1M-context variant that doesn't exist on this platform.
-      # Consolidated into one entry per model with max_tokens set to each
-      # model's actual 128K output cap.
-      - model_name: claude-opus-4-6
-        litellm_params:
-          model: vertex_ai/claude-opus-4-6
-          vertex_project: os.environ/VERTEX_PROJECT_ID
-          vertex_location: global
-          vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
-          max_tokens: 128000
-          timeout: 120
-
-      - model_name: claude-sonnet-4-6
-        litellm_params:
-          model: vertex_ai/claude-sonnet-4-6
-          vertex_project: os.environ/VERTEX_PROJECT_ID
-          vertex_location: global
-          vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
-          max_tokens: 128000
-          timeout: 120
-
-      - model_name: claude-sonnet-5
-        litellm_params:
-          model: vertex_ai/claude-sonnet-5
-          vertex_project: os.environ/VERTEX_PROJECT_ID
-          vertex_location: global
-          vertex_credentials: os.environ/GOOGLE_APPLICATION_CREDENTIALS
-          max_tokens: 128000
-          timeout: 120
-
-      - model_name: bge-m3
-        litellm_params:
-          model: openai/bge-m3
-          api_base: http://10.42.0.99:11434/v1
-          api_key: unused
-          timeout: 120
-
+    # This deployment runs with STORE_MODEL_IN_DB=true (see litellm-app.yaml),
+    # so the live proxy's model registry is whatever is stored in Postgres,
+    # managed via the Model Management API (/model/new, /model/update,
+    # /model/delete) or the Admin UI's Models page — not this model_list.
+    # A model_list here is not loaded into the running proxy; keep this file
+    # to the settings blocks below only, to avoid a second, ineffective
+    # source of truth for models.
     general_settings:
       master_key: os.environ/LITELLM_MASTER_KEY
 
