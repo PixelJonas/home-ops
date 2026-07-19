@@ -108,6 +108,12 @@ applications:
     source:
       path: components-infra/rbac/base
 
+  claude-admin:
+    annotations:
+      argocd.argoproj.io/sync-wave: "11"
+    source:
+      path: components-infra/claude-admin/base
+
   cloudflared:
     annotations:
       argocd.argoproj.io/sync-wave: "22"
