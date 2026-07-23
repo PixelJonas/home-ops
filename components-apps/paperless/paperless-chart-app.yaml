@@ -27,7 +27,7 @@ spec:
               paperless:
                 image:
                   repository: ghcr.io/paperless-ngx/paperless-ngx
-                  tag: 2.20.15
+                  tag: 3.0.0
                   pullPolicy: IfNotPresent
                 command: "/usr/src/paperless/custom-scripts/docker-entrypoint.sh"
                 args: ["/usr/local/bin/supervisord", "-c", "/etc/supervisord.conf"]
@@ -45,7 +45,7 @@ spec:
                   PAPERLESS_OCR_LANGUAGES: deu
                   PAPERLESS_CUSTOM_PACKAGES: "pdftk qpdf poppler-utils"
                   PAPERLESS_TIME_ZONE: Europe/Berlin
-                  PAPERLESS_CONSUMER_POLLING: 30
+                  PAPERLESS_CONSUMER_POLLING_INTERVAL: 30
                   PAPERLESS_OCR_DESKEW: true
                   PAPERLESS_TIKA_ENABLED: 1
                   PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://localhost:3000
@@ -55,6 +55,7 @@ spec:
                   PAPERLESS_POST_CONSUME_SCRIPT: /usr/src/paperless/custom-scripts/paperless_post_consume.sh
                   PAPERLESS_ENABLE_HTTP_REMOTE_USER: "true"
                   PAPERLESS_HTTP_REMOTE_USER_HEADER_NAME: "HTTP_CF_ACCESS_AUTHENTICATED_USER_EMAIL"
+                  PAPERLESS_DBENGINE: postgresql
                   PAPERLESS_DBHOST: "paperless-db-rw"
                   PAPERLESS_DBPORT: "5432"
                   PAPERLESS_DBUSER: "paperless"
@@ -63,6 +64,11 @@ spec:
                       secretKeyRef:
                         name: paperless-db-paperless-secret
                         key: password
+                  PAPERLESS_SECRET_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-secret-key
+                        key: secret-key
                 probes:
                   startup:
                     custom: true
@@ -216,7 +222,7 @@ spec:
 
                 set -euo pipefail
 
-                DOCUMENT_FILE_NAME="${1:-}"
+                DOCUMENT_FILE_NAME="${DOCUMENT_SOURCE_PATH:-}"
                 echo "Document ${DOCUMENT_ID:-unknown} is about to be consumed."
 
                 if [[ -z "$DOCUMENT_FILE_NAME" ]]; then
