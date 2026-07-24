@@ -9,4 +9,11 @@ resources:
   - external-tax-agent-db-connection.yaml
   - postgresql-database.yaml
   - tax-agent-app.yaml
-  - networkpolicy.yaml
+  # networkpolicy.yaml intentionally NOT included — see docs/adr/0007 in the
+  # tax-agent repo: OVN-Kubernetes on this cluster doesn't reliably allow
+  # egress to the Kubernetes API server (hostNetwork-backed, not overlay
+  # traffic) via a NetworkPolicy ipBlock rule, even targeting the node's
+  # real IP directly — this wedged CNPG's initdb/instance pods indefinitely
+  # with i/o timeouts. No other app in this repo has a NetworkPolicy either;
+  # deferred rather than blocking the whole deployment on an OVN-specific
+  # EgressFirewall investigation.
