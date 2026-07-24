@@ -1,0 +1,21 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: tax-agent-db
+  namespace: tax-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+  bootstrap:
+    initdb:
+      database: tax_agent
+      owner: tax_agent
+      secret:
+        name: tax-agent-db-tax_agent-secret
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector
+  storage:
+    size: 10Gi
+    storageClass: lvms-vg1

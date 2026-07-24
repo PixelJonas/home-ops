@@ -1,0 +1,21 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tax-agent-db-connection
+  namespace: tax-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: tax-agent-db-connection
+    template:
+      engineVersion: v2
+      data:
+        uri: "postgresql+psycopg://tax_agent:{{ .password }}@tax-agent-db-rw.tax-agent.svc:5432/tax_agent"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: TAXAGENT_POSTGRES_PASSWORD
