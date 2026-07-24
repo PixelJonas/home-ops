@@ -1,0 +1,39 @@
+name: build-gha-runner-image
+on:
+  push:
+    branches: [main]
+    paths:
+      - "containers/gha-runner/**"
+      - ".github/workflows/build-gha-runner-image.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: build and push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+
+      - name: Log in to GHCR
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1  # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        run: |
+          docker build -f containers/gha-runner/Containerfile \
+            -t ghcr.io/pixeljonas/sakaar-gha-runner:sha-${{ steps.meta.outputs.sha_short }} \
+            -t ghcr.io/pixeljonas/sakaar-gha-runner:latest \
+            containers/gha-runner
+          docker push --all-tags ghcr.io/pixeljonas/sakaar-gha-runner
