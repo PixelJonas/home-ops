@@ -15,14 +15,6 @@ default:
       targetRevision: HEAD
 
 applications:
-  lvm-operator:
-    annotations:
-      argocd.argoproj.io/sync-wave: "2"
-    destination:
-      namespace: openshift-storage
-    source:
-      path: components-infra/lvm-operator/overlays/sakaar
-
   external-secrets-doppler:
     annotations:
       argocd.argoproj.io/sync-wave: "2"
