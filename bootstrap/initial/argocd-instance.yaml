@@ -375,5 +375,6 @@ spec:
       p, role:none, *, *, */*, deny
       g, system:cluster-admins, role:admin
       g, cluster-admins, role:admin
+      g, jonas, role:admin
       p, role:readonly, extensions, invoke, assistant, allow
-    scopes: "[groups]"
+    scopes: "[groups, preferred_username]"
