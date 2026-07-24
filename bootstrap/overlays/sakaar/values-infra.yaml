@@ -74,3 +74,11 @@ applications:
       argocd.argoproj.io/sync-wave: "11"
     source:
       path: components-infra/rbac/base
+
+  openshift-oauth-htpasswd:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: openshift-config
+    source:
+      path: components-infra/openshift-oauth-htpasswd/overlays/sakaar
