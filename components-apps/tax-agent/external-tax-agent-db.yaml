@@ -1,0 +1,23 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tax-agent-db-tax_agent-secret
+  namespace: tax-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: tax-agent-db-tax_agent-secret
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: "tax_agent"
+        password: "{{ .password }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: TAXAGENT_POSTGRES_PASSWORD

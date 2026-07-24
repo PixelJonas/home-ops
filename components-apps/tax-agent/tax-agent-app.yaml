@@ -1,0 +1,136 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tax-agent-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: tax-agent
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+        controllers:
+          ingestion-api:
+            replicas: 1
+            containers:
+              ingestion-api:
+                image:
+                  repository: ghcr.io/pixeljonas/tax-agent/ingestion_api
+                  tag: "REPLACED-BY-CI"   # release.yml PR updates this to the built digest
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-db-connection
+                        key: uri
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: PAPERLESS_TOKEN
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: LITELLM_BASE_URL
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: LITELLM_API_KEY
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
+          valkey:
+            containers:
+              valkey:
+                image:
+                  repository: valkey/valkey
+                  tag: 8-alpine
+                  pullPolicy: IfNotPresent
+                args:
+                  - valkey-server
+                  - --appendonly
+                  - "yes"
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - valkey-cli
+                          - ping
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - valkey-cli
+                          - ping
+                      initialDelaySeconds: 5
+                      periodSeconds: 5
+
+        service:
+          ingestion-api:
+            controller: ingestion-api
+            ports:
+              http:
+                port: 8000
+          valkey:
+            controller: valkey
+            ports:
+              redis:
+                port: 6379
+
+        persistence:
+          valkey-data:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 1Gi
+            advancedMounts:
+              valkey:
+                valkey:
+                  - path: /data
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
