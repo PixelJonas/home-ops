@@ -1,0 +1,41 @@
+default:
+  app:
+    enabled: true
+    enableAutoSync: true
+    autoSyncPrune: false
+    project: cluster-apps
+    labels:
+      app-source: sakaar
+      repo: cluster-apps
+    destination:
+      namespace: openshift-gitops
+      server: https://kubernetes.default.svc
+    source:
+      repoURL: https://github.com/pixeljonas/home-ops.git
+      targetRevision: HEAD
+
+projects:
+  cluster-apps:
+    annotations:
+      notifications.argoproj.io/subscribe.on-sync-failed.slack: cluster-gitops
+      notifications.argoproj.io/subscribe.on-health-degraded.slack: cluster-gitops
+    description: Project for cluster applications
+    namespace: openshift-gitops
+    sourceRepos:
+      - https://github.com/pixeljonas/home-ops
+      - https://github.com/redhat-cop/gitops-catalog
+      - https://bjw-s-labs.github.io/helm-charts
+    destinations: |
+      - namespace: '*'
+        server: https://kubernetes.default.svc
+    extraFields: |
+      clusterResourceWhitelist:
+      - group: '*'
+        kind: '*'
+
+applications:
+  cloudnative-pg:
+    annotations:
+      argocd.argoproj.io/sync-wave: "200"
+    source:
+      path: components-apps/cloudnative-pg
