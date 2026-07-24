@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      kind: ExternalSecret
+      name: external-htpass-secret
+    patch: |-
+      - op: replace
+        path: /spec/secretStoreRef/name
+        value: doppler-infra
