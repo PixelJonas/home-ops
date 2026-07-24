@@ -27,7 +27,7 @@ spec:
               litellm:
                 image:
                   repository: ghcr.io/berriai/litellm
-                  tag: v1.92.0
+                  digest: "sha256:9ef6f45bc0104940571765e610c52a1d761b5ec85efcd193795281086ee61277"   # v1.92.0
                   pullPolicy: IfNotPresent
                 args:
                   - "--config"
