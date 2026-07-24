@@ -15,6 +15,10 @@ spec:
     targetRevision: 4.6.2
     helm:
       values: |-
+        defaultPodOptions:
+          imagePullSecrets:
+            - name: tax-agent-ghcr-pull-secret
+
         controllers:
           ingestion-api:
             replicas: 1

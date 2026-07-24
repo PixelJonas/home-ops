@@ -7,6 +7,7 @@ resources:
   - external-tax-agent-credentials.yaml
   - external-tax-agent-db.yaml
   - external-tax-agent-db-connection.yaml
+  - external-tax-agent-ghcr-pull.yaml
   - postgresql-database.yaml
   - tax-agent-app.yaml
   # networkpolicy.yaml intentionally NOT included — see docs/adr/0007 in the

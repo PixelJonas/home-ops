@@ -1,0 +1,23 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tax-agent-ghcr-pull-secret
+  namespace: tax-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: tax-agent-ghcr-pull-secret
+    template:
+      engineVersion: v2
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: |
+          {"auths":{"ghcr.io":{"username":"PixelJonas","password":"{{ .token }}","auth":"{{ printf "PixelJonas:%s" .token | b64enc }}"}}}
+  data:
+    - secretKey: token
+      remoteRef:
+        key: TAXAGENT_GHCR_PULL_TOKEN
