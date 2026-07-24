@@ -1,0 +1,18 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: devland
+  namespace: devland
+  labels:
+    app.kubernetes.io/name: devland
+spec:
+  host: devland.janz.cloud
+  to:
+    kind: Service
+    name: devland
+    weight: 100
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

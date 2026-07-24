@@ -1,0 +1,12 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: arc-runner-set-devland-privileged
+subjects:
+  - kind: ServiceAccount
+    name: arc-runner-set-devland-gha-rs-no-permission
+    namespace: arc-runners-devland
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged

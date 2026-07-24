@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - route.yaml
+
+images:
+  - name: ghcr.io/pixeljonas/devland-2027
+    newName: ghcr.io/pixeljonas/devland-2027
+    digest: sha256:b317644d1b42962eb39d8b04b7a4c9571dd6e3d85cb2fc7f18d825697bb3beec
