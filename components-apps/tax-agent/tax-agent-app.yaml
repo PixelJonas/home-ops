@@ -22,7 +22,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/tax-agent/ingestion_api
-                  tag: "REPLACED-BY-CI"   # release.yml PR updates this to the built digest
+                  tag: "sha256:9bd4add1eba48f5d472d79194b8396d35f6d0a5cc6662f4af47e6badc32eb6b1"   # release.yml PR updates this to the built digest
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
