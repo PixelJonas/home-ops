@@ -1,0 +1,21 @@
+githubConfigUrl: "https://github.com/PixelJonas/devland-2027"
+githubConfigSecret: arc-runner-set-devland-github-secret
+runnerScaleSetName: "arc-runner-set-devland"
+minRunners: 0
+maxRunners: 3
+controllerServiceAccount:
+  namespace: actions-runner-system
+  name: arc-gha-rs-controller
+containerMode: {}
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/pixeljonas/sakaar-gha-runner:latest
+        command: ["/home/runner/run.sh"]
+        env:
+          - name: RUNNER_ALLOW_RUNASROOT
+            value: "1"
+        securityContext:
+          privileged: true
+          runAsUser: 0

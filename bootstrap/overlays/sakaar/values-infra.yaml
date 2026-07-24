@@ -74,3 +74,43 @@ applications:
       namespace: openshift-config
     source:
       path: components-infra/openshift-oauth-htpasswd/overlays/sakaar
+
+  actions-runner-controller:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: actions-runner-system
+    source:
+      path: components-infra/actions-runner-controller/base
+
+  gha-runner-scale-set-palbuddy:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: arc-runners-palbuddy
+    source:
+      path: components-infra/gha-runner-scale-set-palbuddy/base
+
+  gha-runner-scale-set-tax-agent:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: arc-runners-tax-agent
+    source:
+      path: components-infra/gha-runner-scale-set-tax-agent/base
+
+  gha-runner-scale-set-devland:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: arc-runners-devland
+    source:
+      path: components-infra/gha-runner-scale-set-devland/base
+
+  devland:
+    annotations:
+      argocd.argoproj.io/sync-wave: "4"
+    destination:
+      namespace: devland
+    source:
+      path: components-apps/devland/base
