@@ -6,3 +6,4 @@ resources:
   - anyuid-rolebinding.yaml
   - privileged-rolebinding.yaml
   - resilio-sync-app.yaml
+  - ../../backup
