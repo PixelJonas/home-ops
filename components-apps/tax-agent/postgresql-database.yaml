@@ -13,7 +13,7 @@ spec:
       database: tax_agent
       owner: tax_agent
       secret:
-        name: tax-agent-db-tax_agent-secret
+        name: tax-agent-db-app-secret
       postInitSQL:
         - CREATE EXTENSION IF NOT EXISTS vector
   storage:
