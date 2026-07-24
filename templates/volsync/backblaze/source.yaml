@@ -15,6 +15,7 @@ spec:
     pruneIntervalDays: 14
     # Name of the Secret with the connection information
     repository: restic-config-database-b2
+    cacheStorageClassName: lvms-vg1
     # Retention policy for backups
     retain:
       hourly: 1

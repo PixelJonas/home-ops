@@ -11,6 +11,7 @@ spec:
   restic:
     pruneIntervalDays: 14
     repository: restic-config-database
+    cacheStorageClassName: lvms-vg1
     retain:
       hourly: 1
       daily: 5
