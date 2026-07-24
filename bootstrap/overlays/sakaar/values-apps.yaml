@@ -45,3 +45,9 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/silverbullet/overlays/sakaar
+
+  resilio-sync:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/resilio-sync/overlays/sakaar
