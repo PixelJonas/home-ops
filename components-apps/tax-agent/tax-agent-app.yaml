@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/tax-agent/ingestion_api
-                  digest: "sha256:36d81d15d50087b42ad4e93dcabb0bf0f39d2a055897cfd4257a9fb2b1881635"   # release.yml PR updates this to the built digest
+                  digest: "sha256:45f0e81eb79328af9c1970a6d80245485d3fb0b47cd08e3fe849302568acead6"   # release.yml PR updates this to the built digest
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -35,6 +35,8 @@ spec:
                       secretKeyRef:
                         name: tax-agent-db-connection
                         key: uri
+                  QUEUE_URL: redis://tax-agent-app-valkey:6379/0
+                  POLL_INTERVAL: 15m
                   PAPERLESS_URL:
                     valueFrom:
                       secretKeyRef:
@@ -45,6 +47,11 @@ spec:
                       secretKeyRef:
                         name: tax-agent-credentials
                         key: PAPERLESS_TOKEN
+                  PAPERLESS_WEBHOOK_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: PAPERLESS_WEBHOOK_SECRET
                   LITELLM_BASE_URL:
                     valueFrom:
                       secretKeyRef:
