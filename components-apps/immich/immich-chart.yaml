@@ -121,14 +121,14 @@ spec:
                 server:
                   - path: /data
             accessMode: ReadWriteOnce
-            storageClass: nfs
+            storageClass: synology-nfs-storage
             size: 2000Gi
           cache:
             enabled: true
             globalMounts:
               - path: /cache
             accessMode: ReadWriteOnce
-            storageClass: nfs
+            storageClass: synology-nfs-storage
             size: 20Gi
           database:
             enabled: true
