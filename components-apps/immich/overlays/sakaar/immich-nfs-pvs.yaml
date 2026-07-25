@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-immich-library
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 2000Gi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: immich-app-library
+    namespace: immich
+  nfs:
+    path: /volume1/configs/immich-immich-app-library
+    server: 100.100.172.15
+  mountOptions:
+    - nfsvers=4
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-custom
+  volumeMode: Filesystem
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-app-library
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2000Gi
+  storageClassName: nfs-custom
+  volumeMode: Filesystem
+  volumeName: pv-immich-library
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-immich-cache
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 20Gi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: immich-app-cache
+    namespace: immich
+  nfs:
+    path: /volume1/configs/immich-immich-app-cache
+    server: 100.100.172.15
+  mountOptions:
+    - nfsvers=4
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-custom
+  volumeMode: Filesystem
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-app-cache
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: nfs-custom
+  volumeMode: Filesystem
+  volumeName: pv-immich-cache
