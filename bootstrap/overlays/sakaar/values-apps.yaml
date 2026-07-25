@@ -87,3 +87,9 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/tax-agent
+
+  vaultwarden:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/vaultwarden/overlays/sakaar

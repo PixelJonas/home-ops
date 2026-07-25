@@ -1,0 +1,24 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: vaultwarden-db
+  namespace: vaultwarden
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+
+  superuserSecret:
+    name: vaultwarden-db-postgres-secret
+
+  bootstrap:
+    initdb:
+      database: vaultwarden
+      owner: vaultwarden
+      secret:
+        name: vaultwarden-db-vaultwarden-secret
+
+  storage:
+    storageClass: lvms-vg1
+    size: 1Gi

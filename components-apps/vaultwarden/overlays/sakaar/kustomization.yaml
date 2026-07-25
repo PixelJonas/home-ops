@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - vaultwarden.yaml
+  - postgresql-database.yaml
+  - external-vaultwarden-db-firefly.yaml
+  - external-vaultwarden-db-superuser.yaml
+  - external-vaultwarden-credentials.yaml
+  - ../../backup
+
+patches:
+  - target:
+      kind: PersistentVolumeClaim
+      name: database-syno-db-backup
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: lvms-vg1
