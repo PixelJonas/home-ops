@@ -114,3 +114,11 @@ applications:
       namespace: devland
     source:
       path: components-apps/devland/base
+
+  registry:
+    annotations:
+      argocd.argoproj.io/sync-wave: "5"
+    destination:
+      namespace: openshift-image-registry
+    source:
+      path: components-infra/registry-sno/overlays/sakaar
