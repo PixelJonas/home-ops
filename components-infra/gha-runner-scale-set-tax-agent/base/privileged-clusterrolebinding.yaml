@@ -5,7 +5,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: arc-runner-set-tax-agent-gha-rs-no-permission
-    namespace: arc-runners-tax-agent
+    namespace: arc-runners
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

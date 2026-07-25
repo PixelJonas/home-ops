@@ -103,7 +103,7 @@ applications:
     annotations:
       argocd.argoproj.io/sync-wave: "3"
     destination:
-      namespace: arc-runners-tax-agent
+      namespace: arc-runners
     source:
       path: components-infra/gha-runner-scale-set-tax-agent/base
 
