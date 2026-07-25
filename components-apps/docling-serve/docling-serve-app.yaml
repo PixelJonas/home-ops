@@ -37,10 +37,15 @@ spec:
                 resources:
                   requests:
                     cpu: 500m
-                    memory: 2Gi
+                    memory: 4Gi
                   limits:
                     cpu: 2000m
-                    memory: 4Gi
+                    # Bumped from 4Gi: OOMKilled on large/complex documents
+                    # (e.g. an 18-page contract, a 5.4MB scanned letter)
+                    # during tax-agent P1-T07's 20-document live
+                    # verification — pod memory climbed to ~3.9Gi before
+                    # each kill. Node has ample headroom (93Gi allocatable).
+                    memory: 8Gi
                 probes:
                   liveness:
                     enabled: true
