@@ -1,0 +1,87 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: vaultwarden-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: vaultwarden
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+
+        controllers:
+          vaultwarden:
+            containers:
+              vaultwarden:
+                image:
+                  repository: vaultwarden/server
+                  tag: 1.37.0
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATA_FOLDER: "config"
+                  ROCKET_PORT: 8000
+                  ROCKET_ENV: prod
+                  ROCKET_WORKERS: 15
+                  LOG_LEVEL: "error"
+                  EXTENDED_LOGGING: "true"
+                  DOMAIN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: vaultwarden-credentials
+                        key: domain
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: vaultwarden-credentials
+                        key: db-url
+                  ADMIN_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: vaultwarden-credentials
+                        key: admin-password
+
+        service:
+          vaultwarden:
+            controller: vaultwarden
+            ports:
+              http:
+                port: 8000
+
+        ingress:
+          vaultwarden:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: vaultwarden.apps.sakaar.janz.cloud
+                paths:
+                  - path: /
+                    service:
+                      identifier: vaultwarden
+                      port: http
+
+        persistence:
+          config:
+            suffix: config
+            globalMounts:
+              - path: /config
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 1Gi
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
