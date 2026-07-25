@@ -1,7 +1,7 @@
 githubConfigUrl: "https://github.com/PixelJonas/palbuddy"
 githubConfigSecret: arc-runner-set-palbuddy-github-secret
 runnerScaleSetName: "arc-runner-set-palbuddy"
-minRunners: 0
+minRunners: 1
 maxRunners: 10
 controllerServiceAccount:
   namespace: actions-runner-system
