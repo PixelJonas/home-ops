@@ -184,9 +184,65 @@ from whichever is closer to the new repo's needs.
   with no matching App installation will show `Synced` in ArgoCD but the
   runner will fail to register with GitHub, which only surfaces as a
   confusing auth error in the runner pod's logs, not an ArgoCD sync
-  failure.
+  failure. To verify the installation's actual `repository_selection`
+  authoritatively (not just trusting the GitHub UI), build a JWT signed
+  with the App's private key and call `GET /app/installations` — see the
+  migration journal's 2026-07-25 entry for the exact recipe (openssl-based
+  JWT construction, no external JWT library needed).
 - **A personal GitHub account cannot share one `RunnerScaleSet` across
   repos** — don't try to point a new repo's workflows at an existing
   scale-set name to "save a step." Each repo needs its own scale-set
   object (still cheap — same namespace, same credentials), just not its
   own namespace/App/secret.
+
+## Migrating or retiring a scale-set: never delete its credential secret
+## before the old AutoscalingRunnerSet finishes cleanup
+
+If you're moving an *existing* scale-set to a new namespace/secret (or
+decommissioning one), **do not remove its old `githubConfigSecret` /
+ExternalSecret in the same change that removes the old namespace.** The
+ARC controller's `AutoscalingRunnerSet` finalizer needs to call the GitHub
+API (using that exact secret) to deregister the runner scale-set and any
+outstanding `EphemeralRunner` objects as part of its own cleanup. If the
+secret is already gone by the time the finalizer runs — which is exactly
+what happens if ArgoCD prunes the old namespace's ExternalSecret/Secret
+in the same sync pass as everything else — the controller logs `failed to
+resolve app config: failed to get kubernetes secret: "<ns>/<secret>"` on
+loop, the finalizer never clears, and the namespace gets stuck
+`Terminating` forever. Once a namespace enters `Terminating`, Kubernetes
+refuses to create *any* new object in it (including a temporary secret to
+unblock the controller), so there is no clean recovery at that point.
+
+Hit exactly this migrating palbuddy/devland/tax-agent's runners to the
+shared namespace on 2026-07-25 — all three old namespaces got stuck this
+way. Recovery (when the namespace is already `Terminating` and it's too
+late to fix cleanly): the actual runner pods and jobs will already have
+completed by this point — verify with `oc get pods -n <old-ns>` (should
+be empty) before doing anything — then manually strip finalizers from
+whatever's left, in this order: any leftover `EphemeralRunner` objects
+first, then the `ServiceAccount`/`Role`/`RoleBinding` carrying the
+`actions.github.com/cleanup-protection` finalizer, then (if still present)
+the `AutoscalingRunnerSet` itself:
+```bash
+oc patch ephemeralrunner <name> -n <old-ns> --type merge -p '{"metadata":{"finalizers":[]}}'
+oc patch serviceaccount <name> -n <old-ns> --type merge -p '{"metadata":{"finalizers":[]}}'
+oc patch role.rbac.authorization.k8s.io <name> -n <old-ns> --type merge -p '{"metadata":{"finalizers":[]}}'
+oc patch rolebinding.rbac.authorization.k8s.io <name> -n <old-ns> --type merge -p '{"metadata":{"finalizers":[]}}'
+oc patch autoscalingrunnerset <name> -n <old-ns> --type merge -p '{"metadata":{"finalizers":[]}}'
+```
+This unblocks the namespace deletion but skips the GitHub-side API
+deregistration — the old runner scale-set may leave a harmless orphaned
+"offline" group entry visible in the repo's Settings → Actions → Runners
+page, safe to remove manually or ignore.
+
+**The actual fix, to avoid this next time**: ArgoCD prune doesn't
+guarantee the old `AutoscalingRunnerSet` gets deleted *before* its
+`ExternalSecret`/`Secret` — they're siblings in the same kustomization
+output, deleted in whatever order the API server happens to process them.
+Don't rely on ordering. Instead, before removing the old namespace from
+git at all: manually delete the old `AutoscalingRunnerSet` object first
+(`oc delete autoscalingrunnerset <name> -n <old-ns>`), while its secret
+still exists, and wait for it to actually disappear (confirms the
+finalizer ran successfully and deregistered cleanly via the GitHub API).
+Only then remove the old namespace/secret/component from git and let
+ArgoCD prune the now-empty shell.
