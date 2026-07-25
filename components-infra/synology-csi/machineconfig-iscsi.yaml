@@ -3,6 +3,22 @@ kind: MachineConfig
 metadata:
   labels:
     machineconfiguration.openshift.io/role: master
+  name: master-iscsi-configuration
+  namespace: openshift-config
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    systemd:
+      units:
+        - name: iscsid.service
+          enabled: true
+---
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: worker
   name: worker-iscsi-configuration
   namespace: openshift-config
 spec:

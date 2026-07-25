@@ -47,7 +47,7 @@ templates/          # Reusable manifests (e.g., replication destination)
 
 **Secrets** flow: Doppler project → External Secrets Operator `ClusterSecretStore` (`doppler-secret-store`) → `ExternalSecret` CRs per component → native Kubernetes `Secret` objects. Never store secret values in this repo.
 
-**Auto-sync is disabled** for applications (manual sync preferred); infrastructure components may have auto-sync enabled. `autoprune: false` is the default to prevent accidental deletion.
+**Auto-sync with prune is the standard** for every leaf Application, apps and infra alike (`syncPolicy.automated: {selfHeal: true, prune: true}`), consistently on both `local.home` and `sakaar`.
 
 ## Key Technologies
 
