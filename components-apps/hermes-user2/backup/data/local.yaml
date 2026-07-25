@@ -1,7 +1,0 @@
-- op: replace
-  path: /spec/sourcePVC
-  value: hermes-user2-app-data
-
-- op: replace
-  path: /spec/restic/repository
-  value: restic-config-data
