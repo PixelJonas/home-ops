@@ -83,11 +83,19 @@ applications:
     source:
       path: components-infra/actions-runner-controller/base
 
+  gha-runners-shared:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: arc-runners
+    source:
+      path: components-infra/gha-runners-shared
+
   gha-runner-scale-set-palbuddy:
     annotations:
       argocd.argoproj.io/sync-wave: "3"
     destination:
-      namespace: arc-runners-palbuddy
+      namespace: arc-runners
     source:
       path: components-infra/gha-runner-scale-set-palbuddy/base
 
@@ -103,7 +111,7 @@ applications:
     annotations:
       argocd.argoproj.io/sync-wave: "3"
     destination:
-      namespace: arc-runners-devland
+      namespace: arc-runners
     source:
       path: components-infra/gha-runner-scale-set-devland/base
 

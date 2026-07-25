@@ -5,7 +5,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: arc-runner-set-devland-gha-rs-no-permission
-    namespace: arc-runners-devland
+    namespace: arc-runners
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
