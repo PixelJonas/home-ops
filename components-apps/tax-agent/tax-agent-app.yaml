@@ -82,6 +82,62 @@ spec:
                       initialDelaySeconds: 5
                       periodSeconds: 10
 
+          doc-pipeline:
+            replicas: 1
+            containers:
+              doc-pipeline:
+                image:
+                  repository: ghcr.io/pixeljonas/tax-agent/doc_pipeline
+                  digest: "sha256:1fcb0faba6f720aedd3fc4a55f4ec164a90fe4aaa1fa7ef41f9f7336cfe4725e"   # real digest published by tax-agent#5's release run (image tag 1827d83c...); release.yml PR updates this on subsequent builds
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-db-connection
+                        key: uri
+                  QUEUE_URL: redis://tax-agent-app-valkey:6379/0
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: PAPERLESS_TOKEN
+                  DOCLING_URL: http://docling-serve-app.docling-serve.svc.cluster.local:5001
+                  DOCLING_SERVE_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: DOCLING_SERVE_API_KEY
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - python3
+                          - -m
+                          - doc_pipeline.healthcheck
+                      initialDelaySeconds: 15
+                      periodSeconds: 15
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - python3
+                          - -m
+                          - doc_pipeline.healthcheck
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+
           valkey:
             containers:
               valkey:
