@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - anyuid-rolebinding.yaml
+  - external-firefly-credentials.yaml
+  - external-firefly-db-firefly.yaml
+  - external-firefly-db-superuser.yaml
+  - firefly-cronjob.yaml
+  - firefly.yaml
+  - firefly-fints-importer.yaml
+  - postgresql-database.yaml
+  - privileged-rolebinding.yaml
+  - ../../backup
+
+patches:
+  - target:
+      kind: PersistentVolumeClaim
+      name: database-syno-db-backup
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: lvms-vg1
