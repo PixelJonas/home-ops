@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - anyuid-rolebdining.yaml
+  - paperless-chart-app.yaml
+  - namespace.yaml
+  - paperless-consume-pvc.yaml
+  - external-paperless-db-paperless.yaml
+  - external-paperless-ai-credentials.yaml
+  - external-paperless-secret-key.yaml
+  - postgresql-database.yaml
+  - ../../backup
+  - paperless-ai-chart-app.yaml
+
+patches:
+  - target:
+      kind: PersistentVolumeClaim
+      name: database-syno-db-backup
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: lvms-vg1
