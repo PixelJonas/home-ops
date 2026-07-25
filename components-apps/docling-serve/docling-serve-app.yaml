@@ -1,0 +1,88 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: docling-serve-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: docling-serve
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+        controllers:
+          docling-serve:
+            containers:
+              docling-serve:
+                image:
+                  # NOTE: the CPU variant is a separate GHCR repository
+                  # (docling-serve-cpu), not a "-cpu" tag suffix on
+                  # docling-serve as originally assumed — see Task 1 PR
+                  # description for details.
+                  repository: ghcr.io/docling-project/docling-serve-cpu
+                  digest: "sha256:693aa883e999894ae2efdf7acd89d8fc14abddfc0af3b9fcdd42b7c1b23e1d25"
+                  pullPolicy: IfNotPresent
+                env:
+                  DOCLING_SERVE_ENABLE_UI: "false"
+                  DOCLING_SERVE_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: docling-serve-credentials
+                        key: DOCLING_SERVE_API_KEY
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 2Gi
+                  limits:
+                    cpu: 2000m
+                    memory: 4Gi
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 5001
+                      initialDelaySeconds: 30
+                      periodSeconds: 15
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 5001
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+
+        service:
+          docling-serve:
+            controller: docling-serve
+            ports:
+              http:
+                port: 5001
+
+        persistence:
+          docling-cache:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 5Gi
+            advancedMounts:
+              docling-serve:
+                docling-serve:
+                  - path: /.cache
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
