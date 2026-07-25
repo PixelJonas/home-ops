@@ -17,5 +17,6 @@ config.yaml
 /bootstrap/talos/*.yaml
 /bootstrap/talos/talosconfig
 /bootstrap/**/charts/
-/.claude
+/.claude/*
+!/.claude/skills/
 CLAUDE.local.md
