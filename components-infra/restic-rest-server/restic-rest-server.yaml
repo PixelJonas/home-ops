@@ -31,7 +31,7 @@ spec:
           data:
             globalMounts:
               - path: /data
-            storageClass: nfs
+            storageClass: synology-nfs-storage
             accessMode: ReadWriteMany
             size: 50Gi
 

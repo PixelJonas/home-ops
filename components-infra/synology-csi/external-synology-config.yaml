@@ -11,6 +11,9 @@ spec:
     - secretKey: synoip
       remoteRef:
         key: SYNOLOGY_IP
+    - secretKey: synouser
+      remoteRef:
+        key: SYNOLOGY_CSI_USERNAME
     - secretKey: synopass
       remoteRef:
         key: SYNOLOGY_PASSWORD
@@ -24,10 +27,10 @@ spec:
             - host: {{ .synoip | toString }}
               port: 5000
               https: false
-              username: csi
+              username: {{ .synouser | toString }}
               password: {{ .synopass | toString }}
             - host: {{ .synoip | toString }}
               port: 5001
               https: true
-              username: csi
+              username: {{ .synouser | toString }}
               password: {{ .synopass | toString }}

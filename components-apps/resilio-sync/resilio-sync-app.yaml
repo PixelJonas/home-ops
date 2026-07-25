@@ -65,19 +65,19 @@ spec:
               - path: /config
             size: 5Gi
           media:
-            storageClass: nfs
+            storageClass: synology-nfs-storage
             accessMode: ReadWriteOnce
             size: 10Gi
             globalMounts:
               - path: /media
           downloads:
-            storageClass: nfs
+            storageClass: synology-nfs-storage
             accessMode: ReadWriteOnce
             globalMounts:
               - path: /downloads
             size: 10Gi
           sync:
-            storageClass: nfs
+            storageClass: synology-nfs-storage
             accessMode: ReadWriteOnce
             globalMounts:
               - path: /sync
