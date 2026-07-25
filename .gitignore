@@ -16,7 +16,7 @@ config.yaml
 /tmp
 /bootstrap/talos/*.yaml
 /bootstrap/talos/talosconfig
-/bootstrap/**/charts/
+**/charts/
 /.claude/*
 !/.claude/skills/
 CLAUDE.local.md

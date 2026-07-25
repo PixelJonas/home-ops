@@ -1,5 +1,5 @@
 githubConfigUrl: "https://github.com/PixelJonas/tax-agent"
-githubConfigSecret: arc-runner-set-tax-agent-github-secret
+githubConfigSecret: gha-runners-github-secret
 runnerScaleSetName: "arc-runner-set-tax-agent"
 minRunners: 0
 maxRunners: 10
