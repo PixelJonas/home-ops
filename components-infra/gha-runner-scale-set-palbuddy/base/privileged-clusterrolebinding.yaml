@@ -5,7 +5,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: arc-runner-set-palbuddy-gha-rs-no-permission
-    namespace: arc-runners-palbuddy
+    namespace: arc-runners
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

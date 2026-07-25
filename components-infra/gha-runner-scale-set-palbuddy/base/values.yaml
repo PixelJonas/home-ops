@@ -1,5 +1,5 @@
 githubConfigUrl: "https://github.com/PixelJonas/palbuddy"
-githubConfigSecret: arc-runner-set-palbuddy-github-secret
+githubConfigSecret: gha-runners-github-secret
 runnerScaleSetName: "arc-runner-set-palbuddy"
 minRunners: 1
 maxRunners: 10

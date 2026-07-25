@@ -1,5 +1,5 @@
 githubConfigUrl: "https://github.com/PixelJonas/devland-2027"
-githubConfigSecret: arc-runner-set-devland-github-secret
+githubConfigSecret: gha-runners-github-secret
 runnerScaleSetName: "arc-runner-set-devland"
 minRunners: 0
 maxRunners: 3
