@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hermes-agent
+  namespace: hermes-user1
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"

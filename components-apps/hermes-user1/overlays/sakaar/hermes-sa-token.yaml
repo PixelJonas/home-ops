@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hermes-agent-token
+  namespace: hermes-user1
+  annotations:
+    kubernetes.io/service-account.name: hermes-agent
+    argocd.argoproj.io/sync-wave: "11"
+type: kubernetes.io/service-account-token

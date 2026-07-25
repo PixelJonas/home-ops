@@ -63,3 +63,9 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/honcho/overlays/sakaar
+
+  hermes-user1:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/hermes-user1/overlays/sakaar
