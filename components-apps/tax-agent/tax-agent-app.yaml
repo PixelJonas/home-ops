@@ -87,7 +87,7 @@ spec:
               valkey:
                 image:
                   repository: valkey/valkey
-                  tag: 8-alpine
+                  tag: 8.1.9
                   pullPolicy: IfNotPresent
                 args:
                   - valkey-server
