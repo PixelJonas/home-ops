@@ -40,12 +40,6 @@ applications:
     source:
       path: components-apps/cloudnative-pg
 
-  silverbullet:
-    annotations:
-      argocd.argoproj.io/sync-wave: "300"
-    source:
-      path: components-apps/silverbullet/overlays/sakaar
-
   resilio-sync:
     annotations:
       argocd.argoproj.io/sync-wave: "300"
@@ -63,12 +57,6 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/honcho/overlays/sakaar
-
-  odysseus:
-    annotations:
-      argocd.argoproj.io/sync-wave: "300"
-    source:
-      path: components-apps/odysseus/overlays/sakaar
 
   tax-agent:
     annotations:
