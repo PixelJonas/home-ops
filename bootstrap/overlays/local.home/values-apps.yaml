@@ -54,3 +54,13 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/honcho
+  docling-serve:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/docling-serve
+  tax-agent:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/tax-agent
