@@ -88,7 +88,7 @@ spec:
               doc-pipeline:
                 image:
                   repository: ghcr.io/pixeljonas/tax-agent/doc_pipeline
-                  digest: "sha256:1c79a3f3aaa8629a77dad0b36b10d3dff513db1cb574a523f107e98836657d42"   # release.yml PR updates this to the built digest
+                  digest: "sha256:6aff1591855cb285aeead05b15849ccb926fb45d46591782a53bc90c3993a522"   # release.yml PR updates this to the built digest
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
