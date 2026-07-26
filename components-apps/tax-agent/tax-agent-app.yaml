@@ -126,6 +126,7 @@ spec:
                           - doc_pipeline.healthcheck
                       initialDelaySeconds: 15
                       periodSeconds: 15
+                      timeoutSeconds: 5
                   readiness:
                     enabled: true
                     custom: true
@@ -137,6 +138,7 @@ spec:
                           - doc_pipeline.healthcheck
                       initialDelaySeconds: 10
                       periodSeconds: 10
+                      timeoutSeconds: 5
 
           valkey:
             containers:
