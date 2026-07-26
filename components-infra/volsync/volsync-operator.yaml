@@ -19,6 +19,16 @@ spec:
         manageCRDs: true
         metrics:
           disableAuth: true
+        # Explicit, non-empty override so the chart skips its own
+        # `.Capabilities.APIVersions.Has "security.openshift.io/v1/..."`
+        # auto-detection entirely (unreliable via ArgoCD's repo-server on
+        # a freshly-bootstrapped cluster - it otherwise falls through to
+        # a hardcoded runAsUser/runAsGroup: 65534 meant for non-OpenShift
+        # clusters, which every OpenShift SCC rejects).
+        podSecurityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
 
   project: cluster-config
   syncPolicy:
