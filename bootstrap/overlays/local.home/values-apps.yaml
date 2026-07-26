@@ -74,3 +74,8 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/paperless
+  immich:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/immich
