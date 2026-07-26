@@ -1,6 +1,11 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
+  # This name must NOT match the values-infra.yaml wrapper key that points
+  # at this directory (currently "nfs-subdir") -- same name means same
+  # Application object identity, and the wrapper's sync + this app's own
+  # sync fight over it, causing this Application to self-prune on every
+  # reconcile. See docs/journal/altus-to-sakaar-migration.md 2026-07-26.
   name: nfs-subdir-provisioner
   namespace: openshift-gitops
   annotations:
