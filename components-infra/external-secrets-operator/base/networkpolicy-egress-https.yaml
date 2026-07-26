@@ -1,0 +1,42 @@
+# OpenShift's External Secrets Operator auto-generates a default-deny
+# NetworkPolicy (`eso-sys-deny-all-traffic`) in the `external-secrets`
+# namespace, plus narrow allow-rules for only the Kubernetes API server
+# (6443) and DNS — nothing for external secret providers like Doppler on
+# port 443. Without this policy, `ClusterSecretStore doppler-cluster` (and
+# every ExternalSecret depending on it) fails validation with a generic
+# `dial tcp ...: i/o timeout`, since the actual ClusterSecretStore/
+# ExternalSecret reconciler runs as a separate Deployment
+# (`external-secrets`) in the `external-secrets` namespace — a different
+# namespace than the OLM operator installer this kustomization otherwise
+# manages (`external-secrets-operator`).
+#
+# Unlike its sibling resources below (commented out to avoid a GitOps
+# self-referential secrets-bootstrap chicken-and-egg problem), this policy
+# has no such dependency — it doesn't need any Secret to exist first, only
+# the `external-secrets` namespace, which the operator itself creates when
+# `ExternalSecretsConfig` is applied (currently done imperatively, see
+# `infra-ops` stacks/sakaar/manifests/external-secrets-operator/). So it's
+# safe to manage here directly: ArgoCD will simply retry until that
+# namespace exists, then self-heal it onto any fresh cluster bootstrap
+# without a human/agent needing to remember a separate imperative step.
+#
+# Originally discovered and applied live (via `oc apply -f`, not GitOps) on
+# Sakaar (2026-07-24) and Altus (2026-07-26) during incident response —
+# this is that fix, finally committed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-secrets-egress-https
+  namespace: external-secrets
+  labels:
+    app.kubernetes.io/name: external-secrets-operator
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: external-secrets
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443

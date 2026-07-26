@@ -3,3 +3,7 @@ resources:
 #  - operator-group.yaml
 #  - subscription.yaml
 #  - externalsecrets.yaml
+  # Not part of the chicken-and-egg bootstrap problem the three resources
+  # above are commented out for (no Secret dependency) — see the file's
+  # own header comment for why this one is safe to manage via GitOps.
+  - networkpolicy-egress-https.yaml
