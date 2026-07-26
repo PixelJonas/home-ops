@@ -39,4 +39,3 @@ applications:
       argocd.argoproj.io/sync-wave: "200"
     source:
       path: components-apps/cloudnative-pg
-
