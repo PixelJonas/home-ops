@@ -114,6 +114,11 @@ spec:
                       secretKeyRef:
                         name: tax-agent-credentials
                         key: DOCLING_SERVE_API_KEY
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
                 probes:
                   liveness:
                     enabled: true
