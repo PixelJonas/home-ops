@@ -120,16 +120,12 @@ spec:
               server:
                 server:
                   - path: /data
-            accessMode: ReadWriteOnce
-            storageClass: synology-nfs-storage
-            size: 2000Gi
+            existingClaim: immich-app-library
           cache:
             enabled: true
             globalMounts:
               - path: /cache
-            accessMode: ReadWriteOnce
-            storageClass: synology-nfs-storage
-            size: 20Gi
+            existingClaim: immich-app-cache
           database:
             enabled: true
             globalMounts:
