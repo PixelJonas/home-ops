@@ -15,4 +15,5 @@ spec:
       secret:
         name: litellm-db-litellm-secret
   storage:
-    size: 2Gi
+    storageClass: lvms-vg1
+    size: 8Gi
