@@ -108,6 +108,14 @@ applications:
     source:
       path: components-infra/rbac/base
 
+  openshift-oauth-htpasswd:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: openshift-config
+    source:
+      path: components-infra/openshift-oauth-htpasswd/overlays/local.home
+
   claude-admin:
     annotations:
       argocd.argoproj.io/sync-wave: "11"
