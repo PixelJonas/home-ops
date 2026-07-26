@@ -40,12 +40,6 @@ applications:
     source:
       path: components-apps/cloudnative-pg
 
-  resilio-sync:
-    annotations:
-      argocd.argoproj.io/sync-wave: "300"
-    source:
-      path: components-apps/resilio-sync/overlays/sakaar
-
   litellm:
     annotations:
       argocd.argoproj.io/sync-wave: "300"
