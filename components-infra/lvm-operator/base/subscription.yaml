@@ -4,6 +4,17 @@ metadata:
   name: lvms-operator
   namespace: openshift-storage
 spec:
+  # Unlike most other Subscriptions in this repo (cert-manager-operator,
+  # external-secrets-operator, cloudnative-pg, openshift-gitops-operator,
+  # nmstate all pin to a version-agnostic channel like `stable-v1`/`stable`/
+  # `latest`), redhat-operators' lvms-operator package only publishes
+  # per-OCP-minor channels (confirmed live via `oc get packagemanifest
+  # lvms-operator -n openshift-marketplace` — no generic "stable" exists).
+  # This MUST track the cluster's OCP minor version and WILL go stale on
+  # every OCP upgrade, causing `ResolutionFailed ConstraintsNotSatisfiable`
+  # and a total LVM storage outage until bumped (hit for real on Altus's
+  # 2026-07-26 reinstall, was still pinned to stable-4.19 against a
+  # 4.21.24 cluster). Bump this alongside any OCP minor upgrade.
   channel: stable-4.21
   installPlanApproval: Automatic
   name: lvms-operator
