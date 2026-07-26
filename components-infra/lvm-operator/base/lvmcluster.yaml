@@ -18,3 +18,4 @@ spec:
           paths:
             - /dev/nvme0n1
             - /dev/nvme1n1
+            - /dev/sdb
