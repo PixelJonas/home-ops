@@ -6,7 +6,7 @@ provisioner: csi.san.synology.com
 parameters:
   protocol: "nfs"
   dsm: "10.10.10.40"
-  location: "/volume1/openshift"
+  location: "/volume1"
   mountPermissions: "0775"
 mountOptions:
   - nfsvers=4.1
