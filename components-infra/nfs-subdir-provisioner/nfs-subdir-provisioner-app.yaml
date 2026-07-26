@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nfs-subdir-provisioner
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: cluster-config
+  source:
+    repoURL: "https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/"
+    chart: nfs-subdir-external-provisioner
+    targetRevision: 4.0.18
+    helm:
+      values: |-
+
+        # Fallback provisioner for synology-nfs-storage on Altus (local.home only).
+        # synology-csi's dynamic NFS provisioning (csi.san.synology.com) grants each
+        # export's ACL based on the Node object's registered InternalIP(s). Altus is
+        # multi-homed (LAN 10.42.0.11, direct link to the NAS at 10.10.10.50/24), and
+        # traffic to the NAS at 10.10.10.40 always sources from 10.10.10.50 (kernel
+        # routing on the directly-connected subnet) -- never from 10.42.0.11, the only
+        # InternalIP Kubernetes knows about. Every synology-csi NFS export therefore
+        # gets an ACL for the wrong IP and mounts fail. nfs-subdir-external-provisioner
+        # sidesteps this: it mounts ONE pre-existing, already-correctly-permissioned
+        # export (see the Synology `configs` share, exported via Terraform to the
+        # whole 10.10.10.0/24 network) once at the provisioner-pod level, then manages
+        # per-PVC subdirectories inside it -- no per-PVC dynamic DSM ACL creation, so
+        # this IP mismatch never comes into play.
+        nfs:
+          server: 10.10.10.40
+          path: /volume1/configs
+          reclaimPolicy: Retain
+          mountOptions:
+            - "nfsvers=4"
+            - "noac"
+
+        # Do not let the chart create its own StorageClass: the existing
+        # `synology-nfs-storage` object (components-infra/synology-csi/storageclass-
+        # nfs.yaml) is repointed at this provisioner's name instead, so existing PVC
+        # specs referencing it by name don't need to change.
+        storageClass:
+          create: false
+          provisionerName: cluster.local/altus-synology-nfs
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: nfs-provisioner
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
