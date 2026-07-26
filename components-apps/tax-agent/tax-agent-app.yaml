@@ -114,6 +114,11 @@ spec:
                       secretKeyRef:
                         name: tax-agent-credentials
                         key: DOCLING_SERVE_API_KEY
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: LITELLM_BASE_URL
                   TAXBUDDY_LLMCLIENT_LITELLM_KEY:
                     valueFrom:
                       secretKeyRef:
