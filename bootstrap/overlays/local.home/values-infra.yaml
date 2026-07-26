@@ -53,6 +53,14 @@ applications:
     source:
       path: components-infra/cert-manager-operator/aggregate/overlays/letsencrypt
 
+  nfs-subdir-provisioner:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: nfs-provisioner
+    source:
+      path: components-infra/nfs-subdir-provisioner
+
   nfs-backup:
     annotations:
       argocd.argoproj.io/sync-wave: "2"

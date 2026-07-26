@@ -1,14 +1,28 @@
+# Backed by nfs-subdir-external-provisioner (components-infra/nfs-subdir-
+# provisioner), not synology-csi's own csi.san.synology.com driver. Kept as
+# the same object/name so existing PVC specs don't need to change.
+#
+# Why: synology-csi's dynamic NFS provisioning grants each auto-created
+# export's ACL to whatever IP(s) Kubernetes reports as the Node's
+# InternalIP. Altus is multi-homed (LAN 10.42.0.11, direct link to the NAS
+# at 10.10.10.50/24) and traffic to the NAS (10.10.10.40) always sources
+# from 10.10.10.50 -- never the registered InternalIP -- so every
+# synology-csi NFS export ends up with an ACL that never matches the real
+# source IP and mounts fail. nfs-subdir-external-provisioner avoids this by
+# reusing one already-correctly-permissioned static export instead of
+# creating a new per-PVC one. iSCSI/SMB aren't affected (non-IP-based auth)
+# and still use csi.san.synology.com directly -- see
+# synology-iscsi-storageclass.yaml / synology-smb-storageclass.yaml.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: synology-nfs-storage
-provisioner: csi.san.synology.com
+provisioner: cluster.local/altus-synology-nfs
 parameters:
-  protocol: "nfs"
-  dsm: "10.10.10.40"
-  location: "/volume1"
-  mountPermissions: "0775"
+  onDelete: "retain"
+  pathPattern: "${.PVC.namespace}-${.PVC.name}"
 mountOptions:
-  - nfsvers=4.1
+  - nfsvers=4
+  - noac
 reclaimPolicy: Delete
-allowVolumeExpansion: true
+allowVolumeExpansion: false
