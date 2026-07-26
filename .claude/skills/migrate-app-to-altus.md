@@ -47,11 +47,17 @@ Full context: `docs/journal/altus-to-sakaar-migration.md` in infra-ops (gitignor
   ```bash
   KUBECONFIG=<sakaar-kubeconfig> oc get externalsecret -n <NAMESPACE> -o custom-columns='NAME:.metadata.name,STORE:.spec.secretStoreRef.name,KEYS:.spec.data[*].remoteRef.key'
   ```
-  Confirm every referenced key exists in Doppler (`infra-ops` project, `prd` config) — it will, since keys are cluster-agnostic, but verify rather than assume for anything added specifically during the Sakaar stint.
+  Confirm every referenced key exists in Doppler — **app secrets live in the `homelab`/`home` project, not `infra-ops`/`prd`** (only infra-level secrets like kubeconfigs and cluster tokens live in `infra-ops`/`prd`; mixing these up wastes a round-trip). Keys are cluster-agnostic, but verify rather than assume for anything added specifically during the Sakaar stint.
 
 - [ ] **1.5 Read the app's base Application manifest**
 
   Read `components-apps/<APP_NAME>/` (the base, not the `overlays/sakaar/` copy) in home-ops. Confirm: ingress hostname is `*.apps.altus.janz.digital`, storage class is one of the Synology/LVM classes (not `lvms-vg1` unless that's genuinely the right choice per the storage-class guidance above), access mode matches the storage class (RWX for NFS/SMB, RWO for LVM/iSCSI), `secretStoreRef` is `doppler-cluster`.
+
+- [ ] **1.6 Audit for undocumented cross-service dependencies**
+
+  Don't trust a prior migration's component list if the app has been under active development since. Read every container's env vars in the Application manifest, not just the ones already known: (a) any URL pointing at `*.svc`/`*.svc.cluster.local` is an **in-cluster DNS dependency** — that target must exist (and be healthy) on the destination cluster before this app will fully work, same class of ordering problem as the litellm/honcho Wave 2 reorder; (b) don't assume a `*_URL`-named secret is external just because a sibling secret with the same naming convention is — verify each one (see 1.6.1 below); (c) grep the rest of home-ops/private-ops for any *other* consumer of a newly-discovered dependency before deciding whether it can move/drain independently.
+
+  - [ ] **1.6.1 Verify secret values without printing them.** Base64-decode the live Secret's field to a file and `shasum -a 256` it, then hash candidate strings (`printf '%s' "$candidate" | shasum -a 256`) the same way and compare — never `cat`/print a decoded value, per the Doppler secret-safety rule.
 
 ### Phase 2: Trigger Fresh Backup on Sakaar
 
