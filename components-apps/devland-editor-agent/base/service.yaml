@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: devland-editor-agent
+  namespace: devland-editor-agent
+  labels:
+    app.kubernetes.io/name: devland-editor-agent
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: devland-editor-agent
