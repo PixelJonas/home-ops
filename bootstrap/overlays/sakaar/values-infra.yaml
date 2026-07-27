@@ -131,6 +131,14 @@ applications:
     source:
       path: components-apps/devland/base
 
+  devland-editor-agent:
+    annotations:
+      argocd.argoproj.io/sync-wave: "4"
+    destination:
+      namespace: devland-editor-agent
+    source:
+      path: components-apps/devland-editor-agent/base
+
   registry:
     annotations:
       argocd.argoproj.io/sync-wave: "5"

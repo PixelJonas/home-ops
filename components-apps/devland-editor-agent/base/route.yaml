@@ -1,0 +1,18 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: devland-editor-agent
+  namespace: devland-editor-agent
+  labels:
+    app.kubernetes.io/name: devland-editor-agent
+spec:
+  host: editor.janz.digital
+  to:
+    kind: Service
+    name: devland-editor-agent
+    weight: 100
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
