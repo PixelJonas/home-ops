@@ -158,15 +158,28 @@ notarization credentials. These rules are not optional:
 - Notarization credentials live only in Doppler and only enter the runner
   process via `doppler run --`.
 
-### Manual bootstrap checklist (remaining, owner-only, M1 signing work)
+### Manual bootstrap checklist (remaining, owner-only)
 
-- [ ] Install Xcode (App Store or xip) and agree to license
-      (`sudo xcodebuild -license accept`); pin via `xcode-select`, record
-      version above. (Command Line Tools are already present — the M0.5
-      `swiftc` smoke build passes; full Xcode is needed for the Xcode
-      project build, signing, and notarization in M1.)
-- [ ] Import Apple Developer **signing certificate + private key** into the
-      primary user's login keychain and set the partition list via
+M1 needs **none** of these: the recorder fork is a SwiftPM package
+(`app/MeetingTranscriber/Package.swift`, no `.xcodeproj`), and Command
+Line Tools 26.6 (Swift 6.3.3) plus the `notarytool`/`stapler` shims are
+already installed on asgard — `swift build` works today.
+
+For M6 (public release / distribution to other Macs):
+
+- [ ] Full Xcode install (App Store or xip), pin via `xcode-select`,
+      record version above. Only needed for release tooling and
+      Instruments-grade debugging, not for building.
+- [ ] **Apple Developer Program membership** ($99/yr, owner account
+      decision) → creates the `Developer ID Application` certificate
+      required for Gatekeeper-clean distribution. Free Apple IDs only get
+      local "Personal Team" development certs, which are fine for own
+      machines (and recommended in M1 so TCC microphone/screen-recording
+      permissions survive rebuilds — create via Xcode → Settings →
+      Accounts when Xcode lands, or accept per-build re-prompts with
+      ad-hoc signing).
+- [ ] Import the Developer ID certificate into the primary user's login
+      keychain and set the partition list via
       `security set-key-partition-list -S apple-tool:,apple: -s` so
       codesign can use it non-interactively
 - [ ] Create the Apple notarization Doppler keys (see §3)
