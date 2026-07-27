@@ -15,6 +15,12 @@ spec:
       labels:
         app.kubernetes.io/name: devland-editor-agent
     spec:
+      # The UBI nodejs image runs as an arbitrary non-root UID with group 0
+      # (confirmed: /opt/app-root is mode 775, group root). fsGroup: 0 makes
+      # the mounted PVC group-writable to match, since restricted SCC's
+      # auto-assigned supplemental group otherwise won't necessarily be 0.
+      securityContext:
+        fsGroup: 0
       containers:
         - name: app
           image: ghcr.io/pixeljonas/devland-editor-agent
