@@ -115,6 +115,14 @@ applications:
     source:
       path: components-infra/gha-runner-scale-set-devland/base
 
+  gha-runner-scale-set-recordbuddy:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: arc-runners
+    source:
+      path: components-infra/gha-runner-scale-set-recordbuddy/base
+
   devland:
     annotations:
       argocd.argoproj.io/sync-wave: "4"
