@@ -83,108 +83,49 @@ macOS and cannot run on the Linux ARC runners. This runner is a classic
 self-hosted GitHub Actions runner service on the Mac mini — **not** ARC,
 not GitOps-managed — set up per the project's security spec.
 
-### Runner registration (repository-scoped)
+### Shipped implementation (2026-07-27)
 
-Register as a **repository-scoped** self-hosted runner — never org-wide:
+The runner is **declaratively managed by nix-darwin**, not set up by hand:
+module `stacks/asgard/modules/github-runner.nix` in the **infra-ops** repo,
+applied on asgard with `mise run asgard:switch`. What the module does:
 
-1. On GitHub: **PixelJonas/recordbuddy → Settings → Actions → Runners →
-   New self-hosted runner** → **macOS / ARM64**.
-2. Follow the download + config steps shown there, but configure with:
+- Downloads the official actions-runner tarball (pinned `2.336.0`,
+  sha256-verified at install time) into
+  `~/actions-runner-recordbuddy` on the primary user. Idempotent — skips
+  when `run.sh` exists; version bumps = bump the pin, delete the install
+  dir, re-switch.
+- Runs it as a launchd **user agent** `org.nixos.github-runner-recordbuddy`
+  (primary user, not a dedicated `_recordbuddy-runner` — the asgard stack
+  has no service-user machinery; revisit if signing identities need user
+  isolation in M1).
+- Registers **repository-scoped** to `PixelJonas/recordbuddy` with labels
+  exactly `self-hosted, macOS, recordbuddy` (GitHub adds `ARM64`), runner
+  name `asgard-recordbuddy`, `--ephemeral --unattended --replace`.
+- Fetches the short-lived registration token **via the primary user's `gh`
+  CLI auth** (`gh api -X POST
+  repos/PixelJonas/recordbuddy/actions/runners/registration-token`) on every
+  (re)start. No runner token is stored anywhere — no Doppler key, no PAT on
+  disk. Registration tokens expire after 1h, which is why they are fetched
+  just-in-time.
+- Ephemeral cycle: after each job GitHub de-registers the runner, the
+  process exits 0, launchd restarts it (unconditional `KeepAlive` +
+  `ThrottleInterval = 30` — `SuccessfulExit=false` does NOT work here
+  because ephemeral exits are clean), and the wrapper re-registers with a
+  fresh token. Verified end-to-end: job → exit → re-register → next job.
 
-   ```bash
-   ./config.sh \
-     --url https://github.com/PixelJonas/recordbuddy \
-     --token "$(doppler secrets get RECORDBUDDY_GHA_RUNNER_TOKEN --plain -p recordbuddy -c prd)" \
-     --name mac-mini-m4-recordbuddy \
-     --labels self-hosted,macOS,recordbuddy \
-     --ephemeral \
-     --unattended
-   ```
+Operations:
 
-   Labels must be exactly `self-hosted, macOS, recordbuddy` — workflows
-   select this runner with `runs-on: [self-hosted, macOS, recordbuddy]`.
-
-   `RECORDBUDDY_GHA_RUNNER_TOKEN` is the short-lived registration token
-   from the GitHub UI (or `gh api`). **It expires after 1 hour** — register
-   immediately after generating it, and never store it anywhere but
-   Doppler.
-
-   `--ephemeral` makes the runner take exactly one job and then
-   de-register, so a compromised or failed build cannot poison the next
-   one. With ephemeral mode the runner must be re-registered after each
-   job — the launchd wrapper below handles this by re-running config
-   before each start (see the plist note).
-
-### Secrets: Doppler-injected, never a file on the Mac mini
-
-All credentials come from Doppler project `recordbuddy`, config `prd`, and
-are injected into the runner process environment via `doppler run --` at
-service start. **No `.env` file, no plist `EnvironmentVariables` values,
-no credentials written to disk on the Mac mini.**
-
-The launchd plist wraps the runner in `doppler run`:
-
-```
-doppler run -p recordbuddy -c prd -- /opt/recordbuddy-gha-runner/run.sh
+```bash
+# restart the agent (e.g. after fixing auth)
+launchctl kickstart -k gui/$(id -u)/org.nixos.github-runner-recordbuddy
+# logs
+tail -f ~/Library/Logs/github-runner-recordbuddy.log
+# verify registration
+gh api repos/PixelJonas/recordbuddy/actions/runners --jq '.runners[] | {name,status,busy}'
 ```
 
-### launchd LaunchDaemon
-
-`/Library/LaunchDaemons/com.pixeljonas.recordbuddy-gha-runner.plist`
-(system-level LaunchDaemon so it starts at boot without a login; a
-user-level `~/Library/LaunchDaemons` variant works if the machine is
-always logged in as the runner user):
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.pixeljonas.recordbuddy-gha-runner</string>
-    <key>UserName</key>
-    <string>_recordbuddy-runner</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/local/bin/doppler</string>
-        <string>run</string>
-        <string>-p</string>
-        <string>recordbuddy</string>
-        <string>-c</string>
-        <string>prd</string>
-        <string>--</string>
-        <string>/opt/recordbuddy-gha-runner/run-ephemeral.sh</string>
-    </array>
-    <key>KeepAlive</key>
-    <true/>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/var/log/recordbuddy-gha-runner.log</string>
-    <key>StandardErrorPath</key>
-    <string>/var/log/recordbuddy-gha-runner.log</string>
-</dict>
-</plist>
-```
-
-Notes:
-
-- The runner runs as a dedicated **unprivileged** user `_recordbuddy-runner`
-  (create via `sysadminctl`/`dscl`, no admin group, no login shell needed
-  beyond the keychain step below).
-- `/opt/recordbuddy-gha-runner/run-ephemeral.sh` is a small wrapper that
-  re-runs `config.sh --ephemeral` (pulling a fresh registration token via
-  `gh api` using a PAT/FAT stored in Doppler) before invoking `run.sh`,
-  because ephemeral runners de-register after every job. `KeepAlive: true`
-  then restarts the cycle.
-- Load with `sudo launchctl bootstrap system /Library/LaunchDaemons/com.pixeljonas.recordbuddy-gha-runner.plist`.
-
-Log rotation via newsyslog — add to `/etc/newsyslog.d/recordbuddy-gha-runner.conf`:
-
-```
-# logfilename                                  [owner:group]           mode count size     when  flags
-/var/log/recordbuddy-gha-runner.log            root:wheel              640  5     10000    *     GZ
-```
+Log files live under `~/Library/Logs/` and rotate with the user's standard
+log handling — no newsyslog entry needed (user agent, not LaunchDaemon).
 
 ### Xcode version pinning
 
@@ -217,61 +158,53 @@ notarization credentials. These rules are not optional:
 - Notarization credentials live only in Doppler and only enter the runner
   process via `doppler run --`.
 
-### Manual bootstrap checklist (owner-only, cannot be automated)
+### Manual bootstrap checklist (remaining, owner-only, M1 signing work)
 
-- [ ] Create `_recordbuddy-runner` unprivileged user on the Mac mini
 - [ ] Install Xcode (App Store or xip) and agree to license
       (`sudo xcodebuild -license accept`); pin via `xcode-select`, record
-      version above
-- [ ] First keychain unlock for the runner user (log in once as
-      `_recordbuddy-runner` to create/unlock its login keychain)
+      version above. (Command Line Tools are already present — the M0.5
+      `swiftc` smoke build passes; full Xcode is needed for the Xcode
+      project build, signing, and notarization in M1.)
 - [ ] Import Apple Developer **signing certificate + private key** into the
-      `_recordbuddy-runner` login keychain (export from the owner's
-      keychain as `.p12`, import, set partition list via
+      primary user's login keychain and set the partition list via
       `security set-key-partition-list -S apple-tool:,apple: -s` so
-      codesign can use it non-interactively)
-- [ ] Grant the runner user access to the signing identities
-      (`security set-key-partition-list` above, or keychain ACLs)
-- [ ] Install the GitHub Actions runner under `/opt/recordbuddy-gha-runner`
-      owned by `_recordbuddy-runner`
-- [ ] Install the plist, bootstrap the LaunchDaemon, verify
-      `tail -f /var/log/recordbuddy-gha-runner.log`
+      codesign can use it non-interactively
+- [ ] Create the Apple notarization Doppler keys (see §3)
 - [ ] Enable "Require approval for all outside collaborators" in repo
       settings before making the repo public
 
 ### Re-registration procedure
 
-Registration tokens expire after 1 hour and ephemeral runners de-register
-after each job, so re-registration is routine:
-
-1. Remove the dead runner registration if it still shows on GitHub:
-   **repo → Settings → Actions → Runners → … → Remove**, or
-   `./config.sh remove --token <new-token>`.
-2. Generate a fresh registration token (GitHub UI, or
-   `gh api -X POST repos/PixelJonas/recordbuddy/actions/runners/registration-token`).
-3. Update the Doppler key `RECORDBUDDY_GHA_RUNNER_TOKEN` (project
-   `recordbuddy`, config `prd`) if the manual-token flow is being used.
-4. Re-run `./config.sh` with the same flags as in the registration section.
-5. Restart the service: `sudo launchctl kickstart -k system/com.pixeljonas.recordbuddy-gha-runner`.
+Re-registration is fully automatic (ephemeral mode + `gh` token fetch +
+launchd `KeepAlive`) — nothing to do after jobs, reboots, or token expiry.
+If the runner is stuck (e.g. `gh auth` broken), fix auth, then:
+`launchctl kickstart -k gui/$(id -u)/org.nixos.github-runner-recordbuddy`.
 
 ---
 
 ## 3. Doppler keys to create
 
-All keys go in Doppler project **`recordbuddy`**, config **`prd`**.
-Populate them in one pass; the ARC scale set needs **none** of these (it
-uses the existing shared `GHA_RUNNERS_*` app credentials in the
-`homelab`/`infra-ops` projects).
+Owner decision (2026-07-27): reuse the existing **`homelab`** project,
+config **`home`** (same place the shared `GHA_RUNNERS_*` ARC app
+credentials live) instead of a dedicated `recordbuddy` project.
+
+**No key is needed for runner registration** — the Mac mini runner fetches
+tokens just-in-time via `gh` auth, and the ARC scale set rides the shared
+`GHA_RUNNERS_*` app.
+
+Needed only for M1 (signing/notarization) — none exist yet:
 
 | Key | Purpose | Where used |
 |-----|---------|-----------|
-| `RECORDBUDDY_GHA_RUNNER_TOKEN` | GitHub runner **registration token** — short-lived, expires after 1h; refresh per re-registration | Mac mini: `config.sh` invocation (manual / wrapper script) |
-| `APPLE_ID` | Apple ID for notarization (`xcrun notarytool` / altool) | Mac mini runner env via `doppler run --` in signing/notarize workflow steps |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for the Apple ID (simplest notarization auth) | Mac mini runner env via `doppler run --` |
-| `APPSTORE_CONNECT_KEY_ID` | App Store Connect API key ID (alternative notarization auth) | Mac mini runner env via `doppler run --` |
-| `APPSTORE_CONNECT_ISSUER_ID` | App Store Connect API issuer ID | Mac mini runner env via `doppler run --` |
-| `APPSTORE_CONNECT_PRIVATE_KEY` | App Store Connect API private key (.p8 contents) | Mac mini runner env via `doppler run --` |
-| `APPLE_TEAM_ID` | Apple Developer Team ID (codesign identity + notarytool `--team-id`) | Mac mini runner env via `doppler run --` |
+| `APPLE_ID` | Apple ID for notarization (`xcrun notarytool` / altool) | Mac runner env via `doppler run --` in signing/notarize workflow steps |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for the Apple ID (simplest notarization auth) | Mac runner env via `doppler run --` |
+| `APPSTORE_CONNECT_KEY_ID` | App Store Connect API key ID (alternative notarization auth) | Mac runner env via `doppler run --` |
+| `APPSTORE_CONNECT_ISSUER_ID` | App Store Connect API issuer ID | Mac runner env via `doppler run --` |
+| `APPSTORE_CONNECT_PRIVATE_KEY` | App Store Connect API private key (.p8 contents) | Mac runner env via `doppler run --` |
+| `APPLE_TEAM_ID` | Apple Developer Team ID (codesign identity + notarytool `--team-id`) | Mac runner env via `doppler run --` |
+
+Already present in `homelab`/`home`, reusable: `HUGGINGFACE_TOKEN` (model
+mirror downloads, see recordbuddy §5.6).
 
 Use **either** `APPLE_APP_SPECIFIC_PASSWORD` **or** the
 `APPSTORE_CONNECT_*` trio for notarization — document which one the
