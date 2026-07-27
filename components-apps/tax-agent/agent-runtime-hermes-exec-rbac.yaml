@@ -1,0 +1,66 @@
+# OWNER MUST CONFIRM before merging this PR.
+#
+# This Role/RoleBinding grant cross-namespace `oc exec` access into whichever
+# real Hermes instance the owner picks (hermes-user1 or hermes-user2) — see
+# docs/superpowers/specs/2026-07-27-p1-t12a-approval-inbox-design.md section 9
+# in the tax-agent repo. `metadata.namespace` below is a placeholder and MUST
+# be replaced with the real target namespace (matching whatever HERMES_NAMESPACE
+# ends up being in components-apps/tax-agent/tax-agent-app.yaml) before this
+# PR can be merged. Do not guess which instance.
+#
+# Scope is deliberately least-privilege: only the two API calls
+# `agent_hermes.adapter` actually makes against the Hermes namespace
+# (`oc exec deploy/<deployment> -n <namespace> ...`, which itself requires
+# read access to resolve the Deployment to a Pod before the exec subresource
+# call) — not a ClusterRole, not write/delete access to anything in that
+# namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tax-agent-agent-runtime-hermes-exec
+  namespace: "replace-me-owner-must-choose"
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+rules:
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - pods/exec
+    verbs:
+      - create
+---
+# See the Role above for the OWNER MUST CONFIRM placeholder-namespace note —
+# the same namespace value must be updated here.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tax-agent-agent-runtime-hermes-exec
+  namespace: "replace-me-owner-must-choose"
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tax-agent-agent-runtime-hermes-exec
+subjects:
+  # bjw-s-labs/app-template's agent-runtime controller has no explicit
+  # `serviceAccount:` override (matching every other controller in this
+  # Application), so its pod runs as the namespace's `default` ServiceAccount
+  # — the same one components-apps/tax-agent/anyuid-rolebinding.yaml already
+  # grants the anyuid SCC to.
+  - kind: ServiceAccount
+    name: default
+    namespace: tax-agent

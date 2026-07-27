@@ -150,6 +150,66 @@ spec:
                       periodSeconds: 10
                       timeoutSeconds: 5
 
+          agent-runtime:
+            replicas: 1
+            containers:
+              agent-runtime:
+                image:
+                  repository: ghcr.io/pixeljonas/tax-agent/agent_runtime
+                  # PLACEHOLDER digest — agent_runtime is not yet in tax-agent's
+                  # release.yml build matrix (only ingestion_api, doc_pipeline,
+                  # matching_engine, knowledge_service, notification_service,
+                  # web_ui are built today), so no real image has ever been
+                  # published to ghcr.io/pixeljonas/tax-agent/agent_runtime.
+                  # release.yml's matrix needs updating separately before this
+                  # digest can be resolved to a real, scanned image. Do not
+                  # treat this as ready to sync until that's done.
+                  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  AGENT_RUNTIME: hermes
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-db-connection
+                        key: uri
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tax-agent-credentials
+                        key: PAPERLESS_TOKEN
+                  # HERMES_NAMESPACE/HERMES_DEPLOYMENT: OWNER MUST CONFIRM before merging this PR.
+                  # Options per docs/superpowers/specs/2026-07-27-p1-t12a-approval-inbox-design.md
+                  # section 9 in the tax-agent repo: hermes-user1 or hermes-user2, whichever the
+                  # owner wants the approval inbox automating kanban tasks into. Do not guess.
+                  HERMES_NAMESPACE: "REPLACE-ME-owner-must-choose"
+                  HERMES_DEPLOYMENT: "REPLACE-ME-owner-must-choose"
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
           valkey:
             containers:
               valkey:

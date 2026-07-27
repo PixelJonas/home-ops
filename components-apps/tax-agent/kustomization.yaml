@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - anyuid-rolebinding.yaml
+  - agent-runtime-hermes-exec-rbac.yaml
   - external-tax-agent-credentials.yaml
   - external-tax-agent-db.yaml
   - external-tax-agent-db-connection.yaml
