@@ -22,6 +22,8 @@ spec:
       # the auto-assigned fsGroup is applied as a supplemental group to the
       # container process AND used to chown the freshly-mounted PVC, so
       # write access works regardless of the image's own baked-in UID/GID.
+      imagePullSecrets:
+        - name: devland-editor-agent-ghcr-pull-secret
       containers:
         - name: app
           image: ghcr.io/pixeljonas/devland-editor-agent
