@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - anyuid-rolebinding.yaml
+  - external-taxbuddy-credentials.yaml
+  - external-taxbuddy-db.yaml
+  - external-taxbuddy-db-connection.yaml
+  - external-taxbuddy-ghcr-pull.yaml
+  - postgresql-database.yaml
+  - taxbuddy-app.yaml
+  # networkpolicy.yaml intentionally NOT included, matching tax-agent's own
+  # components-apps/tax-agent/kustomization.yaml — see tax-agent's ADR-007:
+  # OVN-Kubernetes on this cluster doesn't reliably allow NetworkPolicy
+  # egress to the Kubernetes API server. No other app in this repo has one
+  # either.
