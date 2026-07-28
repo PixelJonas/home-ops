@@ -42,3 +42,10 @@ spec:
               port: 8080
             initialDelaySeconds: 3
             periodSeconds: 10
+          volumeMounts:
+            - name: gallery-originals
+              mountPath: /opt/app-root/src/gallery-originals/dd-2026
+      volumes:
+        - name: gallery-originals
+          persistentVolumeClaim:
+            claimName: devland-gallery-originals

@@ -6,6 +6,7 @@ resources:
   - deployment.yaml
   - service.yaml
   - route.yaml
+  - pvc.yaml
 
 images:
   - name: ghcr.io/pixeljonas/devland-2027
