@@ -10,4 +10,4 @@ resources:
 images:
   - name: ghcr.io/pixeljonas/devland-2027
     newName: ghcr.io/pixeljonas/devland-2027
-    digest: sha256:57cad2ba3578dd20399fdcb13298e014f775c5386970826d9bd53cdb02409d37
+    digest: sha256:23d96e3bf0cda8decf66ac1f887fee4ed4e269f292d5fd3c588313c07e5eb183
