@@ -11,4 +11,4 @@ spec:
   storageClassName: lvms-vg1
   resources:
     requests:
-      storage: 2Gi
+      storage: 5Gi

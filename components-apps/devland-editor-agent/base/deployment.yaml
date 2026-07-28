@@ -37,6 +37,16 @@ spec:
               value: https://github.com/PixelJonas/devland-2027.git
             - name: CHECKOUT_ROOT
               value: /data/checkouts
+            # Persists the Claude Agent SDK's own session/transcript store
+            # (conversation history) onto the same PVC as the git checkouts,
+            # but via a separate subPath mount below -- not a subdirectory of
+            # /data/checkouts -- so app code that enumerates CHECKOUT_ROOT's
+            # children as per-editor git working directories can never trip
+            # over it. Backed up via a pre-change VolumeSnapshot
+            # (devland-editor-agent-checkouts-pre-task0-20260728) taken before
+            # this change shipped.
+            - name: CLAUDE_CONFIG_DIR
+              value: /data/claude-config
             # Vertex-native Claude auth, reusing litellm's own GCP project —
             # no separate Anthropic API key. See externalsecret.yaml.
             - name: CLAUDE_CODE_USE_VERTEX
@@ -60,6 +70,9 @@ spec:
           volumeMounts:
             - name: checkouts
               mountPath: /data/checkouts
+            - name: checkouts
+              mountPath: /data/claude-config
+              subPath: claude-config
             - name: gcp-credentials
               mountPath: /secrets/gcp
               readOnly: true
