@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - anyuid-rolebinding.yaml
+  - external-taxbuddy-hermes-credentials.yaml
+  - taxbuddy-hermes-config.yaml
+  - taxbuddy-hermes-app.yaml
+  # networkpolicy.yaml intentionally NOT included, matching taxbuddy's own
+  # components-apps/taxbuddy/kustomization.yaml — see taxbuddy's ADR-007:
+  # OVN-Kubernetes on this cluster doesn't reliably allow NetworkPolicy
+  # egress to the Kubernetes API server. No other app in this repo has one
+  # either.
