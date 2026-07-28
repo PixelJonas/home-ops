@@ -1,0 +1,21 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: taxbuddy-db
+  namespace: taxbuddy
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+  bootstrap:
+    initdb:
+      database: taxbuddy
+      owner: taxbuddy
+      secret:
+        name: taxbuddy-db-app-secret
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector
+  storage:
+    size: 10Gi
+    storageClass: lvms-vg1

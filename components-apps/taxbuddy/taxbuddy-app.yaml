@@ -1,0 +1,215 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: taxbuddy-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: taxbuddy
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+        defaultPodOptions:
+          imagePullSecrets:
+            - name: taxbuddy-ghcr-pull-secret
+
+        controllers:
+          ingestion-api:
+            replicas: 1
+            containers:
+              ingestion-api:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
+                  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  QUEUE_URL: redis://taxbuddy-app-valkey:6379/0
+                  POLL_INTERVAL: 15m
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_TOKEN
+                  PAPERLESS_WEBHOOK_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_WEBHOOK_SECRET
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_API_KEY
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
+          doc-pipeline:
+            replicas: 1
+            containers:
+              doc-pipeline:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/doc_pipeline
+                  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  QUEUE_URL: redis://taxbuddy-app-valkey:6379/0
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_TOKEN
+                  DOCLING_URL: http://docling-serve-app.docling-serve.svc.cluster.local:5001
+                  DOCLING_SERVE_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: DOCLING_SERVE_API_KEY
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - python3
+                          - -m
+                          - doc_pipeline.healthcheck
+                      initialDelaySeconds: 15
+                      periodSeconds: 15
+                      timeoutSeconds: 5
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - python3
+                          - -m
+                          - doc_pipeline.healthcheck
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                      timeoutSeconds: 5
+
+          valkey:
+            containers:
+              valkey:
+                image:
+                  repository: valkey/valkey
+                  tag: 8.1.9
+                  pullPolicy: IfNotPresent
+                args:
+                  - valkey-server
+                  - --appendonly
+                  - "yes"
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - valkey-cli
+                          - ping
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - valkey-cli
+                          - ping
+                      initialDelaySeconds: 5
+                      periodSeconds: 5
+
+        service:
+          ingestion-api:
+            controller: ingestion-api
+            ports:
+              http:
+                port: 8000
+          valkey:
+            controller: valkey
+            ports:
+              redis:
+                port: 6379
+
+        persistence:
+          valkey-data:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 1Gi
+            advancedMounts:
+              valkey:
+                valkey:
+                  - path: /data
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

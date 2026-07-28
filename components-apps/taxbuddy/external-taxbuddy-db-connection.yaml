@@ -1,0 +1,21 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: taxbuddy-db-connection
+  namespace: taxbuddy
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: taxbuddy-db-connection
+    template:
+      engineVersion: v2
+      data:
+        uri: "postgresql+psycopg://taxbuddy:{{ .password }}@taxbuddy-db-rw.taxbuddy.svc:5432/taxbuddy"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: TAXBUDDY_POSTGRES_PASSWORD
