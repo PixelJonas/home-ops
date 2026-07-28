@@ -10,6 +10,7 @@ resources:
   - deployment.yaml
   - service.yaml
   - route.yaml
+  - backup
 
 images:
   - name: ghcr.io/pixeljonas/devland-editor-agent
