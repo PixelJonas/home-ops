@@ -1,0 +1,7 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: devland-editor-agent-claude-config
+
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-claude-config

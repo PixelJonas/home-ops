@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: claude-config-
+namespace: devland-editor-agent
+
+resources:
+  - ../../../../../templates/volsync/rest
+
+patches:
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    path: local.yaml
+
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: external-restic-config
+    path: local-secret.yaml
