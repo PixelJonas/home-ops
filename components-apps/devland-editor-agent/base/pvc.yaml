@@ -8,6 +8,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: lvms-vg1
   resources:
     requests:
       storage: 2Gi
