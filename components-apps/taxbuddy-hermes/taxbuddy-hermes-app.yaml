@@ -18,6 +18,33 @@ spec:
         controllers:
           hermes:
             replicas: 1
+            initContainers:
+              # Live finding (2026-07-28, Task B verification): mounting
+              # the ConfigMap's config.yaml directly onto
+              # /opt/data/config.yaml (even without `readOnly: true`) is
+              # inherently immutable — Kubernetes ConfigMap volumes are
+              # always read-only at the projected-volume level regardless
+              # of the volumeMount's readOnly field. Hermes's own startup
+              # runs a config-schema migrator that rewrites config.yaml in
+              # place on every boot; with the file ConfigMap-mounted this
+              # failed every time with "ERROR: [Errno 30] Read-only file
+              # system: '/opt/data/config.yaml'" (non-fatal — the gateway
+              # still started and the config values still loaded — but it
+              # would accumulate .bak-<timestamp> cruft forever and would
+              # silently swallow any real future schema migration). Fixed
+              # by seeding a real, writable copy onto the PVC from an
+              # init container instead of mounting the ConfigMap directly
+              # into the main container.
+              init-config:
+                image:
+                  repository: nousresearch/hermes-agent
+                  tag: v2026.7.7
+                  pullPolicy: IfNotPresent
+                command:
+                  - /bin/sh
+                  - -c
+                args:
+                  - cp /opt/hermes-config-seed/config.yaml /opt/data/config.yaml
             containers:
               hermes:
                 image:
@@ -58,15 +85,16 @@ spec:
               hermes:
                 hermes:
                   - path: /opt/data
+                init-config:
+                  - path: /opt/data
           hermes-config:
             enabled: true
             type: configMap
             name: taxbuddy-hermes-config
             advancedMounts:
               hermes:
-                hermes:
-                  - path: /opt/data/config.yaml
-                    subPath: config.yaml
+                init-config:
+                  - path: /opt/hermes-config-seed
                     readOnly: true
 
   project: cluster-apps
