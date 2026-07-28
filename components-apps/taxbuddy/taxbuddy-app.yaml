@@ -150,6 +150,54 @@ spec:
                       periodSeconds: 10
                       timeoutSeconds: 5
 
+          agent-runtime:
+            replicas: 1
+            containers:
+              agent-runtime:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
+                  digest: "sha256:ca19081558f2168d481ae5ed353b2ba3575f641e2a8950044fbbdf876cd60108"
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  AGENT_RUNTIME: hermes
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_TOKEN
+                  HERMES_NAMESPACE: taxbuddy-hermes
+                  HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
           valkey:
             containers:
               valkey:

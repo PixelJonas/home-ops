@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - anyuid-rolebinding.yaml
+  - agent-runtime-hermes-exec-rbac.yaml
   - external-taxbuddy-credentials.yaml
   - external-taxbuddy-db.yaml
   - external-taxbuddy-db-connection.yaml
