@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: taxbuddy-hermes-config
+  namespace: taxbuddy-hermes
+data:
+  # NOTE: this config.yaml shape was corrected during Task B's live
+  # verification (2026-07-28) against the real nousresearch/hermes-agent
+  # docs/source (github.com/NousResearch/hermes-agent), which do NOT use a
+  # `providers: {custom: {...}}` map or a `platforms.webhook.enabled` key as
+  # an earlier spike's notes assumed. The real schema is a top-level
+  # `custom_providers` list referenced from `model.provider` as
+  # `custom:<name>`, with `key_env` pointing at a process env var (not a
+  # secret value inlined in config.yaml) for the API key. Webhook platform
+  # is opt-in via the WEBHOOK_ENABLED env var (default off), so it is
+  # simply left unset here rather than toggled in config.yaml.
+  config.yaml: |
+    model:
+      default: claude-sonnet-5
+      provider: custom:litellm
+    custom_providers:
+      - name: litellm
+        base_url: http://litellm-app.litellm.svc:4000/v1
+        key_env: LITELLM_API_KEY

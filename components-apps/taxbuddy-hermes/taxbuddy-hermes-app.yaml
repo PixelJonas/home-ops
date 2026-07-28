@@ -1,0 +1,78 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: taxbuddy-hermes-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: taxbuddy-hermes
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 4.6.2
+    helm:
+      values: |-
+        controllers:
+          hermes:
+            replicas: 1
+            containers:
+              hermes:
+                image:
+                  repository: nousresearch/hermes-agent
+                  tag: v2026.7.7
+                  pullPolicy: IfNotPresent
+                # The image's ENTRYPOINT is a fixed s6-overlay wrapper
+                # (/init main-wrapper.sh); it needs an explicit `gateway
+                # run` argument to boot the long-running gateway process
+                # (confirmed against the image's real docker-run examples
+                # in NousResearch/hermes-agent's docker.md) — the plan's
+                # original draft omitted this and the pod would not have
+                # started the right process without it.
+                args:
+                  - gateway
+                  - run
+                env:
+                  TZ: Europe/Berlin
+                  # HERMES_HOME already defaults to /opt/data in the
+                  # official image (paired with HERMES_WRITE_SAFE_ROOT) —
+                  # set explicitly here for clarity, not because the
+                  # default is wrong. The plan's original HERMES_DATA_DIR
+                  # var does not exist in the real image; corrected here.
+                  HERMES_HOME: /opt/data
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: LITELLM_API_KEY
+
+        persistence:
+          hermes-data:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 2Gi
+            advancedMounts:
+              hermes:
+                hermes:
+                  - path: /opt/data
+          hermes-config:
+            enabled: true
+            type: configMap
+            name: taxbuddy-hermes-config
+            advancedMounts:
+              hermes:
+                hermes:
+                  - path: /opt/data/config.yaml
+                    subPath: config.yaml
+                    readOnly: true
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
