@@ -11,4 +11,9 @@ spec:
   storageClassName: lvms-vg1
   resources:
     requests:
-      storage: 2Gi
+      # PVC storage can only grow, never shrink -- this was bumped to 5Gi
+      # in a since-corrected commit (claude-config now has its own PVC, so
+      # 5Gi is more than this volume needs) but the live PVC can't shrink
+      # back down. Declaring 5Gi here to match reality rather than leaving
+      # ArgoCD permanently OutOfSync against an unsatisfiable 2Gi request.
+      storage: 5Gi
