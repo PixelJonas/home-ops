@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/tax-agent/ingestion_api
-                  digest: "sha256:f0d2b36bffe449d1e040146be86b4a8426aa1fd8303c0f7e895ca0b6304d2788"   # release.yml PR updates this to the built digest
+                  digest: "sha256:61a68c3dca624944299632324edd338800214209df8e067c810e1604aefad8e5"   # release.yml PR updates this to the built digest
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
