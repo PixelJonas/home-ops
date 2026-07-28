@@ -15,12 +15,13 @@ spec:
       labels:
         app.kubernetes.io/name: devland-editor-agent
     spec:
-      # The UBI nodejs image runs as an arbitrary non-root UID with group 0
-      # (confirmed: /opt/app-root is mode 775, group root). fsGroup: 0 makes
-      # the mounted PVC group-writable to match, since restricted SCC's
-      # auto-assigned supplemental group otherwise won't necessarily be 0.
-      securityContext:
-        fsGroup: 0
+      # No explicit fsGroup: this cluster's restricted-v2/v3 SCCs reject
+      # fsGroup: 0 outright ("0 is not an allowed group"). Leaving
+      # securityContext unset lets OpenShift auto-assign a consistent
+      # (runAsUser, fsGroup) pair from this namespace's allowed ranges —
+      # the auto-assigned fsGroup is applied as a supplemental group to the
+      # container process AND used to chown the freshly-mounted PVC, so
+      # write access works regardless of the image's own baked-in UID/GID.
       containers:
         - name: app
           image: ghcr.io/pixeljonas/devland-editor-agent
