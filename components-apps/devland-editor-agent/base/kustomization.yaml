@@ -6,6 +6,7 @@ resources:
   - externalsecret.yaml
   - external-ghcr-pull.yaml
   - pvc.yaml
+  - claude-config-pvc.yaml
   - deployment.yaml
   - service.yaml
   - route.yaml
