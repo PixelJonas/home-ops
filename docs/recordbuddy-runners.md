@@ -138,7 +138,10 @@ xcodebuild -version
 
 Record the exact pinned version here when the runner is set up:
 
-- **Pinned Xcode version: TBD-by-owner**
+- **Pinned Xcode version: 26.6 (build 17F113)**, installed via
+  `mas install 497799835` on 2026-07-27, `xcode-select` pointed at
+  `/Applications/Xcode.app/Contents/Developer`, license accepted,
+  first-launch components installed.
 
 ### SECURITY (non-negotiable)
 
