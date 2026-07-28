@@ -38,13 +38,15 @@ spec:
             - name: CHECKOUT_ROOT
               value: /data/checkouts
             # Persists the Claude Agent SDK's own session/transcript store
-            # (conversation history) onto the same PVC as the git checkouts,
-            # but via a separate subPath mount below -- not a subdirectory of
-            # /data/checkouts -- so app code that enumerates CHECKOUT_ROOT's
-            # children as per-editor git working directories can never trip
-            # over it. Backed up via a pre-change VolumeSnapshot
-            # (devland-editor-agent-checkouts-pre-task0-20260728) taken before
-            # this change shipped.
+            # (conversation history) so it survives pod restarts/redeploys.
+            # Deliberately its own PVC (claude-config-pvc.yaml), not a
+            # subPath on the checkouts volume: /data/checkouts is mounted at
+            # that PVC's literal root (no subPath of its own), so anything
+            # else placed on the same volume would be visible as a stray
+            # child directory under /data/checkouts too. Backed up via a
+            # pre-change VolumeSnapshot
+            # (devland-editor-agent-checkouts-pre-task0-20260728) taken
+            # before this change shipped.
             - name: CLAUDE_CONFIG_DIR
               value: /data/claude-config
             # Vertex-native Claude auth, reusing litellm's own GCP project —
@@ -70,9 +72,8 @@ spec:
           volumeMounts:
             - name: checkouts
               mountPath: /data/checkouts
-            - name: checkouts
+            - name: claude-config
               mountPath: /data/claude-config
-              subPath: claude-config
             - name: gcp-credentials
               mountPath: /secrets/gcp
               readOnly: true
@@ -99,6 +100,9 @@ spec:
         - name: checkouts
           persistentVolumeClaim:
             claimName: devland-editor-agent-checkouts
+        - name: claude-config
+          persistentVolumeClaim:
+            claimName: devland-editor-agent-claude-config
         - name: gcp-credentials
           secret:
             secretName: devland-editor-agent-secrets
