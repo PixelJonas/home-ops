@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: watchdog-absence
+  namespace: openshift-monitoring
+spec:
+  groups:
+    - name: watchdog-deadman
+      interval: 30s
+      rules:
+        - alert: WatchdogNotFiring
+          expr: absent(ALERTS{alertname="Watchdog",alertstate="firing"}) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Watchdog alert is not firing"
+            description: "The Watchdog heartbeat alert has not fired for 5 minutes. This indicates the monitoring pipeline may be down."
+            runbook_url: "https://github.com/prometheus-operator/kube-prometheus/wiki/watchdog"
