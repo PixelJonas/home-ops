@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 namePrefix: checkouts-
-namespace: devland-editor-agent
+namespace: devland
 
 resources:
   - ../../../../../templates/volsync/rest

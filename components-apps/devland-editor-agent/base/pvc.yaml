@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: devland-editor-agent-checkouts
-  namespace: devland-editor-agent
+  namespace: devland
   labels:
     app.kubernetes.io/name: devland-editor-agent
 spec:
