@@ -1,3 +1,17 @@
 [allowlist]
-  description = "don't alert on SealedSecrets"
-  files = ['''sealed-.+\.yaml''']
+  description = "Global Allowlist"
+
+  # Ignore based on any subset of the file path
+  paths = [
+    '''sealed-.+\.yaml''',
+  ]
+
+  # Ignore based on any subset of the line
+  regexes = [
+    # Upstream gha-runner-scale-set Helm chart's placeholder PAT example
+    # (values.yaml comment), never a real secret. Reported by PwnedAlert
+    # against historical commit 714631c3 for the vendored chart cache that
+    # was untracked in 417847b; kept here so the deep scan of git history
+    # stops flagging it.
+    '''ghp_sampleSampleSampleSampleSampleSample''',
+  ]
