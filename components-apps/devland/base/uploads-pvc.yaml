@@ -1,4 +1,3 @@
-# components-apps/devland/base/uploads-pvc.yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
