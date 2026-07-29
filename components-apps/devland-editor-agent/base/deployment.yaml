@@ -69,6 +69,8 @@ spec:
                 secretKeyRef:
                   name: devland-editor-agent-secrets
                   key: ntfy_url
+            - name: UPLOADS_ROOT
+              value: /data/uploads
           volumeMounts:
             - name: checkouts
               mountPath: /data/checkouts
@@ -77,6 +79,8 @@ spec:
             - name: gcp-credentials
               mountPath: /secrets/gcp
               readOnly: true
+            - name: uploads
+              mountPath: /data/uploads
           resources:
             requests:
               memory: 256Mi
@@ -109,3 +113,6 @@ spec:
             items:
               - key: gcp_credentials.json
                 path: credentials.json
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: devland-uploads

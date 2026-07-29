@@ -45,7 +45,14 @@ spec:
           volumeMounts:
             - name: gallery-originals
               mountPath: /opt/app-root/src/gallery-originals/dd-2026
+            - name: uploads
+              mountPath: /opt/app-root/src/uploads
+              subPath: public
+              readOnly: true
       volumes:
         - name: gallery-originals
           persistentVolumeClaim:
             claimName: devland-gallery-originals
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: devland-uploads
