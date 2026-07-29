@@ -1,0 +1,15 @@
+# components-apps/devland/base/uploads-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: devland-uploads
+  namespace: devland
+  labels:
+    app.kubernetes.io/name: devland
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lvms-vg1
+  resources:
+    requests:
+      storage: 10Gi
