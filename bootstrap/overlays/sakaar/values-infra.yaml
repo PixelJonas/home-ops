@@ -143,7 +143,7 @@ applications:
     annotations:
       argocd.argoproj.io/sync-wave: "4"
     destination:
-      namespace: devland-editor-agent
+      namespace: devland
     source:
       path: components-apps/devland-editor-agent/base
 

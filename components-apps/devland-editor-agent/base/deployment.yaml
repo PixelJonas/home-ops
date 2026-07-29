@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: devland-editor-agent
-  namespace: devland-editor-agent
+  namespace: devland
   labels:
     app.kubernetes.io/name: devland-editor-agent
 spec:
