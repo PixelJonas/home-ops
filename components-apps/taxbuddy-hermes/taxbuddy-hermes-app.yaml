@@ -74,6 +74,46 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LITELLM_API_KEY
+              dashboard:
+                # `hermes gateway run` does not start the web dashboard —
+                # confirmed live (2026-07-29) via `hermes dashboard
+                # --status` returning "No hermes dashboard processes
+                # running" while the gateway itself was up. It's a
+                # separate process (`hermes dashboard`, real CLI verified
+                # live: --host/--port/--no-open, default port 9119).
+                # Runs as a second container in the SAME pod as the
+                # gateway (not a separate controller) because the
+                # `hermes-data` PVC is ReadWriteOnce (lvms-vg1 storage
+                # class) — kanban.db and other shared state can only be
+                # mounted by one pod at a time, so both processes must
+                # share this pod.
+                image:
+                  repository: nousresearch/hermes-agent
+                  tag: v2026.7.7
+                  pullPolicy: IfNotPresent
+                args:
+                  - dashboard
+                  - --host
+                  - "0.0.0.0"
+                  - --port
+                  - "9119"
+                  - --no-open
+                env:
+                  TZ: Europe/Berlin
+                  HERMES_HOME: /opt/data
+                  # Real env var names confirmed live by reading
+                  # /opt/hermes/plugins/dashboard_auth/basic/__init__.py
+                  # in the running pod — NOT the DASHBOARD_PASSWORD shape
+                  # the personal hermes-user1/2 instances' secret names
+                  # suggested. `--insecure` is a no-op as of the June 2026
+                  # hardening: a non-loopback bind always requires an
+                  # auth provider.
+                  HERMES_DASHBOARD_BASIC_AUTH_USERNAME: jonas
+                  HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: DASHBOARD_PASSWORD
 
         persistence:
           hermes-data:
@@ -87,6 +127,8 @@ spec:
                   - path: /opt/data
                 init-config:
                   - path: /opt/data
+                dashboard:
+                  - path: /opt/data
           hermes-config:
             enabled: true
             type: configMap
@@ -96,6 +138,27 @@ spec:
                 init-config:
                   - path: /opt/hermes-config-seed
                     readOnly: true
+
+        service:
+          dashboard:
+            controller: hermes
+            ports:
+              http:
+                port: 9119
+
+        ingress:
+          dashboard:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: taxbuddy-hermes.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: dashboard
+                      port: http
 
   project: cluster-apps
   syncPolicy:
