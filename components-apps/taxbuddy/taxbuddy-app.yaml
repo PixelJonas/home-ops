@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:6dddd20492095d7c0cf153c964f7dc98b7d6779e25273bd40ce7f5019a20878c"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:09fede92b6a50d7c2558d756cc8edbb2e806c8f460fe2aa1b178c116fc70015f"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
