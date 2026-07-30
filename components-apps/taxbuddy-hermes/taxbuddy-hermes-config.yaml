@@ -22,3 +22,42 @@ data:
       - name: litellm
         base_url: http://litellm-app.litellm.svc:4000/v1
         key_env: LITELLM_API_KEY
+  # Live finding (Task 6 verification, 2026-07-30): Honcho config is NOT
+  # part of config.yaml's schema — it's a separate file read from
+  # $HERMES_HOME/honcho.json, confirmed by reading
+  # /opt/hermes/plugins/memory/honcho/client.py's
+  # HonchoClientConfig.from_global_config() in the running
+  # taxbuddy-hermes-app pod. apiKey is deliberately omitted here and
+  # supplied only via the HONCHO_API_KEY env var/Secret (the client falls
+  # back to that env var when the JSON key is absent), keeping the bearer
+  # credential out of the GitOps-tracked ConfigMap. baseUrl uses
+  # honcho-app-honcho.honcho.svc:8000 (not honcho-app.honcho.svc) because
+  # Honcho's app-template deployment has three controllers (honcho,
+  # deriver, openconcho), which gets it the <release>-<controller>
+  # service-naming form.
+  honcho.json: |
+    {
+      "workspace": "taxbuddy",
+      "peerName": "jjanz",
+      "aiPeer": "taxbuddy-hermes",
+      "baseUrl": "http://honcho-app-honcho.honcho.svc:8000",
+      "environment": "production",
+      "enabled": true
+    }
+  # Live finding (Task 6 verification, 2026-07-30): the tax-advisor persona
+  # is NOT a system_prompt config key — it's a separate plain-text file,
+  # $HERMES_HOME/SOUL.md, confirmed via
+  # /opt/hermes/agent/prompt_builder.py's load_soul_md(), which reads
+  # get_hermes_home() / "SOUL.md" and injects its raw content as identity
+  # context.
+  SOUL.md: |
+    # taxbuddy-hermes
+
+    Du bist ein geduldiger, proaktiver Steuerberater-Assistent für den
+    Eigentümer von taxbuddy. Geh davon aus, dass er keine Vorkenntnisse im
+    deutschen Steuerrecht hat. Stelle konkrete, einfache Fragen zu seinen
+    steuerlich relevanten Umständen (Beschäftigungsart, Homeoffice,
+    Vermietung, Fahrzeugkosten-Methode, Fortbildung, Spenden,
+    außergewöhnliche Belastungen) und halte die Antworten über das
+    Honcho-Memory-Tool (honcho_conclude) aktuell. Frage proaktiv nach, wenn
+    ein Umstand unklar oder veraltet wirkt, statt zu raten.

@@ -43,8 +43,14 @@ spec:
                 command:
                   - /bin/sh
                   - -c
+                # Extended (Task 6) to also seed honcho.json and SOUL.md
+                # alongside config.yaml — same one-container, one-seed-step
+                # pattern as before, just a &&-chained shell one-liner.
                 args:
-                  - cp /opt/hermes-config-seed/config.yaml /opt/data/config.yaml
+                  - >-
+                    cp /opt/hermes-config-seed/config.yaml /opt/data/config.yaml &&
+                    cp /opt/hermes-config-seed/honcho.json /opt/data/honcho.json &&
+                    cp /opt/hermes-config-seed/SOUL.md /opt/data/SOUL.md
             containers:
               hermes:
                 image:
@@ -74,6 +80,14 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LITELLM_API_KEY
+                  # Falls back into honcho.json's HonchoClientConfig when
+                  # honcho.json omits apiKey (Task 6 live finding — see
+                  # taxbuddy-hermes-config.yaml).
+                  HONCHO_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: HONCHO_API_KEY
               dashboard:
                 # `hermes gateway run` does not start the web dashboard —
                 # confirmed live (2026-07-29) via `hermes dashboard
