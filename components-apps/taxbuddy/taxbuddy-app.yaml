@@ -124,6 +124,22 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  # Required at startup with no default (doc_pipeline's
+                  # Settings.from_env(), per
+                  # services/doc_pipeline/src/doc_pipeline/config.py in the
+                  # taxbuddy repo) — added as part of Task 6 to close the
+                  # home-ops gap left by taxbuddy Task 4's HONCHO_* env
+                  # vars. Same in-cluster Honcho service as
+                  # taxbuddy-hermes's honcho.json (honcho-app-honcho, not
+                  # honcho-app — see taxbuddy-hermes-config.yaml).
+                  HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
+                  HONCHO_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: HONCHO_API_KEY
+                  HONCHO_WORKSPACE: taxbuddy
+                  HONCHO_OWNER_PEER_ID: jjanz
                 probes:
                   liveness:
                     enabled: true
