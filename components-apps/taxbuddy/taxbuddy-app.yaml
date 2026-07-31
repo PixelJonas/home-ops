@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:09fede92b6a50d7c2558d756cc8edbb2e806c8f460fe2aa1b178c116fc70015f"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:42d59f483b3d882afbc00631988809bdd10f0113c6b744d5a6a58bb36dd4f03c"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -88,7 +88,7 @@ spec:
               doc-pipeline:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/doc_pipeline
-                  digest: "sha256:3d2792318edac61a9f28515049a9132fb84ceaa70353c5c989c035ed49946389"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:b8cbd16818e5f29d19a4cfc6ca8db160f169f6a04a6d246f950b6a05cb41b609"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -124,6 +124,22 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  # Required at startup with no default (doc_pipeline's
+                  # Settings.from_env(), per
+                  # services/doc_pipeline/src/doc_pipeline/config.py in the
+                  # taxbuddy repo) — added as part of Task 6 to close the
+                  # home-ops gap left by taxbuddy Task 4's HONCHO_* env
+                  # vars. Same in-cluster Honcho service as
+                  # taxbuddy-hermes's honcho.json (honcho-app-honcho, not
+                  # honcho-app — see taxbuddy-hermes-config.yaml).
+                  HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
+                  HONCHO_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: HONCHO_API_KEY
+                  HONCHO_WORKSPACE: taxbuddy
+                  HONCHO_OWNER_PEER_ID: jjanz
                 probes:
                   liveness:
                     enabled: true
@@ -156,7 +172,7 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:45350abf3549b59e6246b83133184155734f60c526e9c123f4de9db46dcdb1a0"
+                  digest: "sha256:1d877ce1eb201454bd6cb840cf521f5e451d3a7ecd3d823901344a720e1d1469"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
