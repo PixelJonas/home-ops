@@ -1,0 +1,76 @@
+# Not documented by Tailscale — discovered empirically bringing up the
+# egress ProxyGroup on this OpenShift cluster.
+#
+# 1) OwnerReferencesPermissionEnforcement admission blocks the operator's
+#    per-proxy config Secret because ProxyGroup-owned StatefulSets/Deployments
+#    set blockOwnerDeletion, which requires update on the */finalizers
+#    subresource — not just CRUD on the resource itself.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: operator-statefulset-finalizers
+  namespace: tailscale
+rules:
+  - apiGroups: ["apps"]
+    resources: ["statefulsets/finalizers", "deployments/finalizers"]
+    verbs: ["update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: operator-statefulset-finalizers
+  namespace: tailscale
+subjects:
+  - kind: ServiceAccount
+    name: operator
+    namespace: tailscale
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: operator-statefulset-finalizers
+---
+# 2) The egress ProxyGroup's proxy pods run with privileged: true (NET_ADMIN/
+# iptables for the egress NAT rules). The ServiceAccount the StatefulSet's
+# pod template actually uses is named after the ProxyGroup itself
+# ("egress-proxies"), NOT the generic "proxies" SA the chart also creates.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: system:openshift:scc:privileged
+  namespace: tailscale
+subjects:
+  - kind: ServiceAccount
+    name: egress-proxies
+    namespace: tailscale
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+---
+# 3) OpenShift's RestrictedEndpointsAdmission plugin rejects EndpointSlice
+# writes that reference pod-network IPs (e.g. 10.128.x.x) unless the writer
+# also has update/create on the endpointslices/restricted subresource —
+# separate from the endpointslices CRUD already granted to the operator Role.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: operator-endpointslices-restricted
+  namespace: tailscale
+rules:
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices/restricted"]
+    verbs: ["create", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: operator-endpointslices-restricted
+  namespace: tailscale
+subjects:
+  - kind: ServiceAccount
+    name: operator
+    namespace: tailscale
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: operator-endpointslices-restricted
