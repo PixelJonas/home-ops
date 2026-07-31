@@ -1,0 +1,26 @@
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: egress-proxies
+spec:
+  type: egress
+  replicas: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm-egress
+  namespace: tailscale
+  annotations:
+    # The Synology device serving Caddy (network_mode: host, so it shares
+    # the tailscale-router container's tailnet identity/IP). Confirmed via
+    # `tailscale status --json` against the live tailnet, not guessed.
+    tailscale.com/tailnet-fqdn: "tailscale-router.tailbcdef.ts.net"
+    tailscale.com/proxy-group: "egress-proxies"
+spec:
+  type: ExternalName
+  externalName: "placeholder"
+  ports:
+    - port: 443
+      protocol: TCP
+      name: https
