@@ -37,28 +37,29 @@ spec:
               value: https://github.com/PixelJonas/devland-2027.git
             - name: CHECKOUT_ROOT
               value: /data/checkouts
-            # Persists the Claude Agent SDK's own session/transcript store
-            # (conversation history) so it survives pod restarts/redeploys.
-            # Deliberately its own PVC (claude-config-pvc.yaml), not a
-            # subPath on the checkouts volume: /data/checkouts is mounted at
-            # that PVC's literal root (no subPath of its own), so anything
-            # else placed on the same volume would be visible as a stray
-            # child directory under /data/checkouts too. Backed up via a
-            # pre-change VolumeSnapshot
-            # (devland-editor-agent-checkouts-pre-task0-20260728) taken
-            # before this change shipped.
-            - name: CLAUDE_CONFIG_DIR
-              value: /data/claude-config
-            # Vertex-native Claude auth, reusing litellm's own GCP project —
-            # no separate Anthropic API key. See externalsecret.yaml.
-            - name: CLAUDE_CODE_USE_VERTEX
-              value: "1"
-            - name: ANTHROPIC_VERTEX_PROJECT_ID
-              value: itpc-gcp-global-revenue-claude
-            - name: CLOUD_ML_REGION
-              value: global
-            - name: GOOGLE_APPLICATION_CREDENTIALS
-              value: /secrets/gcp/credentials.json
+            # SQLite conversation-history store (replaces the Agent SDK's own
+            # file-based session store, removed along with the SDK itself —
+            # see devland-editor-agent's LiteLLM migration plan). Its own
+            # dedicated PVC (history-db-pvc.yaml), same rationale as the old
+            # claude-config PVC it replaces: kept off the checkouts volume so
+            # it isn't visible as a stray child directory there.
+            - name: HISTORY_DB_PATH
+              value: /data/history/history.db
+            # LiteLLM OpenAI-compatible endpoint, replacing the direct
+            # Vertex-native Claude auth this app used to hold its own GCP
+            # credential for. Model swappable via LITELLM_MODEL_NAME alone —
+            # a future self-hosted Qwen model needs no app code change, just
+            # a LiteLLM model registration and this env var. See
+            # externalsecret.yaml for LITELLM_API_KEY.
+            - name: LITELLM_BASE_URL
+              value: http://litellm-app.litellm.svc:4000/v1
+            - name: LITELLM_MODEL_NAME
+              value: claude-sonnet-5
+            - name: LITELLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: devland-editor-agent-secrets
+                  key: litellm_api_key
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -74,11 +75,8 @@ spec:
           volumeMounts:
             - name: checkouts
               mountPath: /data/checkouts
-            - name: claude-config
-              mountPath: /data/claude-config
-            - name: gcp-credentials
-              mountPath: /secrets/gcp
-              readOnly: true
+            - name: history-db
+              mountPath: /data/history
             - name: uploads
               mountPath: /data/uploads
           resources:
@@ -104,15 +102,9 @@ spec:
         - name: checkouts
           persistentVolumeClaim:
             claimName: devland-editor-agent-checkouts
-        - name: claude-config
+        - name: history-db
           persistentVolumeClaim:
-            claimName: devland-editor-agent-claude-config
-        - name: gcp-credentials
-          secret:
-            secretName: devland-editor-agent-secrets
-            items:
-              - key: gcp_credentials.json
-                path: credentials.json
+            claimName: devland-editor-agent-history-db
         - name: uploads
           persistentVolumeClaim:
             claimName: devland-uploads
