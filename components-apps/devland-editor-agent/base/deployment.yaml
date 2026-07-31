@@ -24,6 +24,19 @@ spec:
       # write access works regardless of the image's own baked-in UID/GID.
       imagePullSecrets:
         - name: devland-editor-agent-ghcr-pull-secret
+      # Pins litellm.app.janz.digital to the Tailscale egress ProxyGroup's
+      # backing Service ClusterIP (tailscale namespace, "litellm-egress"
+      # Service / egress-proxies ProxyGroup) instead of relying on DNS —
+      # Sakaar's pod network has no path to resolve or reach this hostname
+      # otherwise. This IP is the ClusterIP of the operator-managed Service
+      # tailscale.com generates for the ProxyGroup and is stable as long as
+      # that Service object isn't deleted/recreated; verify with
+      # `oc get svc -n tailscale -l tailscale.com/parent-resource=litellm-egress`
+      # if this ever needs re-pinning.
+      hostAliases:
+        - ip: "172.30.147.240"
+          hostnames:
+            - "litellm.app.janz.digital"
       containers:
         - name: app
           image: ghcr.io/pixeljonas/devland-editor-agent
@@ -52,15 +65,17 @@ spec:
             # a LiteLLM model registration and this env var. See
             # externalsecret.yaml for LITELLM_API_KEY.
             #
-            # MUST be the external URL, not litellm-app.litellm.svc's
-            # in-cluster DNS: devland-editor-agent runs on the Sakaar
-            # cluster, while litellm-app runs on the separate Altus cluster
-            # — in-cluster Kubernetes service DNS never resolves across
-            # clusters. (Caught post-merge: the in-cluster form was wrongly
-            # assumed from taxbuddy-hermes's config, which — unlike this
-            # app — actually is colocated with litellm-app on Altus.)
+            # Reaches LiteLLM (on the separate Altus cluster) via the
+            # tailnet: Sakaar pods have no route to Altus's *.janz.digital
+            # DNS or network directly, only through the Tailscale egress
+            # ProxyGroup added in home-ops#227/#228, which forwards to the
+            # Synology's Caddy reverse proxy over the tailnet. The hostname
+            # here must stay the real Caddy-facing one (litellm.app.janz.digital,
+            # not litellm.apps.altus.janz.digital) since hostAliases below
+            # pins it to the egress Service's ClusterIP, and Caddy's TLS/Host
+            # routing depends on seeing that exact SNI/Host.
             - name: LITELLM_BASE_URL
-              value: https://litellm.apps.altus.janz.digital/v1
+              value: https://litellm.app.janz.digital/v1
             - name: LITELLM_MODEL_NAME
               value: claude-sonnet-5
             - name: LITELLM_API_KEY
