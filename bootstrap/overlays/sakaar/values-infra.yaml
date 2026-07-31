@@ -140,6 +140,14 @@ applications:
       path: components-infra/tailscale-operator/base
     syncOptions:
       - CreateNamespace=true
+    extraFields: |
+      ignoreDifferences:
+        - group: ""
+          kind: Service
+          name: litellm-egress
+          namespace: tailscale
+          jsonPointers:
+            - /spec/externalName
 
   devland:
     annotations:
