@@ -131,6 +131,16 @@ applications:
     source:
       path: components-infra/gha-runner-scale-set-devland-editor-agent/base
 
+  tailscale-operator:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: tailscale
+    source:
+      path: components-infra/tailscale-operator/base
+    syncOptions:
+      - CreateNamespace=true
+
   devland:
     annotations:
       argocd.argoproj.io/sync-wave: "4"

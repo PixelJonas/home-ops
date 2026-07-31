@@ -1,0 +1,14 @@
+# oauth.clientId/clientSecret deliberately left unset — the chart falls
+# back to reading the pre-created `operator-oauth` Secret (externalsecret.yaml)
+# in this namespace, keys client_id/client_secret. Confirmed against the
+# chart's own values.yaml comment: "If unset a Secret named operator-oauth
+# must be precreated."
+operatorConfig:
+  defaultTags:
+    - "tag:k8s-operator"
+
+proxyConfig:
+  # Comma-separated string, NOT a YAML list — confirmed against the chart's
+  # own values.yaml, which differs in format from operatorConfig.defaultTags
+  # above.
+  defaultTags: "tag:k8s"
