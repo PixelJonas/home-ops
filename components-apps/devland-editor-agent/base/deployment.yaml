@@ -51,8 +51,16 @@ spec:
             # a future self-hosted Qwen model needs no app code change, just
             # a LiteLLM model registration and this env var. See
             # externalsecret.yaml for LITELLM_API_KEY.
+            #
+            # MUST be the external URL, not litellm-app.litellm.svc's
+            # in-cluster DNS: devland-editor-agent runs on the Sakaar
+            # cluster, while litellm-app runs on the separate Altus cluster
+            # — in-cluster Kubernetes service DNS never resolves across
+            # clusters. (Caught post-merge: the in-cluster form was wrongly
+            # assumed from taxbuddy-hermes's config, which — unlike this
+            # app — actually is colocated with litellm-app on Altus.)
             - name: LITELLM_BASE_URL
-              value: http://litellm-app.litellm.svc:4000/v1
+              value: https://litellm.apps.altus.janz.digital/v1
             - name: LITELLM_MODEL_NAME
               value: claude-sonnet-5
             - name: LITELLM_API_KEY
