@@ -6,6 +6,7 @@ commonAnnotations:
 
 resources:
   - externalsecret.yaml
+  - operator-anyuid-rolebinding.yaml
 
 helmCharts:
   - name: tailscale-operator

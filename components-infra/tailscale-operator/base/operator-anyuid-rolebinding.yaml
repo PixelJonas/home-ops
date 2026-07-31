@@ -1,0 +1,18 @@
+# Not officially documented by Tailscale — this cluster's OpenShift SCCs
+# reject running as an arbitrary non-root UID for tsnet's own home
+# directory (`mkdir /.config: permission denied`), confirmed empirically
+# against this exact operator version/cluster. Community precedent:
+# https://kubernetes.day/til-troubleshooting-tailscale-operator-pods-forbidden-due-to-security-context-constraints-on-openshift-4-16-4-19/
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: system:openshift:scc:anyuid
+  namespace: tailscale
+subjects:
+  - kind: ServiceAccount
+    name: operator
+    namespace: tailscale
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
