@@ -8,6 +8,7 @@ resources:
   - externalsecret.yaml
   - operator-anyuid-rolebinding.yaml
   - litellm-egress.yaml
+  - egress-rbac-fixes.yaml
 
 helmCharts:
   - name: tailscale-operator
