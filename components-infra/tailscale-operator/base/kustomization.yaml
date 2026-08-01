@@ -9,6 +9,7 @@ resources:
   - operator-anyuid-rolebinding.yaml
   - litellm-egress.yaml
   - egress-rbac-fixes.yaml
+  - proxies-scc-fix.yaml
 
 helmCharts:
   - name: tailscale-operator

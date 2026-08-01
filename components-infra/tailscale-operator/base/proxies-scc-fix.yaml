@@ -1,0 +1,21 @@
+# Same root cause as egress-rbac-fixes.yaml's privileged grant for the
+# egress-proxies SA, hit again bringing up an annotation-based Service
+# exposure (tailscale.com/expose) for restic-rest-server: the operator's
+# per-Service ingress proxy pods also run with privileged: true (tsnet's
+# iptables/NAT setup), and they use the generic "proxies" ServiceAccount
+# (not a ProxyGroup-named one), which had no SCC grant at all — confirmed
+# empirically via the pod's FailedCreate event listing every SCC it was
+# rejected from.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: system:openshift:scc:privileged-proxies
+  namespace: tailscale
+subjects:
+  - kind: ServiceAccount
+    name: proxies
+    namespace: tailscale
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
