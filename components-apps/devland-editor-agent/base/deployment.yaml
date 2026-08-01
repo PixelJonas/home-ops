@@ -95,6 +95,18 @@ spec:
                   key: ntfy_url
             - name: UPLOADS_ROOT
               value: /data/uploads
+            # The runtime image's npm cache ($HOME/.npm) is populated at
+            # build time by the image's own build-stage UID and is only
+            # owner-writable (not group-writable), while this Deployment
+            # sets no fsGroup/runAsUser so OpenShift assigns a different
+            # arbitrary UID per pod — every GitWorkspace.ensureDependencies()
+            # `npm ci` call (i.e. every chat turn against an uncached
+            # checkout) failed with EACCES writing into that stale cache.
+            # Redirecting the cache into the container's writable ephemeral
+            # storage sidesteps the ownership mismatch entirely; losing the
+            # cache across pod restarts only costs one slower `npm ci`.
+            - name: NPM_CONFIG_CACHE
+              value: /tmp/.npm-cache
           volumeMounts:
             - name: checkouts
               mountPath: /data/checkouts
