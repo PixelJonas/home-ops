@@ -5,6 +5,15 @@ metadata:
   namespace: devland
   labels:
     app.kubernetes.io/name: devland-editor-agent
+  annotations:
+    # Matches agentSession.ts's STEP_TIMEOUT_MS (570s) -- without this the
+    # router's default server timeout (30s) silently kills the connection
+    # during a long multi-step tool-calling turn whenever the backend goes
+    # 30+s without flushing new bytes, with no error surfaced to either the
+    # app (onError/onFinish never fire) or the client (confirmed live
+    # 2026-08-03: a full multi-step turn completed successfully against
+    # LiteLLM but the assistant's reply was never delivered or persisted).
+    haproxy.router.openshift.io/timeout: 600s
 spec:
   host: editor.janz.digital
   to:
