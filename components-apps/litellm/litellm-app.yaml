@@ -80,6 +80,15 @@ spec:
             className: openshift-default
             annotations:
               route.openshift.io/termination: "edge"
+              # Matches devland-editor-agent's Route timeout (same fix,
+              # applied here too): without this, the default ~30s HAProxy
+              # server timeout can kill a completion call whose first token
+              # is slow to arrive (e.g. a large accumulated tool-call
+              # history needing a long prefill), well before LiteLLM/the
+              # backend model actually fails -- confirmed live 2026-08-03,
+              # a devland-editor-agent turn's step got a 504 from this Route
+              # after ~50 prior tool calls in the same turn.
+              haproxy.router.openshift.io/timeout: 600s
             hosts:
               - host: litellm.apps.altus.janz.digital
                 paths:
