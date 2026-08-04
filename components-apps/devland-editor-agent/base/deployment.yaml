@@ -5,6 +5,16 @@ metadata:
   namespace: devland
   labels:
     app.kubernetes.io/name: devland-editor-agent
+  annotations:
+    # Must sync after the CNPG bootstrap secret (wave 30,
+    # external-devland-editor-agent-db.yaml) and the Cluster itself (wave
+    # 100, postgresql-database.yaml) -- this Deployment now references that
+    # secret via MASTRA_STORAGE_URL/MASTRA_DB_PASSWORD. Left unannotated,
+    # ArgoCD defaults it to wave 0 and tries to sync/heal it BEFORE the
+    # secret exists, which deadlocks: the Deployment can't go healthy
+    # without the secret, and ArgoCD won't advance to the secret's wave
+    # until the Deployment is healthy. Confirmed live 2026-08-04.
+    argocd.argoproj.io/sync-wave: "150"
 spec:
   replicas: 1
   selector:
