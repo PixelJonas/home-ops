@@ -1,0 +1,19 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: devland-editor-agent-db
+  namespace: devland
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+  bootstrap:
+    initdb:
+      database: devland_editor_agent
+      owner: devland_editor_agent
+      secret:
+        name: devland-editor-agent-db-devland-secret
+  storage:
+    storageClass: lvms-vg1
+    size: 8Gi
