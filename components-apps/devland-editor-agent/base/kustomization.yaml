@@ -4,6 +4,8 @@ kind: Kustomization
 resources:
   - externalsecret.yaml
   - external-ghcr-pull.yaml
+  - external-devland-editor-agent-db.yaml
+  - postgresql-database.yaml
   - pvc.yaml
   - history-db-pvc.yaml
   - deployment.yaml

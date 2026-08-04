@@ -95,6 +95,29 @@ spec:
                   key: ntfy_url
             - name: UPLOADS_ROOT
               value: /data/uploads
+            # Mastra agent loop (see devland-editor-agent's Mastra migration
+            # plan, docs/superpowers/plans/2026-08-03-mastra-migration.md).
+            # USE_MASTRA_AGENT gates EditorAgentSession (default, unset)
+            # vs. MastraEditorAgentSession — flipping it to "true" here
+            # switches all editor traffic to the Mastra-based loop.
+            # MASTRA_STORAGE_URL backs Mastra's Memory/Observational Memory
+            # via the devland-editor-agent-db CNPG cluster (postgresql-
+            # database.yaml) — composed from the CNPG-generated read-write
+            # Service DNS name (<cluster-name>-rw, same namespace, no FQDN
+            # needed) and the ExternalSecret-provisioned password. The
+            # generated password (see docs/mastra-evaluation.md's
+            # "Infrastructure placement") deliberately excludes
+            # =, +, / (openssl base64 output stripped of those chars) so it
+            # embeds directly in this URI without percent-encoding.
+            - name: MASTRA_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: devland-editor-agent-db-devland-secret
+                  key: password
+            - name: MASTRA_STORAGE_URL
+              value: postgres://devland_editor_agent:$(MASTRA_DB_PASSWORD)@devland-editor-agent-db-rw:5432/devland_editor_agent
+            - name: USE_MASTRA_AGENT
+              value: "true"
             # The runtime image's npm cache ($HOME/.npm) is populated at
             # build time by the image's own build-stage UID and is only
             # owner-writable (not group-writable), while this Deployment
