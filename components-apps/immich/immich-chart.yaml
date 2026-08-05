@@ -133,3 +133,10 @@ spec:
             accessMode: ReadWriteOnce
             storageClass: lvms-vg1
             size: 20Gi
+
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
