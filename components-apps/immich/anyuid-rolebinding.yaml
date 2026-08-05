@@ -4,7 +4,7 @@ metadata:
   name: immich-anyuid
 subjects:
   - kind: ServiceAccount
-    name: default
+    name: immich-app
     namespace: immich
 roleRef:
   apiGroup: rbac.authorization.k8s.io
