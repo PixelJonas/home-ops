@@ -6,7 +6,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "30"
 subjects:
   - kind: ServiceAccount
-    name: default
+    name: taxbuddy-app
     namespace: taxbuddy
 roleRef:
   apiGroup: rbac.authorization.k8s.io
