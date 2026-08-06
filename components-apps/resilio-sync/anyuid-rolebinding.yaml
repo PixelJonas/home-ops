@@ -4,7 +4,7 @@ metadata:
   name: resilio-sync-anyuid
 subjects:
   - kind: ServiceAccount
-    name: default
+    name: resilio-sync-app
     namespace: resilio-sync
 roleRef:
   apiGroup: rbac.authorization.k8s.io
