@@ -103,6 +103,7 @@ spec:
                 secretKeyRef:
                   name: devland-editor-agent-secrets
                   key: home_ops_read_token
+                  optional: true
             - name: NTFY_URL
               valueFrom:
                 secretKeyRef:
