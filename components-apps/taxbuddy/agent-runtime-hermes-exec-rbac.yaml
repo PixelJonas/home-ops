@@ -39,5 +39,5 @@ roleRef:
   name: taxbuddy-agent-runtime-hermes-exec
 subjects:
   - kind: ServiceAccount
-    name: default
+    name: taxbuddy-app
     namespace: taxbuddy
