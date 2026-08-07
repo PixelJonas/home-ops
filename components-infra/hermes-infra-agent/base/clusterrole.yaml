@@ -7,6 +7,11 @@
 # verb (create/update/patch/delete) on anything -- this ClusterRole is the
 # entire security boundary for the credential, not just a convention the
 # agent is expected to follow.
+#
+# nodes/jobs/cronjobs added 2026-08-07: the agent's ssh_diagnose/k8s_get
+# MCP tools were live-verified working end-to-end, but a `k8s_get nodes`
+# call hit a real RBAC Forbidden (cluster-scoped nodes weren't covered) --
+# widened deliberately on request, still read-only (get/list/watch only).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -17,6 +22,7 @@ rules:
       - pods
       - services
       - events
+      - nodes
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources:
@@ -25,6 +31,11 @@ rules:
   - apiGroups: ["apps"]
     resources:
       - deployments
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
     verbs: ["get", "list", "watch"]
   - apiGroups: ["route.openshift.io"]
     resources:
