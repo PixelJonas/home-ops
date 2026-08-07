@@ -98,6 +98,12 @@ spec:
                 secretKeyRef:
                   name: devland-editor-agent-secrets
                   key: github_token
+            - name: HOME_OPS_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: devland-editor-agent-secrets
+                  key: home_ops_read_token
+                  optional: true
             - name: NTFY_URL
               valueFrom:
                 secretKeyRef:
