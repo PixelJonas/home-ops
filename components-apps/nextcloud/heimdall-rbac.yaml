@@ -1,0 +1,87 @@
+# Namespace-scoped RBAC granting Heimdall (the hermes-infra-agent
+# ServiceAccount, namespace hermes-infra — see
+# components-infra/hermes-infra-agent/base/) pods/exec and basic
+# per-pod resource metrics ONLY within the nextcloud namespace.
+#
+# Deliberately NOT added to the cluster-wide hermes-infra-read
+# ClusterRole (components-infra/hermes-infra-agent/base/clusterrole.yaml)
+# -- that ClusterRole's whole point is excluding pods/exec everywhere.
+# Pattern follows components-apps/taxbuddy/agent-runtime-hermes-exec-rbac.yaml:
+# a namespace-scoped Role living in the TARGET namespace, bound via a
+# RoleBinding in that same namespace to a ServiceAccount from a
+# different namespace.
+#
+# CAVEAT (see infra-ops docs/superpowers/plans/2026-08-09-nextcloud-heimdall-rbac.md
+# for the full writeup): Kubernetes RBAC cannot restrict WHICH commands
+# run inside a pods/exec session -- this Role permits exec, full stop.
+# "occ read-only diagnostics only" is enforced by Heimdall's own MCP
+# tooling layer, not by this manifest. Pod/deployment status, events,
+# and pod logs need NO new grant here -- the existing cluster-wide
+# hermes-infra-read ClusterRole already covers pods/services/events/
+# pods-log/deployments get-list-watch in every namespace, including
+# this one.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nextcloud-hermes-exec
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods/exec
+    verbs:
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nextcloud-hermes-exec
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nextcloud-hermes-exec
+subjects:
+  - kind: ServiceAccount
+    name: hermes-infra-agent
+    namespace: hermes-infra
+---
+# metrics.k8s.io is a namespaced RESOURCE (unlike Thanos/Prometheus
+# query access, which is a non-resource-URL grant and therefore cannot
+# be scoped to one namespace via a RoleBinding at all -- see the plan
+# doc's "read metrics" caveat). This covers `oc adm top pods -n
+# nextcloud`-equivalent CPU/memory usage only, not dashboards/history.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nextcloud-hermes-metrics
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+rules:
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nextcloud-hermes-metrics
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nextcloud-hermes-metrics
+subjects:
+  - kind: ServiceAccount
+    name: hermes-infra-agent
+    namespace: hermes-infra
