@@ -1,0 +1,6 @@
+- op: replace
+  path: /subjects
+  value:
+    - kind: ServiceAccount
+      name: database-mariadb-backup
+      namespace: nextcloud
