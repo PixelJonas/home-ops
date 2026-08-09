@@ -30,12 +30,16 @@ Resource names below are confirmed against the live Altus cluster
 > block). It now has its own **local-only** `ReplicationSource`
 > (`components-apps/nextcloud/backup/data-nfs/`, repo secret
 > `restic-config-data-nfs`, daily at 03:15) — verified live, 470 files /
-> 262 MiB backed up successfully. **There is still no B2 (off-cluster) leg
-> for this PVC** — local-only was explicit at the time this was set up.
-> Step 5a below restores from the local repo; add a B2 `ReplicationSource`
-> (mirroring `backblaze.yaml` in the `data/` directory) before relying on
-> this being safe against a full Synology-NAS loss, not just a PVC-level
-> issue.
+> 262 MiB backed up successfully. **No B2 (off-cluster) leg for this
+> PVC, by deliberate decision** (this storage is expected to grow into
+> real photo/file volume, and duplicating that to B2 on top of the
+> existing local + tailsafe off-site copies wasn't judged worth the
+> storage cost). Step 5a below restores from the local repo only — this
+> protects against a PVC-level issue and, via tailsafe's existing
+> `cluster-backups` mount on the same restic-rest-server storage, a
+> single-NAS-drive failure, but not a full Synology NAS loss. Revisit
+> with a B2 `ReplicationSource` (mirroring `backblaze.yaml` in the
+> `data/` directory) if that trade-off changes.
 >
 > **NFS root_squash caution, if/when restoring this PVC**: this PVC's
 > underlying Synology export uses `root_squash`, which silently remaps any
