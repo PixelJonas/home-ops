@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nextcloud-bootstrap-script
+  namespace: nextcloud
+data:
+  bootstrap.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    NS="nextcloud"
+    GROUP="family"
+    CALENDAR="Family Calendar"
+    OWNER="jonas"
+    SHAREE="julia"
+
+    log() { echo "==> $*"; }
+
+    # --- Locate the live Nextcloud pod ---
+    # Verified against the deployed chart (oc get pods -n nextcloud
+    # --show-labels): the app pod carries exactly these two labels.
+    SELECTOR="app.kubernetes.io/name=nextcloud,app.kubernetes.io/component=app"
+
+    log "Waiting for a Ready Nextcloud pod..."
+    kubectl wait --for=condition=Ready pod -l "$SELECTOR" -n "$NS" --timeout=300s
+    POD=$(kubectl get pod -l "$SELECTOR" -n "$NS" -o jsonpath='{.items[0].metadata.name}')
+    log "Using pod: $POD"
+
+    # occ() runs a `php occ` subcommand inside the live pod as www-data.
+    # Each argument is individually single-quoted (escaping embedded quotes)
+    # rather than joined with bash's "$*", so values containing spaces (the
+    # calendar name) survive the kubectl exec -> su -c -> /bin/sh re-parse
+    # intact. Verified live: the naive "$*"-based version silently splits
+    # "Family Calendar" into two separate occ arguments.
+    occ() {
+      local cmd="php occ"
+      local arg
+      for arg in "$@"; do
+        cmd="$cmd '$(printf '%s' "$arg" | sed "s/'/'\\\\''/g")'"
+      done
+      cmd="$cmd --no-interaction"
+      kubectl exec -n "$NS" "$POD" -- su -s /bin/sh www-data -c "$cmd"
+    }
+
+    # --- Wait for maintenance:install (run by the image entrypoint) to finish ---
+    # NOTE: the command is `occ status`, not `occ status.php` (that command
+    # does not exist in Nextcloud 34 -- confirmed live via --help/direct
+    # invocation). `--output=json` is required for the installed":true match;
+    # plain output uses "- installed: true" instead.
+    log "Waiting for Nextcloud install to complete..."
+    for i in $(seq 1 60); do
+      if occ status --output=json 2>/dev/null | grep -q '"installed":true'; then
+        break
+      fi
+      if [ "$i" -eq 60 ]; then
+        echo "ERROR: Nextcloud not installed after 5 minutes" >&2
+        exit 1
+      fi
+      sleep 5
+    done
+    log "Nextcloud is installed."
+
+    # --- Users ---
+    create_user() {
+      local uid="$1" display_name="$2" password_env="$3"
+      if occ user:info "$uid" >/dev/null 2>&1; then
+        log "User '$uid' already exists, skipping."
+      else
+        log "Creating user '$uid'..."
+        kubectl exec -n "$NS" "$POD" -- su -s /bin/sh www-data -c \
+          "OC_PASS='${!password_env}' php occ user:add --password-from-env \
+           --display-name='${display_name}' --no-interaction '${uid}'"
+      fi
+    }
+
+    create_user "$OWNER" "Jonas" JONAS_PASSWORD
+    create_user "$SHAREE" "Julia" JULIA_PASSWORD
+
+    # --- Group ---
+    if occ group:info "$GROUP" --output=json >/dev/null 2>&1; then
+      log "Group '$GROUP' already exists, skipping."
+    else
+      log "Creating group '$GROUP'..."
+      occ group:add "$GROUP"
+    fi
+
+    # group:adduser is idempotent -- confirmed live: re-adding an existing
+    # member exits 0 and just reprints "user X added", no error. No separate
+    # membership pre-check is needed (and none is cheaply available: group:
+    # info --output=json has no members field, and per-user membership lives
+    # under user:info's .groups array, which would need jq -- not present in
+    # quay.io/openshift/origin-cli:4.21, confirmed live).
+    for uid in "$OWNER" "$SHAREE"; do
+      log "Ensuring '$uid' is in group '$GROUP'..."
+      occ group:adduser "$GROUP" "$uid"
+    done
+
+    # --- Calendar ---
+    # occ dav:create-calendar has NO --display-name option (confirmed live
+    # via --help) -- the single <name> argument becomes both the calendar's
+    # URI and its display name. Existence check parses the plain ASCII
+    # table: dav:list-calendars has no --output=json option at all
+    # (confirmed live -- "The '--output' option does not exist.").
+    EXISTING_CAL=$(occ dav:list-calendars "$OWNER" 2>/dev/null | awk -F'|' '{
+      gsub(/^[ \t]+|[ \t]+$/, "", $2);
+      if ($2 != "" && $2 != "URI") print $2
+    }' | grep -Fx "$CALENDAR" || true)
+
+    if [ -n "$EXISTING_CAL" ]; then
+      log "Calendar '$CALENDAR' already exists for '$OWNER', skipping."
+    else
+      log "Creating calendar '$CALENDAR' for '$OWNER'..."
+      occ dav:create-calendar "$OWNER" "$CALENDAR"
+    fi
+
+    # --- Share (occ has no command for this -- see plan Research Findings #2) ---
+    # dav:list-calendar-shares lists shares from the SHAREE's perspective
+    # (calendars shared *to* the given uid), not the owner's -- confirmed
+    # live: querying as the owner always reports "has no calendar shares"
+    # even immediately after a successful share, while querying as the
+    # sharee shows the incoming share with Calendar URI/Owner/Permissions
+    # columns. So this idempotency check queries "$SHAREE", not "$OWNER".
+    ALREADY_SHARED=$(occ dav:list-calendar-shares "$SHAREE" 2>/dev/null | awk -F'|' -v cal="$CALENDAR" -v owner="$OWNER" '{
+      uri=$4; perm=$8; own=$6;
+      gsub(/^[ \t]+|[ \t]+$/, "", uri);
+      gsub(/^[ \t]+|[ \t]+$/, "", perm);
+      gsub(/^[ \t]+|[ \t]+$/, "", own);
+      if (uri == cal && perm == "Read/Write" && index(own, owner) == 1) print "yes"
+    }' || true)
+
+    if [ "$ALREADY_SHARED" = "yes" ]; then
+      log "Calendar already shared read-write with '$SHAREE', skipping WebDAV share call."
+    else
+      log "Sharing calendar '$CALENDAR' with '$SHAREE' (read-write) via WebDAV..."
+      curl -sf -u "${OWNER}:${JONAS_PASSWORD}" \
+        -H "Content-Type: application/xml; charset=utf-8" \
+        -X POST "http://${NEXTCLOUD_SERVICE_HOST}:${NEXTCLOUD_SERVICE_PORT}/remote.php/dav/calendars/${OWNER}/${CALENDAR// /%20}/" \
+        -d "<?xml version=\"1.0\" encoding=\"utf-8\" ?>
+    <oc:share xmlns:oc=\"http://owncloud.org/ns\" xmlns:d=\"DAV:\">
+      <oc:set>
+        <d:href>principal:principals/users/${SHAREE}</d:href>
+        <oc:read-write/>
+        <oc:summary>${CALENDAR} - shared by ${OWNER}</oc:summary>
+      </oc:set>
+    </oc:share>"
+      log "Share request sent."
+    fi
+
+    log "Bootstrap complete."
