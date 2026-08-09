@@ -120,12 +120,20 @@ data:
     # even immediately after a successful share, while querying as the
     # sharee shows the incoming share with Calendar URI/Owner/Permissions
     # columns. So this idempotency check queries "$SHAREE", not "$OWNER".
+    #
+    # The "Calendar Owner" column renders as "<display name>
+    # (principals/users/<uid>)" -- e.g. "Jonas (principals/users/jonas)" --
+    # so matching must target the parenthesized principal string, not a
+    # prefix match against $OWNER: display names are capitalized while uids
+    # aren't, and a naive index(own, owner)==1 prefix check silently never
+    # matches, defeating the idempotency guard (confirmed live: a second Job
+    # run re-POSTed the share every time until this was fixed).
     ALREADY_SHARED=$(occ dav:list-calendar-shares "$SHAREE" 2>/dev/null | awk -F'|' -v cal="$CALENDAR" -v owner="$OWNER" '{
       uri=$4; perm=$8; own=$6;
       gsub(/^[ \t]+|[ \t]+$/, "", uri);
       gsub(/^[ \t]+|[ \t]+$/, "", perm);
       gsub(/^[ \t]+|[ \t]+$/, "", own);
-      if (uri == cal && perm == "Read/Write" && index(own, owner) == 1) print "yes"
+      if (uri == cal && perm == "Read/Write" && index(own, "principals/users/" owner) > 0) print "yes"
     }' || true)
 
     if [ "$ALREADY_SHARED" = "yes" ]; then
