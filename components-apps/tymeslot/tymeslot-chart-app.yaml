@@ -81,6 +81,11 @@ spec:
                       secretKeyRef:
                         name: tymeslot-credentials
                         key: google-client-secret
+                  GOOGLE_STATE_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: google-state-secret
 
         service:
           tymeslot:
