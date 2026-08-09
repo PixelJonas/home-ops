@@ -1,6 +1,6 @@
 - op: replace
   path: /spec/sourcePVC
-  value: tymeslot-app-data
+  value: tymeslot-app
 
 - op: replace
   path: /spec/restic/repository
