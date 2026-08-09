@@ -17,24 +17,25 @@ Resource names below are confirmed against the live Altus cluster
 | MariaDB pod | `nextcloud-app-mariadb-0` |
 | MariaDB root-password Secret | `nextcloud-mariadb`, key `mariadb-root-password` |
 | App-data PVC (webroot/config/custom_apps/themes) | `nextcloud-app-nextcloud` |
-| User-file-data PVC (`nextcloud.datadir`, `synology-nfs-storage`) — **see warning below, not yet backed up** | `nextcloud-app-nextcloud-data` |
+| User-file-data PVC (`nextcloud.datadir`, `synology-nfs-storage`) | `nextcloud-app-nextcloud-data` |
+| User-file-data local restic-rest repo secret | `restic-config-data-nfs` |
 | Database-dump staging PVC | `database-syno-db-backup` |
 | Local restic-rest repo secrets | `restic-config-database`, `restic-config-data` |
 | Backblaze B2 repo secrets | `restic-config-database-b2`, `restic-config-data-b2` |
 
-> **Known gap (as of 2026-08-09):** `nextcloud-app-nextcloud-data` was
-> added later than this runbook's original backup setup, when user file
-> storage was split onto its own `synology-nfs-storage` PVC (see
+> **Backup coverage note (as of 2026-08-09):** `nextcloud-app-nextcloud-data`
+> was added later than this runbook's original backup setup, when user
+> file storage was split onto its own `synology-nfs-storage` PVC (see
 > `components-apps/nextcloud/nextcloud-app.yaml`'s `persistence.nextcloudData`
-> block). The existing `ReplicationSource`s in
-> `components-apps/nextcloud/backup/data/{local,backblaze}.yaml` only cover
-> the *original* `nextcloud-app-nextcloud` PVC — **there is currently no
-> backup of any kind for `nextcloud-app-nextcloud-data`**, i.e. no backup
-> of actual family files once real usage starts. This needs a new pair of
-> `ReplicationSource`s (mirroring the existing `data-backup`/
-> `data-backup-b2` pattern, pointed at `nextcloud-app-nextcloud-data`)
-> before relying on this storage for real data. Until that exists, step 5a
-> below (restoring this PVC) has nothing to restore *from*.
+> block). It now has its own **local-only** `ReplicationSource`
+> (`components-apps/nextcloud/backup/data-nfs/`, repo secret
+> `restic-config-data-nfs`, daily at 03:15) — verified live, 470 files /
+> 262 MiB backed up successfully. **There is still no B2 (off-cluster) leg
+> for this PVC** — local-only was explicit at the time this was set up.
+> Step 5a below restores from the local repo; add a B2 `ReplicationSource`
+> (mirroring `backblaze.yaml` in the `data/` directory) before relying on
+> this being safe against a full Synology-NAS loss, not just a PVC-level
+> issue.
 >
 > **NFS root_squash caution, if/when restoring this PVC**: this PVC's
 > underlying Synology export uses `root_squash`, which silently remaps any
@@ -170,11 +171,10 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
      -n nextcloud --timeout=15m
    ```
 
-5a. **Restore the user-file-data PVC** (`nextcloud-app-nextcloud-data`) —
-    **only once backup coverage for it actually exists** (see the gap
-    noted in the resource table above; as of 2026-08-09 there is nothing
-    to restore from yet). Once a `restic-config-data-nfs-b2`-style Secret
-    exists for it, same shape as step 5, different PVC name:
+5a. **Restore the user-file-data PVC** (`nextcloud-app-nextcloud-data`)
+    from the local repo, same shape as step 5, different PVC/repo name.
+    The mover needs the same `moverSecurityContext` the backup itself uses
+    (uid/gid 33) — see the `root_squash` caution below for why:
 
     ```bash
     cat <<EOF | oc apply -f -
@@ -187,11 +187,19 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
       trigger:
         manual: restore-once
       restic:
-        repository: restic-config-data-nfs-b2  # CONFIRM against the actual Secret name once this backup is created
+        repository: restic-config-data-nfs
         destinationPVC: nextcloud-app-nextcloud-data
         copyMethod: Direct
+        moverSecurityContext:
+          runAsUser: 33
+          runAsGroup: 33
+          runAsNonRoot: true
     EOF
     ```
+
+    (No B2 leg exists for this PVC yet — the above only protects against a
+    PVC-level issue, not a full Synology NAS loss. See the backup coverage
+    note above.)
 
     If instead you need to manually extract/restore into this PVC (e.g. via
     a debug pod and a raw tarball, not VolSync) — **run the debug pod as
