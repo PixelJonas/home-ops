@@ -1,0 +1,16 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: nextcloud-app-nextcloud-data
+
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-data-nfs
+
+# Local-only for now, per explicit instruction -- no B2 leg yet. Run
+# shortly after the webroot/database backup's coordinated 03:00-03:12
+# maintenance window (see docs/runbooks/nextcloud-restore.md) rather than
+# inside it, since this PVC isn't part of that DB-consistency guarantee --
+# just avoiding concurrent backup load against the same NFS export.
+- op: replace
+  path: /spec/trigger/schedule
+  value: "15 3 * * *"
