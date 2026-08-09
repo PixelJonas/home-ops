@@ -49,6 +49,19 @@ spec:
             fsGroup: 0
           securityContext:
             runAsUser: 0
+          ## SMTP via the household's existing Fastmail account, sending
+          ## as cloud@famjanz.de. host/name/password come from the same
+          ## nextcloud-admin existingSecret above (smtp-host/smtp-username/
+          ## smtp-password keys, ExternalSecret-synced from Doppler
+          ## MAIL_HOST/MAIL_USERNAME/MAIL_PASSWORD in homelab/home).
+          mail:
+            enabled: true
+            fromAddress: cloud
+            domain: famjanz.de
+            smtp:
+              secure: ssl
+              port: 465
+              authtype: LOGIN
 
         phpClientHttpsFix:
           enabled: true
@@ -106,6 +119,22 @@ spec:
           storageClass: lvms-vg1
           accessMode: ReadWriteOnce
           size: 20Gi
+          # User file storage (nextcloud.datadir, /var/www/html/data) split
+          # onto its own PVC backed by the Synology NAS via the existing
+          # nfs-subdir-external-provisioner setup (same synology-nfs-storage
+          # StorageClass already used by paperless/resilio-sync/restic-rest-
+          # server) -- webroot/config/custom_apps/themes above stay on
+          # lvms-vg1. Done ahead of real usage so the family's growing file
+          # storage lands on the NAS's much larger volume instead of local
+          # NVMe, without needing another live migration later. Size is
+          # nominal -- nfs-subdir-external-provisioner doesn't enforce PVC
+          # quota, the real ceiling is the shared Synology volume's free
+          # space.
+          nextcloudData:
+            enabled: true
+            storageClass: synology-nfs-storage
+            accessMode: ReadWriteOnce
+            size: 100Gi
 
         mariadb:
           enabled: true
