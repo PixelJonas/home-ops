@@ -35,7 +35,7 @@ spec:
                   PHX_HOST: book.janz.digital
                   EMAIL_ADAPTER: smtp
                   SMTP_PORT: 587
-                  ENABLE_GOOGLE_AUTH: "false"
+                  ENABLE_GOOGLE_AUTH: "true"
                   SECRET_KEY_BASE:
                     valueFrom:
                       secretKeyRef:
