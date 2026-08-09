@@ -1,0 +1,121 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: tymeslot-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: tymeslot
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.0.1
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          tymeslot:
+            containers:
+              tymeslot:
+                image:
+                  repository: luka1thb/tymeslot
+                  tag: "1.7.0"
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DEPLOYMENT_TYPE: docker
+                  PHX_HOST: book.janz.digital
+                  EMAIL_ADAPTER: smtp
+                  SMTP_PORT: 587
+                  ENABLE_GOOGLE_AUTH: "false"
+                  SECRET_KEY_BASE:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: secret-key-base
+                  DATA_ENCRYPTION_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: data-encryption-key
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: db-url
+                  SMTP_HOST:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: smtp-host
+                  SMTP_USERNAME:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: smtp-username
+                  SMTP_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: smtp-password
+                  EMAIL_FROM_ADDRESS:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: smtp-from
+                  GOOGLE_CLIENT_ID:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: google-client-id
+                  GOOGLE_CLIENT_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: tymeslot-credentials
+                        key: google-client-secret
+
+        service:
+          tymeslot:
+            controller: tymeslot
+            ports:
+              http:
+                port: 4000
+
+        ingress:
+          tymeslot:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: tymeslot-app.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: tymeslot
+                      port: http
+
+        persistence:
+          data:
+            enabled: true
+            globalMounts:
+              - path: /app/data
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 5Gi
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
