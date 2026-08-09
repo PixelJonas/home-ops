@@ -25,6 +25,7 @@ projects:
       - https://github.com/pixeljonas/home-ops
       - https://github.com/redhat-cop/gitops-catalog
       - https://bjw-s-labs.github.io/helm-charts
+      - https://nextcloud.github.io/helm/
     destinations: |
       - namespace: '*'
         server: https://kubernetes.default.svc
@@ -84,3 +85,8 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/immich
+  nextcloud:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/nextcloud

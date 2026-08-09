@@ -1,0 +1,17 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: external-nextcloud-redis
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: nextcloud-redis
+  data:
+    - secretKey: redis-password
+      remoteRef:
+        key: NEXTCLOUD_REDIS_PASSWORD

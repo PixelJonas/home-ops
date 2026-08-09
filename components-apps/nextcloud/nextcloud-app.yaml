@@ -1,0 +1,103 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nextcloud-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: nextcloud
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: nextcloud
+    repoURL: https://nextcloud.github.io/helm/
+    targetRevision: 9.2.5
+    helm:
+      values: |-
+        nextcloud:
+          host: nextcloud.apps.altus.janz.digital
+          existingSecret:
+            enabled: true
+            secretName: nextcloud-admin
+            usernameKey: nextcloud-username
+            passwordKey: nextcloud-password
+          trustedDomains:
+            - nextcloud.apps.altus.janz.digital
+            - nextcloud.janz.digital
+          extraEnv:
+            - name: TRUSTED_PROXIES
+              # cloudflared's in-cluster pod CIDR + the OpenShift router's
+              # internal network - confirm exact CIDR against the live
+              # cluster during rollout (see Task 3 Step 6), this is a
+              # placeholder needing verification, not a copy-pasteable
+              # final value.
+              value: "10.128.0.0/14"
+            - name: OVERWRITEHOST
+              value: "nextcloud.janz.digital"
+            - name: OVERWRITECLIURL
+              value: "https://nextcloud.janz.digital"
+          podSecurityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 0
+          securityContext:
+            runAsUser: 0
+
+        phpClientHttpsFix:
+          enabled: true
+          protocol: https
+
+        persistence:
+          enabled: true
+          storageClass: synology-iscsi-storage
+          accessMode: ReadWriteOnce
+          size: 20Gi
+
+        mariadb:
+          enabled: true
+          auth:
+            database: nextcloud
+            username: nextcloud
+            existingSecret: nextcloud-mariadb
+          primary:
+            persistence:
+              enabled: true
+              storageClass: synology-iscsi-storage
+              size: 10Gi
+          global:
+            compatibility:
+              openshift:
+                adaptSecurityContext: force
+
+        redis:
+          enabled: true
+          auth:
+            enabled: true
+            existingSecret: nextcloud-redis
+            existingSecretPasswordKey: redis-password
+          master:
+            persistence:
+              enabled: true
+              storageClass: synology-iscsi-storage
+              size: 2Gi
+          global:
+            compatibility:
+              openshift:
+                adaptSecurityContext: force
+
+        ingress:
+          enabled: true
+          className: openshift-default
+          annotations:
+            route.openshift.io/termination: "edge"
+          path: /
+          pathType: Prefix
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
