@@ -22,6 +22,12 @@ spec:
             secretName: nextcloud-admin
             usernameKey: nextcloud-username
             passwordKey: nextcloud-password
+            # nextcloud-exporter auth token (Task 2/3 of the monitoring plan)
+            # -- read by the chart's own templates/metrics/deployment.yaml
+            # as NEXTCLOUD_AUTH_TOKEN, out of this SAME existingSecret since
+            # the template only supports one secret name for the whole
+            # nextcloud.existingSecret block, not a per-key override.
+            tokenKey: nextcloud-token
           trustedDomains:
             - nextcloud.apps.altus.janz.digital
             - nextcloud.janz.digital
@@ -115,6 +121,22 @@ spec:
             route.openshift.io/termination: "edge"
           path: /
           pathType: Prefix
+
+        # nextcloud-exporter, deployed via the chart's own dedicated
+        # metrics.* mechanism (a purpose-built Deployment + Service for
+        # xperimental/nextcloud-exporter, not a generic sidecar) --
+        # preferred over hand-rolling extraSidecarContainers because it
+        # already wires NEXTCLOUD_SERVER, the /ocs/.../serverinfo path, and
+        # NEXTCLOUD_AUTH_TOKEN (via nextcloud.existingSecret.tokenKey above)
+        # correctly out of the box. See monitoring-report.md for details.
+        metrics:
+          enabled: true
+          image:
+            repository: xperimental/nextcloud-exporter
+            tag: 0.9.1
+          info:
+            # nextcloud_system_update_available metric (dashboard panel 7)
+            update: true
 
   project: cluster-apps
   syncPolicy:
