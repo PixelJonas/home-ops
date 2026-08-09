@@ -75,6 +75,11 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/vaultwarden
+  tymeslot:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/tymeslot
   paperless:
     annotations:
       argocd.argoproj.io/sync-wave: "300"
