@@ -6,6 +6,20 @@
   path: /spec/restic/repository
   value: restic-config-data-nfs
 
+# This PVC's underlying Synology NFS export uses root_squash -- the
+# default OpenShift-assigned mover uid can't read files owned by
+# www-data (33), the actual app's runtime uid. Run the mover as uid 33
+# too (see anyuid-rolebinding.yaml for the matching SCC grant this
+# needs -- VolSync's dynamically-created "volsync-src-data-nfs-backup"
+# ServiceAccount is bound to anyuid there). See .claude/rules/
+# synology.md in infra-ops for the full root_squash writeup.
+- op: add
+  path: /spec/restic/moverSecurityContext
+  value:
+    runAsUser: 33
+    runAsGroup: 33
+    runAsNonRoot: true
+
 # Local-only for now, per explicit instruction -- no B2 leg yet. Run
 # shortly after the webroot/database backup's coordinated 03:00-03:12
 # maintenance window (see docs/runbooks/nextcloud-restore.md) rather than
