@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: syno-db-backup
+  namespace: template
+  annotations:
+    argocd.argoproj.io/sync-wave: "200"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  storageClassName: synology-iscsi-storage
+  resources:
+    requests:
+      storage: 5Gi

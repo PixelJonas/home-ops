@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mariadb-backup
+  namespace: template
+  annotations:
+    argocd.argoproj.io/sync-wave: "200"
+spec:
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: database-mariadb-backup
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: syno-template-db-backup
+          containers:
+            - name: mariadb-dump-via-kubectl
+              env:
+                - name: MARIADB_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: template-mariadb
+                      key: mariadb-root-password
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+              image: quay.io/openshift/origin-cli:4.21
+              command: ["/bin/bash", "-c"]
+              args:
+                - |-
+                  set -e
+                  trap 'kubectl exec deploy/nextcloud-app --container nextcloud -- php occ maintenance:mode --off || true' EXIT
+
+                  echo -----------------------------------
+                  echo "Enabling Nextcloud maintenance mode"
+                  kubectl exec deploy/nextcloud-app --container nextcloud -- php occ maintenance:mode --on
+                  echo -----------------------------------
+                  echo "Backing up MariaDB (all databases, consistent snapshot)"
+                  kubectl exec nextcloud-app-mariadb-0 --container mariadb -- /bin/bash -c \
+                    "MYSQL_PWD=\$MARIADB_ROOT_PASSWORD mariadb-dump --single-transaction --routines --triggers --all-databases -u root" \
+                    > /backup/backup.sql
+                  echo -----------------------------------
+                  ls -lah /backup
+                  echo -----------------------------------
+          restartPolicy: OnFailure
