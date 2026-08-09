@@ -7,3 +7,4 @@ resources:
   - external-nextcloud-mariadb.yaml
   - external-nextcloud-redis.yaml
   - nextcloud-app.yaml
+  - servicemonitor.yaml
