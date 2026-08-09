@@ -1,0 +1,200 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nextcloud-bootstrap-script
+  namespace: nextcloud
+data:
+  bootstrap.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    NS="nextcloud"
+    GROUP="family"
+    CALENDAR="Family Calendar"
+    OWNER="jonas"
+    SHAREE="julia"
+
+    log() { echo "==> $*"; }
+
+    # --- Locate the live Nextcloud pod ---
+    # Verified against the deployed chart (oc get pods -n nextcloud
+    # --show-labels): the app pod carries exactly these two labels.
+    SELECTOR="app.kubernetes.io/name=nextcloud,app.kubernetes.io/component=app"
+
+    log "Waiting for a Ready Nextcloud pod..."
+    kubectl wait --for=condition=Ready pod -l "$SELECTOR" -n "$NS" --timeout=300s
+    POD=$(kubectl get pod -l "$SELECTOR" -n "$NS" -o jsonpath='{.items[0].metadata.name}')
+    log "Using pod: $POD"
+
+    # shquote() single-quote-escapes a value for safe embedding inside a
+    # single-quoted shell token. Shared by occ() and create_user() below so
+    # there's exactly one escaping approach in this file, not two.
+    shquote() {
+      printf '%s' "$1" | sed "s/'/'\\\\''/g"
+    }
+
+    # occ() runs a `php occ` subcommand inside the live pod as www-data.
+    # Each argument is individually single-quoted via shquote() (escaping
+    # embedded quotes) rather than joined with bash's "$*", so values
+    # containing spaces (the calendar name) survive the kubectl exec -> su -c
+    # -> /bin/sh re-parse intact. Verified live: the naive "$*"-based version
+    # silently splits "Family Calendar" into two separate occ arguments.
+    occ() {
+      local cmd="php occ"
+      local arg
+      for arg in "$@"; do
+        cmd="$cmd '$(shquote "$arg")'"
+      done
+      cmd="$cmd --no-interaction"
+      kubectl exec -n "$NS" "$POD" -- su -s /bin/sh www-data -c "$cmd"
+    }
+
+    # --- Wait for maintenance:install (run by the image entrypoint) to finish ---
+    # NOTE: the command is `occ status`, not `occ status.php` (that command
+    # does not exist in Nextcloud 34 -- confirmed live via --help/direct
+    # invocation). `--output=json` is required for the installed":true match;
+    # plain output uses "- installed: true" instead.
+    log "Waiting for Nextcloud install to complete..."
+    for i in $(seq 1 60); do
+      if occ status --output=json 2>/dev/null | grep -q '"installed":true'; then
+        break
+      fi
+      if [ "$i" -eq 60 ]; then
+        echo "ERROR: Nextcloud not installed after 5 minutes" >&2
+        exit 1
+      fi
+      sleep 5
+    done
+    log "Nextcloud is installed."
+
+    # --- Users ---
+    # The account password is never embedded in a command-line argument --
+    # not the local kubectl process's argv (visible to `ps`/`/proc/<pid>/
+    # cmdline`) and not the literal "command=" the kubectl-exec API request
+    # carries (which some audit-log configs capture). Instead it's piped
+    # over the exec session's stdin (`kubectl exec -i`) and read into an
+    # env var *inside* the remote shell via `read`, only ever existing as
+    # process argv on the far side, inside the pod, as an env var (not an
+    # argv element) of the `php occ` process itself.
+    # Verified live: `ps aux` on the invoking process during a real exec
+    # shows the full kubectl argv with no trace of the password.
+    create_user() {
+      local uid="$1" display_name="$2" password_env="$3"
+      if occ user:info "$uid" >/dev/null 2>&1; then
+        log "User '$uid' already exists, skipping."
+      else
+        log "Creating user '$uid'..."
+        printf '%s\n' "${!password_env}" | kubectl exec -i -n "$NS" "$POD" -- su -s /bin/sh www-data -c \
+          "IFS= read -r OC_PASS && export OC_PASS && php occ user:add --password-from-env \
+           --display-name='$(shquote "$display_name")' --no-interaction '$(shquote "$uid")'"
+      fi
+    }
+
+    create_user "$OWNER" "Jonas" JONAS_PASSWORD
+    create_user "$SHAREE" "Julia" JULIA_PASSWORD
+
+    # --- Group ---
+    if occ group:info "$GROUP" --output=json >/dev/null 2>&1; then
+      log "Group '$GROUP' already exists, skipping."
+    else
+      log "Creating group '$GROUP'..."
+      occ group:add "$GROUP"
+    fi
+
+    # group:adduser's own idempotency on a duplicate call is inconsistently
+    # reported upstream (plan's Research Findings #1: "guard rather than
+    # assume"), so membership is checked explicitly before calling it,
+    # matching the check-before-mutate pattern used everywhere else in this
+    # script, instead of relying on group:adduser to no-op safely by itself.
+    # group:info --output=json has no members field (confirmed live), and
+    # jq isn't present in quay.io/openshift/origin-cli:4.21 (confirmed live)
+    # to parse one if it did -- so membership is instead read off
+    # user:info's plain-text "groups:" list, which IS present per-user
+    # (confirmed live) and parses cleanly with awk/grep alone.
+    for uid in "$OWNER" "$SHAREE"; do
+      CURRENT_GROUPS=$(occ user:info "$uid" 2>/dev/null | awk '
+        /^  - groups:/ { ingroups=1; next }
+        ingroups && /^    - / { sub(/^    - /, ""); print; next }
+        ingroups { exit }
+      ')
+      if echo "$CURRENT_GROUPS" | grep -Fqx "$GROUP"; then
+        log "'$uid' already in group '$GROUP', skipping."
+      else
+        log "Adding '$uid' to group '$GROUP'..."
+        occ group:adduser "$GROUP" "$uid"
+      fi
+    done
+
+    # --- Calendar ---
+    # occ dav:create-calendar has NO --display-name option (confirmed live
+    # via --help) -- the single <name> argument becomes both the calendar's
+    # URI and its display name. Existence check parses the plain ASCII
+    # table: dav:list-calendars has no --output=json option at all
+    # (confirmed live -- "The '--output' option does not exist.").
+    EXISTING_CAL=$(occ dav:list-calendars "$OWNER" 2>/dev/null | awk -F'|' '{
+      gsub(/^[ \t]+|[ \t]+$/, "", $2);
+      if ($2 != "" && $2 != "URI") print $2
+    }' | grep -Fx "$CALENDAR" || true)
+
+    if [ -n "$EXISTING_CAL" ]; then
+      log "Calendar '$CALENDAR' already exists for '$OWNER', skipping."
+    else
+      log "Creating calendar '$CALENDAR' for '$OWNER'..."
+      occ dav:create-calendar "$OWNER" "$CALENDAR"
+    fi
+
+    # --- Share (occ has no command for this -- see plan Research Findings #2) ---
+    # dav:list-calendar-shares lists shares from the SHAREE's perspective
+    # (calendars shared *to* the given uid), not the owner's -- confirmed
+    # live: querying as the owner always reports "has no calendar shares"
+    # even immediately after a successful share, while querying as the
+    # sharee shows the incoming share with Calendar URI/Owner/Permissions
+    # columns. So this idempotency check queries "$SHAREE", not "$OWNER".
+    #
+    # The "Calendar Owner" column renders as "<display name>
+    # (principals/users/<uid>)" -- e.g. "Jonas (principals/users/jonas)" --
+    # so matching must target the parenthesized principal string, not a
+    # prefix match against $OWNER: display names are capitalized while uids
+    # aren't, and a naive index(own, owner)==1 prefix check silently never
+    # matches, defeating the idempotency guard (confirmed live: a second Job
+    # run re-POSTed the share every time until this was fixed).
+    ALREADY_SHARED=$(occ dav:list-calendar-shares "$SHAREE" 2>/dev/null | awk -F'|' -v cal="$CALENDAR" -v owner="$OWNER" '{
+      uri=$4; perm=$8; own=$6;
+      gsub(/^[ \t]+|[ \t]+$/, "", uri);
+      gsub(/^[ \t]+|[ \t]+$/, "", perm);
+      gsub(/^[ \t]+|[ \t]+$/, "", own);
+      if (uri == cal && perm == "Read/Write" && index(own, "principals/users/" owner) > 0) print "yes"
+    }' || true)
+
+    # curlconfig_escape() escapes backslash/double-quote for safe embedding
+    # inside a double-quoted curl -K config-file value (curl's config-file
+    # quoting rules, distinct from shell single-quote escaping above).
+    curlconfig_escape() {
+      printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+    }
+
+    if [ "$ALREADY_SHARED" = "yes" ]; then
+      log "Calendar already shared read-write with '$SHAREE', skipping WebDAV share call."
+    else
+      log "Sharing calendar '$CALENDAR' with '$SHAREE' (read-write) via WebDAV..."
+      # Credentials passed via curl's -K/--config (config read from stdin
+      # here, not a file) rather than -u on the command line -- `-u
+      # user:pass` would otherwise put the password in both local `ps`
+      # output and the literal argv the invoking process carries. Verified
+      # live: `ps aux` during a real `curl -K -` invocation shows no trace
+      # of the password.
+      printf 'user = "%s:%s"\n' "$OWNER" "$(curlconfig_escape "$JONAS_PASSWORD")" | curl -sf -K - \
+        -H "Content-Type: application/xml; charset=utf-8" \
+        -X POST "http://${NEXTCLOUD_SERVICE_HOST}:${NEXTCLOUD_SERVICE_PORT}/remote.php/dav/calendars/${OWNER}/${CALENDAR// /%20}/" \
+        -d "<?xml version=\"1.0\" encoding=\"utf-8\" ?>
+    <oc:share xmlns:oc=\"http://owncloud.org/ns\" xmlns:d=\"DAV:\">
+      <oc:set>
+        <d:href>principal:principals/users/${SHAREE}</d:href>
+        <oc:read-write/>
+        <oc:summary>${CALENDAR} - shared by ${OWNER}</oc:summary>
+      </oc:set>
+    </oc:share>"
+      log "Share request sent."
+    fi
+
+    log "Bootstrap complete."
