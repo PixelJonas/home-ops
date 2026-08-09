@@ -1,0 +1,48 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nextcloud-alerts
+  namespace: nextcloud
+  labels:
+    app.kubernetes.io/name: nextcloud
+spec:
+  groups:
+    - name: Nextcloud
+      rules:
+        - alert: NextcloudServiceDown
+          expr: nextcloud_up == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Nextcloud is unreachable"
+            description: "nextcloud-exporter has reported nextcloud_up == 0 for 5 minutes."
+
+        - alert: NextcloudBackupMissedInterval
+          expr: increase(volsync_missed_intervals_total{obj_namespace="nextcloud"}[1d]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Nextcloud VolSync backup missed its scheduled window"
+            description: "{{ $labels.obj_name }} in namespace nextcloud did not complete a backup sync before its next scheduled trigger."
+
+        - alert: NextcloudBackupOutOfSync
+          expr: volsync_volume_out_of_sync{obj_namespace="nextcloud"} == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Nextcloud VolSync volume is out of sync"
+            description: "{{ $labels.obj_name }} has been out of sync for over 30 minutes."
+
+        - alert: NextcloudPVCUsageHigh
+          expr: |
+            kubelet_volume_stats_used_bytes{namespace="nextcloud"}
+              / kubelet_volume_stats_capacity_bytes{namespace="nextcloud"} > 0.85
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Nextcloud PVC {{ $labels.persistentvolumeclaim }} is over 85% full"
+            description: "{{ $labels.persistentvolumeclaim }} in namespace nextcloud is at {{ $value | humanizePercentage }} usage."

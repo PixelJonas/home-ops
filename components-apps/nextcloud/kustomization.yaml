@@ -8,3 +8,5 @@ resources:
   - external-nextcloud-redis.yaml
   - heimdall-rbac.yaml
   - nextcloud-app.yaml
+  - servicemonitor.yaml
+  - prometheus-rule.yaml
