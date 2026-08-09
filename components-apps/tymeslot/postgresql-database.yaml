@@ -1,0 +1,23 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: tymeslot-db
+  namespace: tymeslot
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+
+  superuserSecret:
+    name: tymeslot-db-postgres-secret
+
+  bootstrap:
+    initdb:
+      database: tymeslot
+      owner: tymeslot
+      secret:
+        name: tymeslot-db-tymeslot-secret
+
+  storage:
+    size: 2Gi
