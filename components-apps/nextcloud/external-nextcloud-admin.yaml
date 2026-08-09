@@ -18,3 +18,6 @@ spec:
     - secretKey: nextcloud-password
       remoteRef:
         key: NEXTCLOUD_ADMIN_PASSWORD
+    - secretKey: nextcloud-token
+      remoteRef:
+        key: NEXTCLOUD_EXPORTER_TOKEN
