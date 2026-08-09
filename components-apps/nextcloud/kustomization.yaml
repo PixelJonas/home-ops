@@ -16,3 +16,4 @@ resources:
   - bootstrap/external-nextcloud-bootstrap-credentials.yaml
   - bootstrap/configmap-bootstrap-script.yaml
   - bootstrap/job.yaml
+  - ./backup

@@ -1,0 +1,17 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: nextcloud-app-nextcloud
+
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-data-b2
+
+# Coordinated with the mariadb-backup CronJob's 03:00 schedule (see
+# templates/mariadb-backup/cronjob.yaml) instead of the template's default
+# 05:00 — both backups need to happen inside the same maintenance-mode
+# window for point-in-time consistency between the DB dump and the app-data
+# snapshot. See docs/runbooks/nextcloud-restore.md for the actual resulting
+# guarantee.
+- op: replace
+  path: /spec/trigger/schedule
+  value: "10 3 * * *"
