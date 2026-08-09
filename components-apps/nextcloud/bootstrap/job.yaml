@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nextcloud-bootstrap
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/sync-wave: "150"
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: nextcloud-bootstrap
+      restartPolicy: OnFailure
+      volumes:
+        - name: bootstrap-script
+          configMap:
+            name: nextcloud-bootstrap-script
+            defaultMode: 0755
+      containers:
+        - name: nextcloud-bootstrap
+          image: quay.io/openshift/origin-cli:4.21
+          command: ["/bin/bash", "/scripts/bootstrap.sh"]
+          env:
+            - name: JONAS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-bootstrap-credentials
+                  key: jonas-password
+            - name: JULIA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-bootstrap-credentials
+                  key: julia-password
+            # Explicit internal Service DNS name + port, verified against
+            # the live cluster (oc get svc -n nextcloud) rather than assumed:
+            # the Helm release name is "nextcloud-app", not "nextcloud", so
+            # the Service is nextcloud-app.nextcloud.svc.cluster.local,
+            # listening on 8080 (targetPort 80 on the pod).
+            - name: NEXTCLOUD_SERVICE_HOST
+              value: "nextcloud-app.nextcloud.svc.cluster.local"
+            - name: NEXTCLOUD_SERVICE_PORT
+              value: "8080"
+          volumeMounts:
+            - name: bootstrap-script
+              mountPath: /scripts
