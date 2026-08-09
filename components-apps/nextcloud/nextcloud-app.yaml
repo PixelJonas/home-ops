@@ -48,6 +48,23 @@ spec:
           enabled: true
           protocol: https
 
+        # The chart's own MYSQL_HOST/USER/PASSWORD env-var wiring (used by
+        # both the main container and the mariadb-isalive init container)
+        # is gated on internalDatabase.enabled, not mariadb.enabled -- it
+        # defaults to true (SQLite) and silently wins over the bundled
+        # MariaDB subchart unless explicitly disabled here. externalDatabase
+        # .existingSecret is still the correct place for credentials even
+        # though we're using the bundled subchart, not a real external DB --
+        # that's simply where this chart's template always reads them from.
+        internalDatabase:
+          enabled: false
+
+        externalDatabase:
+          existingSecret:
+            secretName: nextcloud-mariadb
+            usernameKey: mariadb-username
+            passwordKey: mariadb-password
+
         persistence:
           enabled: true
           storageClass: synology-iscsi-storage
