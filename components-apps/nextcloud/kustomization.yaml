@@ -8,3 +8,4 @@ resources:
   - external-nextcloud-redis.yaml
   - nextcloud-app.yaml
   - servicemonitor.yaml
+  - prometheus-rule.yaml
