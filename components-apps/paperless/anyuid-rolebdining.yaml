@@ -6,7 +6,10 @@ metadata:
     argocd.argoproj.io/sync-wave: "30"
 subjects:
   - kind: ServiceAccount
-    name: default
+    name: paperless-ng
+    namespace: paperless
+  - kind: ServiceAccount
+    name: paperless-gpt
     namespace: paperless
 roleRef:
   apiGroup: rbac.authorization.k8s.io

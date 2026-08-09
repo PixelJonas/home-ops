@@ -122,6 +122,12 @@ applications:
     source:
       path: components-infra/claude-admin/base
 
+  hermes-infra-agent:
+    annotations:
+      argocd.argoproj.io/sync-wave: "11"
+    source:
+      path: components-infra/hermes-infra-agent/base
+
   cloudflared:
     annotations:
       argocd.argoproj.io/sync-wave: "22"

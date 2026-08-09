@@ -12,7 +12,7 @@ spec:
   source:
     chart: app-template
     repoURL: https://bjw-s-labs.github.io/helm-charts
-    targetRevision: 4.6.2
+    targetRevision: 5.0.1
     helm:
       values: |-
         defaultPodOptions:
@@ -168,6 +168,16 @@ spec:
 
           agent-runtime:
             replicas: 1
+            pod:
+              # app-template's chart default is false. This controller's
+              # startup lifespan calls `oc exec deploy/taxbuddy-hermes-app`
+              # (via agent_hermes/adapter.py, to register its cron trigger)
+              # using the pod's own in-cluster token -- with no token
+              # mounted at all, that call fails at authentication before
+              # RBAC is even evaluated, crash-looping the pod on every
+              # restart. See taxbuddy/agent-runtime-hermes-exec-rbac.yaml
+              # for the matching RBAC grant this token needs.
+              automountServiceAccountToken: true
             containers:
               agent-runtime:
                 image:
