@@ -16,10 +16,37 @@ Resource names below are confirmed against the live Altus cluster
 | MariaDB StatefulSet | `nextcloud-app-mariadb` |
 | MariaDB pod | `nextcloud-app-mariadb-0` |
 | MariaDB root-password Secret | `nextcloud-mariadb`, key `mariadb-root-password` |
-| App-data PVC | `nextcloud-app-nextcloud` |
+| App-data PVC (webroot/config/custom_apps/themes) | `nextcloud-app-nextcloud` |
+| User-file-data PVC (`nextcloud.datadir`, `synology-nfs-storage`) — **see warning below, not yet backed up** | `nextcloud-app-nextcloud-data` |
 | Database-dump staging PVC | `database-syno-db-backup` |
 | Local restic-rest repo secrets | `restic-config-database`, `restic-config-data` |
 | Backblaze B2 repo secrets | `restic-config-database-b2`, `restic-config-data-b2` |
+
+> **Known gap (as of 2026-08-09):** `nextcloud-app-nextcloud-data` was
+> added later than this runbook's original backup setup, when user file
+> storage was split onto its own `synology-nfs-storage` PVC (see
+> `components-apps/nextcloud/nextcloud-app.yaml`'s `persistence.nextcloudData`
+> block). The existing `ReplicationSource`s in
+> `components-apps/nextcloud/backup/data/{local,backblaze}.yaml` only cover
+> the *original* `nextcloud-app-nextcloud` PVC — **there is currently no
+> backup of any kind for `nextcloud-app-nextcloud-data`**, i.e. no backup
+> of actual family files once real usage starts. This needs a new pair of
+> `ReplicationSource`s (mirroring the existing `data-backup`/
+> `data-backup-b2` pattern, pointed at `nextcloud-app-nextcloud-data`)
+> before relying on this storage for real data. Until that exists, step 5a
+> below (restoring this PVC) has nothing to restore *from*.
+>
+> **NFS root_squash caution, if/when restoring this PVC**: this PVC's
+> underlying Synology export uses `root_squash`, which silently remaps any
+> uid-0 (root) client to a restricted identity that can't `chown`/`chmod`
+> arbitrarily. If you extract/restore into this PVC via a debug pod running
+> as root (the default for `oc exec`/most debug-pod specs), files land
+> owned by the wrong identity and the *actual* Apache worker process (which
+> runs as uid 33/`www-data`, not root) will fail to read them — this caused
+> a real outage during the initial migration. Always run the restore
+> container with `securityContext: { runAsUser: 33, runAsGroup: 33 }`, not
+> as root. See `.claude/rules/synology.md` in `infra-ops` for the full
+> writeup.
 
 ## Backup consistency: what the maintenance-mode window actually guarantees
 
@@ -143,6 +170,35 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
      -n nextcloud --timeout=15m
    ```
 
+5a. **Restore the user-file-data PVC** (`nextcloud-app-nextcloud-data`) —
+    **only once backup coverage for it actually exists** (see the gap
+    noted in the resource table above; as of 2026-08-09 there is nothing
+    to restore from yet). Once a `restic-config-data-nfs-b2`-style Secret
+    exists for it, same shape as step 5, different PVC name:
+
+    ```bash
+    cat <<EOF | oc apply -f -
+    apiVersion: volsync.backube/v1alpha1
+    kind: ReplicationDestination
+    metadata:
+      name: nextcloud-data-nfs-restore
+      namespace: nextcloud
+    spec:
+      trigger:
+        manual: restore-once
+      restic:
+        repository: restic-config-data-nfs-b2  # CONFIRM against the actual Secret name once this backup is created
+        destinationPVC: nextcloud-app-nextcloud-data
+        copyMethod: Direct
+    EOF
+    ```
+
+    If instead you need to manually extract/restore into this PVC (e.g. via
+    a debug pod and a raw tarball, not VolSync) — **run the debug pod as
+    uid 33/`www-data`, never as root**, per the `root_squash` caution
+    above. A plain `oc exec ... tar xzf ...` as root will silently produce
+    files the real app can't read.
+
 6. **Load the restored dump into MariaDB.** This is the step a raw-PVC
    snapshot approach wouldn't need (the DB directory would already *be*
    MariaDB's live state) — because this fleet uses a logical dump, the
@@ -255,16 +311,21 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
 
 ## Dry-run status
 
-**Not yet performed.** This runbook has not been executed end-to-end — it
-is blocked on the two Backblaze B2 buckets this backup setup depends on
-(`volsync-nextcloud-database`, `volsync-nextcloud-data`) not existing yet.
-See the implementation report for what a human needs to do in the B2
-console before a real backup cycle (and therefore a real restore dry-run)
-can happen.
+**Not yet performed, but no longer blocked on the B2 buckets.** As of
+2026-08-09 both Backblaze B2 buckets (`volsync-nextcloud-database`,
+`volsync-nextcloud-data`) exist and all four `ReplicationSource`s covering
+the *original* two PVCs (`data-backup`/`data-backup-b2`/`database-backup`/
+`database-backup-b2`) are confirmed `Successful` — a Doppler-side hostname
+bug that was silently crash-looping the local (non-B2) `data-backup` leg
+has since been found and fixed. This runbook's restore steps 1-4, 5, and
+6-10 are ready to dry-run for real. Step 5a (the newer user-file-data PVC)
+is still blocked — see the known-gap note in the resource table above; no
+backup exists for that PVC yet, so there's nothing to restore in a dry run
+until that's built.
 
-Once the buckets exist and at least one backup cycle has completed (after
-the first 03:00 `mariadb-backup` CronJob run followed by the 05:00 VolSync
-snapshot), dry-run this procedure — either into a scratch namespace
+Once at least one backup cycle has completed (after the first 03:00
+`mariadb-backup` CronJob run followed by the 03:10 VolSync trigger),
+dry-run this procedure — either into a scratch namespace
 (`nextcloud-restore-test` with its own throwaway MariaDB + the restored
 PVCs, verify the dump loads and the schema looks sane via `SHOW TABLES;`
 and a spot-check of the `oc_calendarobjects` row count, then delete the
