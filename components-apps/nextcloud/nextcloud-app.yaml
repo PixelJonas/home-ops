@@ -71,6 +71,24 @@ spec:
             usernameKey: mariadb-username
             passwordKey: mariadb-password
 
+        # Background jobs hardening: chart default (cronjob.enabled: false)
+        # leaves Nextcloud on its weakest "ajax" trigger mode (background
+        # jobs only run opportunistically off page-load traffic, no crond
+        # sidecar or CronJob exists otherwise). Use a real Kubernetes
+        # CronJob instead of the sidecar type -- sidecar needs crond running
+        # as root in the main pod, cronjob type runs `php -f cron.php` as a
+        # separate Job on the existing schedule/volumes, consistent with
+        # how this chart's docs recommend doing it on Kubernetes. Nextcloud
+        # itself still needs `occ background:cron` run once (see hardening
+        # notes) to flip config.php's backgroundjobs_mode from the ajax
+        # default to cron -- this chart value alone only creates the
+        # CronJob, it doesn't flip that setting.
+        cronjob:
+          enabled: true
+          type: cronjob
+          cronjob:
+            schedule: "*/5 * * * *"
+
         persistence:
           enabled: true
           storageClass: lvms-vg1
