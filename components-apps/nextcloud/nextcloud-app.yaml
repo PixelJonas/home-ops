@@ -101,6 +101,18 @@ spec:
           type: cronjob
           cronjob:
             schedule: "*/5 * * * *"
+            # The chart's cronjob-type container does NOT inherit the
+            # Deployment's podSecurityContext/securityContext above (those
+            # are only wired to the main app pod template) -- confirmed
+            # live: first run failed with "Console has to be executed with
+            # the user that owns the file config/config.php. Current user
+            # id: 0, Owner id of config.php: 33" because this container
+            # otherwise defaults to root, same as the main pod. Pin it to
+            # www-data (33) explicitly, matching config.php's real on-disk
+            # owner, so cron.php's own UID check passes.
+            securityContext:
+              runAsUser: 33
+              runAsGroup: 33
 
         persistence:
           enabled: true
