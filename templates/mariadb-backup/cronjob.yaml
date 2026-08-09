@@ -32,7 +32,33 @@ spec:
               args:
                 - |-
                   set -e
+                  # NOTE ON THE ACTUAL GUARANTEE THIS PROVIDES:
+                  # Nextcloud writes to the DB and the app-data PVC together (e.g. a
+                  # calendar write touches both), so both backups need to be taken
+                  # while Nextcloud is in maintenance mode for them to be consistent
+                  # with each other. This trap keeps maintenance mode on for the
+                  # *entire* window below (dump + a fixed hold), not just for the
+                  # few seconds the mariadb-dump itself takes — the data-PVC
+                  # ReplicationSource's schedule (components-apps/nextcloud/backup/
+                  # data/{local,backblaze}.yaml) was deliberately retimed to
+                  # "10 3 * * *" (10 minutes after this job's 03:00 start) so its
+                  # trigger falls inside this hold. This is NOT a guarantee that the
+                  # entire multi-minute VolSync restic transfer completes before
+                  # maintenance mode turns off — VolSync's copyMethod: Direct reads
+                  # straight from the live PVC over its own run duration, same as
+                  # every other Direct-copyMethod app in this fleet (immich,
+                  # paperless), and a very large app-data PVC could still be mid-
+                  # transfer when the hold ends. What this DOES guarantee: both the
+                  # DB dump and the data-PVC backup's *trigger* land inside one
+                  # shared, coordinated ~12-minute nightly maintenance window
+                  # (03:00-03:12) instead of the DB dump's window closing within
+                  # seconds while the data backup's independent 05:00 schedule left
+                  # a ~2-hour gap where the two were never point-in-time consistent
+                  # with each other at all. See docs/runbooks/nextcloud-restore.md
+                  # for this stated plainly.
                   trap 'kubectl exec deploy/nextcloud-app --container nextcloud -- php occ maintenance:mode --off || true' EXIT
+
+                  START_TS=$(date +%s)
 
                   echo -----------------------------------
                   echo "Enabling Nextcloud maintenance mode"
@@ -45,4 +71,20 @@ spec:
                   echo -----------------------------------
                   ls -lah /backup
                   echo -----------------------------------
+                  # Hold maintenance mode open past the data-PVC VolSync backup's
+                  # own 03:10 trigger (see NOTE above). Target: 720s (12 minutes)
+                  # total from this job's start — a small (2-user) Nextcloud
+                  # mariadb-dump is expected to finish in well under a minute, so
+                  # this leaves roughly a 2-minute safety margin past the 10-minute
+                  # data-backup trigger point for normal CronJob/VolSync scheduling
+                  # latency. Computed relative to START_TS (not a flat `sleep 720`
+                  # after the dump) so a slower-than-expected dump doesn't push the
+                  # total window out indefinitely.
+                  TARGET_WINDOW_SECONDS=720
+                  ELAPSED=$(( $(date +%s) - START_TS ))
+                  REMAINING=$(( TARGET_WINDOW_SECONDS - ELAPSED ))
+                  if [ "$REMAINING" -gt 0 ]; then
+                    echo "Holding maintenance mode for ${REMAINING}s more to cover the data-PVC backup window"
+                    sleep "$REMAINING"
+                  fi
           restartPolicy: OnFailure
