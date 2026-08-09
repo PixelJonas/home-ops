@@ -98,6 +98,11 @@ spec:
               enabled: true
               storageClass: synology-iscsi-storage
               size: 2Gi
+          replica:
+            persistence:
+              enabled: true
+              storageClass: synology-iscsi-storage
+              size: 2Gi
           global:
             compatibility:
               openshift:
