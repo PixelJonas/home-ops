@@ -8,6 +8,14 @@ subjects:
   - kind: ServiceAccount
     name: default
     namespace: nextcloud
+  # VolSync's data-nfs-backup mover needs to run as uid 33/www-data to
+  # read the synology-nfs-storage PVC (root_squash blocks the default
+  # OpenShift-assigned uid range from reading files owned by www-data --
+  # see .claude/rules/synology.md in infra-ops). VolSync auto-creates
+  # this ServiceAccount per-ReplicationSource, named after it.
+  - kind: ServiceAccount
+    name: volsync-src-data-nfs-backup
+    namespace: nextcloud
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
