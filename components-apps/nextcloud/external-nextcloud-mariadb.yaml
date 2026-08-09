@@ -1,0 +1,20 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: external-nextcloud-mariadb
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: nextcloud-mariadb
+  data:
+    - secretKey: mariadb-root-password
+      remoteRef:
+        key: NEXTCLOUD_MARIADB_ROOT_PASSWORD
+    - secretKey: mariadb-password
+      remoteRef:
+        key: NEXTCLOUD_MARIADB_PASSWORD
