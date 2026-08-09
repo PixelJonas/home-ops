@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nextcloud-bootstrap
+  namespace: nextcloud
+subjects:
+  - kind: ServiceAccount
+    name: nextcloud-bootstrap
+    namespace: nextcloud
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nextcloud-bootstrap
