@@ -132,7 +132,8 @@ spec:
         metrics:
           enabled: true
           image:
-            tag: 0.9.1 # renovate: datasource=docker depName=xperimental/nextcloud-exporter
+            repository: xperimental/nextcloud-exporter
+            tag: 0.9.1
           info:
             # nextcloud_system_update_available metric (dashboard panel 7)
             update: true
