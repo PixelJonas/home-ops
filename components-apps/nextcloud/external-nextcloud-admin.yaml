@@ -21,3 +21,12 @@ spec:
     - secretKey: nextcloud-token
       remoteRef:
         key: NEXTCLOUD_EXPORTER_TOKEN
+    - secretKey: smtp-host
+      remoteRef:
+        key: MAIL_HOST
+    - secretKey: smtp-username
+      remoteRef:
+        key: MAIL_USERNAME
+    - secretKey: smtp-password
+      remoteRef:
+        key: MAIL_PASSWORD
