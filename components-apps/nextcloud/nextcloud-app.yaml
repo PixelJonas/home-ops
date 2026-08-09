@@ -73,7 +73,7 @@ spec:
 
         persistence:
           enabled: true
-          storageClass: synology-iscsi-storage
+          storageClass: lvms-vg1
           accessMode: ReadWriteOnce
           size: 20Gi
 
@@ -86,7 +86,7 @@ spec:
           primary:
             persistence:
               enabled: true
-              storageClass: synology-iscsi-storage
+              storageClass: lvms-vg1
               size: 10Gi
           global:
             compatibility:
@@ -102,12 +102,12 @@ spec:
           master:
             persistence:
               enabled: true
-              storageClass: synology-iscsi-storage
+              storageClass: lvms-vg1
               size: 2Gi
           replica:
             persistence:
               enabled: true
-              storageClass: synology-iscsi-storage
+              storageClass: lvms-vg1
               size: 2Gi
           global:
             compatibility:
