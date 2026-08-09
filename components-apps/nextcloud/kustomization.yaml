@@ -6,6 +6,7 @@ resources:
   - external-nextcloud-admin.yaml
   - external-nextcloud-mariadb.yaml
   - external-nextcloud-redis.yaml
+  - heimdall-rbac.yaml
   - nextcloud-app.yaml
   - servicemonitor.yaml
   - prometheus-rule.yaml
