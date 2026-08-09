@@ -1,0 +1,12 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: hermes-infra-agent-read-binding
+subjects:
+  - kind: ServiceAccount
+    name: hermes-infra-agent
+    namespace: hermes-infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hermes-infra-read
