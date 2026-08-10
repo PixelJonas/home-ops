@@ -40,6 +40,18 @@ spec:
               value: "nextcloud-app.nextcloud.svc.cluster.local"
             - name: NEXTCLOUD_SERVICE_PORT
               value: "8080"
+            # Same nextcloud-token key nextcloud-exporter itself consumes as
+            # NEXTCLOUD_AUTH_TOKEN (see nextcloud-app.yaml's metrics.* values
+            # and external-nextcloud-admin.yaml) -- registering it here via
+            # `occ config:app:set serverinfo token` is what makes that token
+            # actually valid server-side. Without this the exporter's every
+            # scrape 401s. See bootstrap.sh's serverinfo section for the full
+            # writeup.
+            - name: SERVERINFO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-admin
+                  key: nextcloud-token
           volumeMounts:
             - name: bootstrap-script
               mountPath: /scripts
