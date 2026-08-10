@@ -12,6 +12,15 @@
 # MCP tools were live-verified working end-to-end, but a `k8s_get nodes`
 # call hit a real RBAC Forbidden (cluster-scoped nodes weren't covered) --
 # widened deliberately on request, still read-only (get/list/watch only).
+#
+# clusterversions/clusteroperators added 2026-08-10: requested so the agent
+# can observe OpenShift upgrade state (current version, available updates,
+# per-operator rollout health) and report on it. Deliberately still
+# get/list/watch only -- this grant does NOT include patch/update on
+# clusterversions, which is the verb that actually triggers/steers an
+# upgrade (oc adm upgrade). Triggering or pausing an upgrade remains a
+# human action; a separate, explicitly-approved write capability would be
+# needed for the agent to do that itself.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -44,4 +53,9 @@ rules:
   - apiGroups: ["argoproj.io"]
     resources:
       - applications
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["config.openshift.io"]
+    resources:
+      - clusterversions
+      - clusteroperators
     verbs: ["get", "list", "watch"]
