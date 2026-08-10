@@ -197,4 +197,35 @@ data:
       log "Share request sent."
     fi
 
+    # --- serverinfo monitoring token (nextcloud-exporter) ---
+    # Nextcloud's ServerInfo\ApiController::checkAuthorized() compares the
+    # exporter's NC-Token request header against a value that must be
+    # separately registered server-side via `occ config:app:set serverinfo
+    # token`. The exporter's NEXTCLOUD_AUTH_TOKEN env var (wired from this
+    # same Secret's nextcloud-token key, sourced from Doppler homelab/home
+    # NEXTCLOUD_EXPORTER_TOKEN -- see nextcloud-app.yaml's metrics.* values
+    # and external-nextcloud-admin.yaml) has nothing to match without this
+    # call: every scrape attempt 401s, which escalates into Nextcloud's own
+    # bruteforce throttler and shows up as flapping 429/500s. Confirmed live
+    # 2026-08-10 -- this step was missing from the original bootstrap script,
+    # so nextcloud-exporter never once authenticated successfully and the
+    # NextcloudServiceDown (nextcloud_up == 0) alert fired continuously.
+    #
+    # Token passed via stdin (kubectl exec -i), never as a command-line
+    # argument, matching the password-handling pattern used by create_user()
+    # above -- verified live there that this keeps the value out of both the
+    # invoking process's own argv and the exec session's literal command.
+    if [ -n "${SERVERINFO_TOKEN:-}" ]; then
+      CURRENT_TOKEN=$(occ config:app:get serverinfo token 2>/dev/null || true)
+      if [ "$CURRENT_TOKEN" = "$SERVERINFO_TOKEN" ]; then
+        log "serverinfo token already registered, skipping."
+      else
+        log "Registering serverinfo token for nextcloud-exporter..."
+        printf '%s\n' "$SERVERINFO_TOKEN" | kubectl exec -i -n "$NS" "$POD" -- su -s /bin/sh www-data -c \
+          'IFS= read -r OC_TOKEN && export OC_TOKEN && php occ config:app:set serverinfo token --value="$OC_TOKEN" --no-interaction'
+      fi
+    else
+      log "SERVERINFO_TOKEN not set, skipping serverinfo token registration."
+    fi
+
     log "Bootstrap complete."
