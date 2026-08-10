@@ -1,0 +1,12 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: hermes-upgrade-agent-trigger-binding
+subjects:
+  - kind: ServiceAccount
+    name: hermes-upgrade-agent
+    namespace: hermes-infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hermes-upgrade-trigger

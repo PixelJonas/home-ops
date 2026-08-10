@@ -1,0 +1,37 @@
+# Deliberately a SEPARATE ClusterRole/ServiceAccount from hermes-infra-read
+# (components-infra/hermes-infra-agent/base), not a widening of it. Rationale
+# (2026-08-10, requested by jjanz after asking Heimdall to perform and watch
+# a major OpenShift cluster upgrade -- see home-ops#303 for the read-only
+# clusterversions/clusteroperators grant that preceded this):
+#
+# A credential that can patch clusterversions is a fundamentally different
+# risk tier than the read-only investigate credential (hermes-infra-agent),
+# which every other MCP tool call in this agent relies on day-to-day for
+# routine diagnostics. Keeping them as separate ServiceAccounts means a bug,
+# leak, or compromise of the routine read-only credential can never reach
+# this one, and this rarely-used upgrade-trigger credential is not sitting
+# in every ordinary diagnostic request's blast radius either.
+#
+# Scope is intentionally as narrow as Kubernetes RBAC can express for this
+# purpose: get/list/watch/patch on clusterversions ONLY. Notably does NOT
+# include clusteroperators (that stays exclusively on hermes-infra-read --
+# this role has no way to even read operator health, by design; the
+# upgrade-triggering tool built on top of this credential is expected to
+# call out to the read-only credential for status checks and use this one
+# only for the actual oc adm upgrade / oc adm upgrade pause calls).
+#
+# RBAC alone cannot restrict *which* clusterversion values are written (e.g.
+# "only ever the next available patch/minor, never a multi-version jump or
+# arbitrary image pin") -- that validation is enforced in the MCP server
+# implementation itself (mcp-servers/infra-upgrade/server.py in infra-ops),
+# not by this ClusterRole. This grant is scoped as tightly as the API
+# allows; the server-side application logic is the second, necessary layer.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hermes-upgrade-trigger
+rules:
+  - apiGroups: ["config.openshift.io"]
+    resources:
+      - clusterversions
+    verbs: ["get", "list", "watch", "patch"]
