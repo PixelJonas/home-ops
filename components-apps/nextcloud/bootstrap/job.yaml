@@ -5,6 +5,13 @@ metadata:
   namespace: nextcloud
   annotations:
     argocd.argoproj.io/sync-wave: "150"
+    # 2026-08-11: no-op annotation bump to force ArgoCD to re-evaluate
+    # this Application after a prior sync attempt hard-failed with
+    # "Job.batch nextcloud-bootstrap ... field is immutable" (the
+    # already-applied Job object blocked the SERVERINFO_TOKEN fix from
+    # landing). The blocking Job has since been manually deleted, so
+    # this commit's only purpose is to give ArgoCD a new git revision
+    # to sync against -- no functional change to the Job spec itself.
 spec:
   backoffLimit: 3
   template:
