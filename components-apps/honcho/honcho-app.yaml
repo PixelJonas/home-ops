@@ -131,6 +131,97 @@ spec:
                       initialDelaySeconds: 5
                       periodSeconds: 5
 
+          # vLLM serving the BAAI/bge-m3 embedding model (CPU-only — Altus has
+          # no GPU). Exposes the OpenAI-compatible /v1/embeddings endpoint that
+          # honcho's openai embedding transport calls. Replaces the previous
+          # remote Ollama-on-asgard backend (reached via LiteLLM). Model name
+          # clients must pass is the served-model-name "bge-m3".
+          vllm-bge-m3:
+            containers:
+              vllm:
+                image:
+                  repository: docker.io/vllm/vllm-openai-cpu
+                  tag: v0.27.1-x86_64
+                  pullPolicy: IfNotPresent
+                args:
+                  - serve
+                  - BAAI/bge-m3
+                  # bge-m3's config.json declares XLMRobertaModel, which vLLM
+                  # would load as a vanilla RoBERTa and drop the embedding head.
+                  # Override the architecture so the dense embedding weights load.
+                  # (https://docs.vllm.ai specific model examples, BAAI/bge-m3)
+                  - --hf-overrides
+                  - '{"architectures": ["BgeM3EmbeddingModel"]}'
+                  - --task
+                  - embed
+                  - --served-model-name
+                  - bge-m3
+                  - --host
+                  - "0.0.0.0"
+                  - --port
+                  - "8000"
+                  # bge-m3 supports up to 8192 tokens of context.
+                  - --max-model-len
+                  - "8192"
+                  # CPU backend: no CUDA graphs / no dtype auto-detect quirks.
+                  - --enforce-eager
+                  # torch CPU has unstable float16; bfloat16 is the docs-recommended
+                  # dtype for CPU serving and halves weight memory vs float32.
+                  # (https://docs.vllm.ai CPU installation FAQ)
+                  - --dtype
+                  - bfloat16
+                env:
+                  # Cap vLLM's CPU KV-cache arena; embeddings don't need much.
+                  - name: VLLM_CPU_KVCACHE_SPACE
+                    value: "4"
+                  # Bind inference threads to all but ~2 cores, reserving the rest
+                  # for the serving framework (16-vCPU node). OMP_NUM_THREADS is
+                  # ignored by vLLM unless VLLM_CPU_OMP_THREADS_BIND=nobind.
+                  - name: VLLM_CPU_OMP_THREADS_BIND
+                    value: "0-13"
+                ports:
+                  - name: http
+                    containerPort: 8000
+                probes:
+                  # Model download + load on first start can take minutes.
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      initialDelaySeconds: 15
+                      periodSeconds: 10
+                      timeoutSeconds: 5
+                      failureThreshold: 60
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      periodSeconds: 30
+                      timeoutSeconds: 5
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      initialDelaySeconds: 15
+                      periodSeconds: 10
+                      timeoutSeconds: 5
+                resources:
+                  requests:
+                    cpu: "4"
+                    memory: 6Gi
+                  limits:
+                    cpu: "12"
+                    memory: 12Gi
+
           openconcho:
             containers:
               openconcho:
@@ -168,6 +259,27 @@ spec:
                     memory: 128Mi
 
         persistence:
+          # Persistent HuggingFace model cache so bge-m3 (~2.3GB) is not
+          # re-downloaded from HF on every vLLM pod restart.
+          hf-cache:
+            type: persistentVolumeClaim
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 10Gi
+            advancedMounts:
+              vllm-bge-m3:
+                vllm:
+                  - path: /root/.cache/huggingface
+          # torch/vLLM expect an adequate /dev/shm; the default 64Mi container
+          # shm is too small. Back it with memory.
+          dshm:
+            type: emptyDir
+            medium: Memory
+            sizeLimit: 4Gi
+            advancedMounts:
+              vllm-bge-m3:
+                vllm:
+                  - path: /dev/shm
           nginx-cache:
             type: emptyDir
             medium: Memory
@@ -193,6 +305,11 @@ spec:
         service:
           honcho:
             controller: honcho
+            ports:
+              http:
+                port: 8000
+          vllm-bge-m3:
+            controller: vllm-bge-m3
             ports:
               http:
                 port: 8000
