@@ -165,15 +165,20 @@ spec:
                   - "8192"
                   # CPU backend: no CUDA graphs / no dtype auto-detect quirks.
                   - --enforce-eager
+                  # torch CPU has unstable float16; bfloat16 is the docs-recommended
+                  # dtype for CPU serving and halves weight memory vs float32.
+                  # (https://docs.vllm.ai CPU installation FAQ)
                   - --dtype
-                  - float32
+                  - bfloat16
                 env:
                   # Cap vLLM's CPU KV-cache arena; embeddings don't need much.
                   - name: VLLM_CPU_KVCACHE_SPACE
                     value: "4"
-                  # Keep threadpool sized to the CPU request to avoid thrash.
-                  - name: OMP_NUM_THREADS
-                    value: "8"
+                  # Bind inference threads to all but ~2 cores, reserving the rest
+                  # for the serving framework (16-vCPU node). OMP_NUM_THREADS is
+                  # ignored by vLLM unless VLLM_CPU_OMP_THREADS_BIND=nobind.
+                  - name: VLLM_CPU_OMP_THREADS_BIND
+                    value: "0-13"
                 ports:
                   - name: http
                     containerPort: 8000
@@ -265,6 +270,16 @@ spec:
               vllm-bge-m3:
                 vllm:
                   - path: /root/.cache/huggingface
+          # torch/vLLM expect an adequate /dev/shm; the default 64Mi container
+          # shm is too small. Back it with memory.
+          dshm:
+            type: emptyDir
+            medium: Memory
+            sizeLimit: 4Gi
+            advancedMounts:
+              vllm-bge-m3:
+                vllm:
+                  - path: /dev/shm
           nginx-cache:
             type: emptyDir
             medium: Memory
