@@ -23,8 +23,10 @@ data:
   EMBEDDING_VECTOR_DIMENSIONS: "1024"
   LLM_OPENAI_BASE_URL: "http://litellm-app.litellm.svc:4000/v1"
   EMBEDDING_MODEL_CONFIG__TRANSPORT: "openai"
+  # Model name must match vLLM's --served-model-name.
   EMBEDDING_MODEL_CONFIG__MODEL: "bge-m3"
-  EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL: "http://litellm-app.litellm.svc:4000/v1"
+  # Embeddings now go to the in-namespace vLLM bge-m3 server (CPU), not LiteLLM.
+  EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL: "http://honcho-app-vllm-bge-m3.honcho.svc:8000/v1"
   EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE: "never"
   DERIVER_MODEL_CONFIG__TRANSPORT: "openai"
   DERIVER_MODEL_CONFIG__MODEL: "claude-sonnet-5"
