@@ -143,8 +143,11 @@ spec:
                   repository: docker.io/vllm/vllm-openai-cpu
                   tag: v0.27.1-x86_64
                   pullPolicy: IfNotPresent
+                # NOTE: the vllm/vllm-openai-cpu image entrypoint is already
+                # "vllm serve" — args are appended to it directly. A leading
+                # "serve" arg would produce "vllm serve serve ..." and fail
+                # with "unrecognized arguments".
                 args:
-                  - serve
                   - BAAI/bge-m3
                   # bge-m3's config.json declares XLMRobertaModel, which vLLM
                   # would load as a vanilla RoBERTa and drop the embedding head.
@@ -152,8 +155,11 @@ spec:
                   # (https://docs.vllm.ai specific model examples, BAAI/bge-m3)
                   - --hf-overrides
                   - '{"architectures": ["BgeM3EmbeddingModel"]}'
-                  - --task
-                  - embed
+                  # Pooling runner (embeddings). Auto-detection would also work,
+                  # but pinning it is explicit. NOTE: --task embed was removed
+                  # in current vLLM; --runner pooling is the correct flag.
+                  - --runner
+                  - pooling
                   - --served-model-name
                   - bge-m3
                   - --host
