@@ -233,7 +233,7 @@ spec:
               openconcho:
                 image:
                   repository: ghcr.io/offendingcommit/openconcho-web
-                  tag: 0.16.0
+                  tag: 0.16.2
                   pullPolicy: IfNotPresent
                 env:
                   OPENCONCHO_DEFAULT_HONCHO_URL: "https://honcho.apps.altus.janz.digital"
