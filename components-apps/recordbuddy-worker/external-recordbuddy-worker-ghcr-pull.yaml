@@ -1,0 +1,23 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: recordbuddy-worker-ghcr-pull-secret
+  namespace: recordbuddy-worker
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: recordbuddy-worker-ghcr-pull-secret
+    template:
+      engineVersion: v2
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: |
+          {"auths":{"ghcr.io":{"username":"PixelJonas","password":"{{ .token }}","auth":"{{ printf "PixelJonas:%s" .token | b64enc }}"}}}
+  data:
+    - secretKey: token
+      remoteRef:
+        key: TAXBUDDY_GHCR_PULL_TOKEN
