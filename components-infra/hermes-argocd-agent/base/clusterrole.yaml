@@ -1,0 +1,34 @@
+# Deliberately a SEPARATE ClusterRole/ServiceAccount from hermes-infra-read
+# (components-infra/hermes-infra-agent/base) and from hermes-upgrade-trigger
+# (components-infra/hermes-upgrade-agent/base), following the same rationale
+# as the latter: a credential that can write anything is a fundamentally
+# different risk tier from the read-only investigate credential every other
+# MCP tool call relies on day-to-day. Keeping it separate means a bug, leak,
+# or compromise of the routine read-only credential can never reach this
+# one, and this narrow write credential doesn't sit in the blast radius of
+# ordinary diagnostic requests.
+#
+# Scope is intentionally as narrow as Kubernetes RBAC can express: get/list/
+# watch/patch on argoproj.io Applications ONLY, cluster-wide (matches
+# hermes-infra-read's cluster-scoped shape rather than a namespaced Role, for
+# consistency with the rest of this agent's credentials). No delete, no
+# create, no other resource — in particular no Deployments, so this
+# credential cannot restart openshift-gitops-repo-server.
+#
+# `patch` here structurally permits more than a refresh annotation -- it
+# also allows writing `.operation.sync`, i.e. triggering a sync, not just
+# invalidating the manifest cache. RBAC cannot narrow that further (there is
+# no "patch, but only this one annotation key" verb). The restriction to
+# *only* the argocd.argoproj.io/refresh=hard annotation is enforced in the
+# MCP server implementation (mcp-servers/infra-gitops/server.py in
+# infra-ops), not by this ClusterRole -- same two-layer model as
+# hermes-upgrade-trigger's clusterversion-value restriction.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hermes-argocd-refresh
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources:
+      - applications
+    verbs: ["get", "list", "watch", "patch"]

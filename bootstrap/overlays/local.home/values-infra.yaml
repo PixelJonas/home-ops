@@ -134,6 +134,12 @@ applications:
     source:
       path: components-infra/hermes-upgrade-agent/base
 
+  hermes-argocd-agent:
+    annotations:
+      argocd.argoproj.io/sync-wave: "11"
+    source:
+      path: components-infra/hermes-argocd-agent/base
+
   cloudflared:
     annotations:
       argocd.argoproj.io/sync-wave: "22"
