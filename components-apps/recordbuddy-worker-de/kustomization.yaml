@@ -5,4 +5,5 @@ resources:
   - namespace.yaml
   - external-recordbuddy-worker-de-secret.yaml
   - external-recordbuddy-worker-de-ghcr-pull.yaml
+  - external-recordbuddy-worker-de-hf-token.yaml
   - recordbuddy-worker-de-app.yaml
