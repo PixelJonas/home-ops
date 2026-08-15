@@ -44,7 +44,6 @@ spec:
                   requests:
                     memory: 12Gi
                   limits:
-                    cpu: "6"
                     memory: 12Gi
                 probes:
                   liveness:
