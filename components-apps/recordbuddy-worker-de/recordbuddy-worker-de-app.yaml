@@ -42,7 +42,6 @@ spec:
                         key: RECORDBUDDY_WORKER_SECRET
                 resources:
                   requests:
-                    cpu: "2"
                     memory: 12Gi
                   limits:
                     cpu: "6"
