@@ -40,6 +40,15 @@ spec:
                       secretKeyRef:
                         name: recordbuddy-worker-de-credentials
                         key: RECORDBUDDY_WORKER_SECRET
+                  # The model repo is gated on HuggingFace (accept-terms
+                  # click) — HF_TOKEN is huggingface_hub's current standard
+                  # env var for authenticated downloads (HUGGING_FACE_HUB_TOKEN
+                  # is the older alias; HF_TOKEN takes precedence).
+                  HF_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: recordbuddy-worker-de-hf-token
+                        key: HF_TOKEN
                 resources:
                   requests:
                     memory: 12Gi

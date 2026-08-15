@@ -1,0 +1,22 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: recordbuddy-worker-de-hf-token
+  namespace: recordbuddy-worker-de
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: recordbuddy-worker-de-hf-token
+  data:
+    # The German model repo is gated on HuggingFace (accept-terms click,
+    # 2026-08-15) — faster-whisper's lazy weight download needs an
+    # authenticated, gate-accepted account's token. A dedicated key, not the
+    # shared HUGGINGFACE_TOKEN already in this Doppler config (used by other
+    # services with different access needs).
+    - secretKey: HF_TOKEN
+      remoteRef:
+        key: RECORDBUDDY_HUGGINGFACE_TOKEN
