@@ -27,7 +27,7 @@ spec:
               tymeslot:
                 image:
                   repository: luka1thb/tymeslot
-                  tag: "1.9.0
+                  tag: "1.7.0"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
