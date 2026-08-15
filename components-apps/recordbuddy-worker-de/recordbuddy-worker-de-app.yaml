@@ -41,8 +41,16 @@ spec:
                         name: recordbuddy-worker-de-credentials
                         key: RECORDBUDDY_WORKER_SECRET
                 resources:
+                  # Request lower than recordbuddy-worker's 4 CPU: sakaar-sno
+                  # (single node, 11.5 allocatable) only has ~1.9 CPU of
+                  # request headroom left after the primary worker and
+                  # existing workloads — confirmed via a Pending pod with
+                  # "Insufficient cpu" on first deploy (2026-08-15). The
+                  # limit stays high so it can still burst during an actual
+                  # transcription job; faster-whisper is bursty, not
+                  # continuously CPU-bound at idle.
                   requests:
-                    cpu: "4"
+                    cpu: "1500m"
                     memory: 6Gi
                   limits:
                     cpu: "6"
