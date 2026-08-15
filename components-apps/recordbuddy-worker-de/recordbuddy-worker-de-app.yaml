@@ -1,0 +1,95 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: recordbuddy-worker-de-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: recordbuddy-worker-de
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.0.1
+    helm:
+      values: |-
+        defaultPodOptions:
+          imagePullSecrets:
+            - name: recordbuddy-worker-de-ghcr-pull-secret
+
+        controllers:
+          recordbuddy-worker-de:
+            containers:
+              recordbuddy-worker-de:
+                image:
+                  repository: ghcr.io/pixeljonas/recordbuddy-worker
+                  tag: latest
+                  pullPolicy: Always
+                env:
+                  # German-specialized model (ADR-0014): a primeline
+                  # large-v3 fine-tune, community-converted to CTranslate2.
+                  # Same image as recordbuddy-worker — only the model
+                  # differs. cc-by-nc-4.0 licensed.
+                  RECORDBUDDY_WORKER_MODEL: Reality-Interface/whisper-large-v3-german-faster-whisper
+                  RECORDBUDDY_WORKER_DEVICE: cpu
+                  RECORDBUDDY_WORKER_COMPUTE_TYPE: int8
+                  RECORDBUDDY_WORKER_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: recordbuddy-worker-de-credentials
+                        key: RECORDBUDDY_WORKER_SECRET
+                resources:
+                  requests:
+                    cpu: "4"
+                    memory: 6Gi
+                  limits:
+                    cpu: "6"
+                    memory: 8Gi
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /v1/healthz
+                        port: 9878
+                      initialDelaySeconds: 30
+                      periodSeconds: 15
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /v1/healthz
+                        port: 9878
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+
+        service:
+          recordbuddy-worker-de:
+            controller: recordbuddy-worker-de
+            annotations:
+              tailscale.com/expose: "true"
+              tailscale.com/hostname: "recordbuddy-worker-de"
+            ports:
+              http:
+                port: 9878
+
+        persistence:
+          models:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 10Gi
+            globalMounts:
+              - path: /models
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
