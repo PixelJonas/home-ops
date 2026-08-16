@@ -31,8 +31,8 @@ spec:
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
-                  PUID: "1500"
-                  PGID: "1500"
+                  PUID: "1024"
+                  PGID: "100"
                 securityContext:
                   privileged: true
 
