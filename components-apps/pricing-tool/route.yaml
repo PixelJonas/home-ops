@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: pricing-tool-public
+  namespace: pricing-tool
+spec:
+  host: ocp-pricing.janz.cloud
+  to:
+    kind: Service
+    name: pricing-tool-public
+    weight: 100
+  port:
+    targetPort: authproxy
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
