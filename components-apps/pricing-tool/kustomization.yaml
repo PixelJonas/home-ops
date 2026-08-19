@@ -4,4 +4,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - external-pricing-tool-ghcr-pull.yaml
+  - external-pricing-tool-basic-auth.yaml
+  - nginx-basic-auth-configmap.yaml
   - pricing-tool-app.yaml
+  - route.yaml

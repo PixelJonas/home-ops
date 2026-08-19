@@ -1,0 +1,17 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pricing-tool-basic-auth
+  namespace: pricing-tool
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: pricing-tool-basic-auth
+  data:
+    - secretKey: .htpasswd
+      remoteRef:
+        key: PRICING_TOOL_BASIC_AUTH_HTPASSWD
