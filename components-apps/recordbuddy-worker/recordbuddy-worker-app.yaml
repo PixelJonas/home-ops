@@ -31,6 +31,13 @@ spec:
                   RECORDBUDDY_WORKER_MODEL: large-v3
                   RECORDBUDDY_WORKER_DEVICE: cpu
                   RECORDBUDDY_WORKER_COMPUTE_TYPE: int8
+                  # Durable job state on the models PVC: records survive pod
+                  # restarts (running jobs reload as queued) and results stay
+                  # fetchable for 72h while the async orchestrator is offline.
+                  RECORDBUDDY_WORKER_STATE_DIR: /models/jobs
+                  # Queued/running upload WAVs also on the PVC so a pod
+                  # restart mid-queue doesn't lose them.
+                  RECORDBUDDY_WORKER_WORK_DIR: /models/work
                   RECORDBUDDY_WORKER_SECRET:
                     valueFrom:
                       secretKeyRef:
