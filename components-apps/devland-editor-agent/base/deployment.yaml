@@ -87,7 +87,7 @@ spec:
             - name: LITELLM_BASE_URL
               value: https://litellm.app.janz.digital/v1
             - name: LITELLM_MODEL_NAME
-              value: claude-sonnet-5
+              value: kimi-k3
             - name: LITELLM_API_KEY
               valueFrom:
                 secretKeyRef:
