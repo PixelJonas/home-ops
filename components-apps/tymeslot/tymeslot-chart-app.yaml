@@ -26,8 +26,8 @@ spec:
             containers:
               tymeslot:
                 image:
-                  repository: ghcr.io/pixeljonas/tymeslot
-                  tag: "fix-nextcloud-discovery-service-root"
+                  repository: luka1thb/tymeslot
+                  tag: "1.11.0"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
