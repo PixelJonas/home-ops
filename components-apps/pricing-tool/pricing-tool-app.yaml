@@ -1,0 +1,75 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: pricing-tool-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: pricing-tool
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.0.1
+    helm:
+      values: |-
+        defaultPodOptions:
+          imagePullSecrets:
+            - name: pricing-tool-ghcr-pull-secret
+
+        controllers:
+          pricing-tool:
+            containers:
+              pricing-tool:
+                image:
+                  repository: ghcr.io/kounex/openshift-bare-metal-pricing-tool
+                  tag: "1.1.0"
+                  pullPolicy: IfNotPresent
+                env:
+                  SHOW_DISCLAIMER: "true"
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 32Mi
+                  limits:
+                    cpu: 200m
+                    memory: 128Mi
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /
+                        port: 8080
+                      initialDelaySeconds: 5
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /
+                        port: 8080
+                      initialDelaySeconds: 3
+                      periodSeconds: 10
+
+        service:
+          pricing-tool:
+            controller: pricing-tool
+            annotations:
+              tailscale.com/expose: "true"
+              tailscale.com/hostname: "pricing-tool"
+            ports:
+              http:
+                port: 8080
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
