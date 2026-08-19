@@ -16,4 +16,4 @@ resources:
 images:
   - name: ghcr.io/pixeljonas/devland-editor-agent
     newName: ghcr.io/pixeljonas/devland-editor-agent
-    digest: sha256:9d5318fb4d8ea9b45d305675819714726bbceb888d2f521bb3bfe3de483c2fd1
+    digest: sha256:e501a2d9a63e6e54d82b7d711924769a62b7654bc05271046e7c16654cfe047b
