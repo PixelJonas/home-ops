@@ -7,7 +7,7 @@ spec:
   host: ocp-pricing.janz.cloud
   to:
     kind: Service
-    name: pricing-tool-public
+    name: pricing-tool-app-pricing-tool-public
     weight: 100
   port:
     targetPort: authproxy
