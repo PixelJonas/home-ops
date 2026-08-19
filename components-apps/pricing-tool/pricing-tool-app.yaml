@@ -55,6 +55,62 @@ spec:
                         port: 8080
                       initialDelaySeconds: 3
                       periodSeconds: 10
+              # Basic-auth reverse-proxy sidecar in front of the app, for the
+              # public Route only (ocp-pricing.janz.cloud). The internal
+              # Tailscale-only Service/port below bypasses this entirely —
+              # it's already gated by tailnet membership.
+              basic-auth:
+                image:
+                  repository: nginxinc/nginx-unprivileged
+                  tag: "1.27-alpine"
+                  pullPolicy: IfNotPresent
+                ports:
+                  - name: authproxy
+                    containerPort: 8081
+                resources:
+                  requests:
+                    cpu: 5m
+                    memory: 16Mi
+                  limits:
+                    cpu: 100m
+                    memory: 64Mi
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8081
+                      initialDelaySeconds: 5
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8081
+                      initialDelaySeconds: 3
+                      periodSeconds: 10
+
+        persistence:
+          nginx-basic-auth-config:
+            type: configMap
+            name: pricing-tool-nginx-basic-auth
+            advancedMounts:
+              pricing-tool:
+                basic-auth:
+                  - path: /etc/nginx/conf.d/default.conf
+                    subPath: default.conf
+                    readOnly: true
+          htpasswd:
+            type: secret
+            name: pricing-tool-basic-auth
+            advancedMounts:
+              pricing-tool:
+                basic-auth:
+                  - path: /etc/nginx/.htpasswd
+                    subPath: .htpasswd
+                    readOnly: true
 
         service:
           pricing-tool:
@@ -65,6 +121,11 @@ spec:
             ports:
               http:
                 port: 8080
+          pricing-tool-public:
+            controller: pricing-tool
+            ports:
+              authproxy:
+                port: 8081
 
   project: cluster-apps
   syncPolicy:
