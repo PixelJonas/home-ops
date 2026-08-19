@@ -117,14 +117,6 @@ applications:
     source:
       path: components-infra/gha-runner-scale-set-palbuddy/base
 
-  gha-runner-scale-set-tymeslot:
-    annotations:
-      argocd.argoproj.io/sync-wave: "3"
-    destination:
-      namespace: arc-runners
-    source:
-      path: components-infra/gha-runner-scale-set-tymeslot/base
-
   gha-runner-scale-set-taxbuddy:
     annotations:
       argocd.argoproj.io/sync-wave: "3"
