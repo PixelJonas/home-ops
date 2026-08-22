@@ -12,7 +12,7 @@ spec:
   source:
     chart: app-template
     repoURL: https://bjw-s-labs.github.io/helm-charts
-    targetRevision: 5.1.0
+    targetRevision: 5.0.1
     helm:
       values: |-
         defaultPodOptions:
@@ -62,7 +62,7 @@ spec:
               basic-auth:
                 image:
                   repository: nginxinc/nginx-unprivileged
-                  tag: "1.27-alpine"
+                  tag: "1.31.4
                   pullPolicy: IfNotPresent
                 ports:
                   - name: authproxy
