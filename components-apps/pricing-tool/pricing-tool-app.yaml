@@ -62,7 +62,7 @@ spec:
               basic-auth:
                 image:
                   repository: nginxinc/nginx-unprivileged
-                  tag: "1.31.4
+                  tag: "1.27-alpine"
                   pullPolicy: IfNotPresent
                 ports:
                   - name: authproxy
