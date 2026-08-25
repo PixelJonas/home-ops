@@ -29,7 +29,7 @@ spec:
               volumeMounts:
                 - name: backup
                   mountPath: /backup
-              image: quay.io/openshift/origin-cli:4.21
+              image: quay.io/openshift/origin-cli:4.22
               command: ["/bin/bash", "-c"]
               args:
                 - |-
