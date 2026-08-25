@@ -27,7 +27,7 @@ spec:
               tymeslot:
                 image:
                   repository: luka1thb/tymeslot
-                  tag: "1.11.1
+                  tag: "1.11.1"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
