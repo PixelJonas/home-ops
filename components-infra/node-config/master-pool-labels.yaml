@@ -4,3 +4,4 @@ metadata:
   name: master
   labels:
     increased-memory: enabled
+    increased-max-pods: enabled
