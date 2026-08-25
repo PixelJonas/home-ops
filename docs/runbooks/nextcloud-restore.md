@@ -268,7 +268,7 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
         restartPolicy: Never
         containers:
           - name: debug
-            image: quay.io/openshift/origin-cli:4.21
+            image: quay.io/openshift/origin-cli:4.22
             command: ["sleep", "3600"]
             volumeMounts:
               - name: backup
