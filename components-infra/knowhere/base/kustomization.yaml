@@ -1,0 +1,6 @@
+resources:
+  - namespace.yaml
+  - network-attachment-definition.yaml
+  - datavolume.yaml
+  - external-secret-cloudinit.yaml
+  - virtualmachine.yaml
