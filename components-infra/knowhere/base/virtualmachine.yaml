@@ -1,0 +1,55 @@
+# 8 vCPU / 32 GiB, measured against altus's live headroom (~15 free cores,
+# ~56 GiB free RAM at time of writing) rather than a guess. Two NICs on
+# purpose: "default" (masquerade, pod network) carries the VM's internet
+# egress; "br0" (multus, bridged to the host's br0) is the NAS-only link and
+# carries no default route, so it can't be used for egress by accident.
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: knowhere
+  namespace: knowhere
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  running: true
+  template:
+    metadata:
+      labels:
+        kubevirt.io/domain: knowhere
+    spec:
+      domain:
+        cpu:
+          cores: 8
+        resources:
+          requests:
+            memory: 32Gi
+          limits:
+            memory: 32Gi
+        devices:
+          rng: {}
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+            - name: br0
+              bridge: {}
+      networks:
+        - name: default
+          pod: {}
+        - name: br0
+          multus:
+            networkName: br0
+      volumes:
+        - name: rootdisk
+          dataVolume:
+            name: knowhere-rootdisk
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            secretRef:
+              name: knowhere-cloudinit

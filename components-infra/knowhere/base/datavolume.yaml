@@ -1,0 +1,25 @@
+# Ubuntu 24.04 LTS cloud image, deliberately not NixOS: the whole point of
+# this VM is that agents can `curl | sh` and `apt install` arbitrary tools.
+# NixOS has no FHS, so every dynamically-linked binary (including herdr's own
+# installer) needs patchelf/nix-ld first — wrong tool for a playground.
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: knowhere-rootdisk
+  namespace: knowhere
+  annotations:
+    # The CDI CRDs come from the openshift-virtualization operator
+    # (components-infra/openshift-virtualization), which may not have
+    # reconciled yet on ArgoCD's first pass over this Application.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  source:
+    http:
+      url: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 300Gi
+    storageClassName: lvms-vg1
