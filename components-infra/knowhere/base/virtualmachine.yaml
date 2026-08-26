@@ -10,6 +10,11 @@ metadata:
   namespace: knowhere
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # Must sync after the cloudinit Secret (created by the ExternalSecret,
+    # wave "0") exists — the VM's cloudInitNoCloud volume references it by
+    # name, and ArgoCD applying this before the Secret exists just means the
+    # VM starts with no cloud-init data rather than failing loudly.
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   running: true
   template:

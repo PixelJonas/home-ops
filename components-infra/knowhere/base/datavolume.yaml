@@ -12,6 +12,7 @@ metadata:
     # (components-infra/openshift-virtualization), which may not have
     # reconciled yet on ArgoCD's first pass over this Application.
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   source:
     http:
