@@ -8,6 +8,8 @@ kind: NetworkAttachmentDefinition
 metadata:
   name: br0
   namespace: knowhere
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   config: |
     {
