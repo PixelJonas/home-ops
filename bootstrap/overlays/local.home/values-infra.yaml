@@ -170,6 +170,15 @@ applications:
     source:
       path: components-infra/restic-rest-server
 
+  knowhere:
+    annotations:
+      argocd.argoproj.io/sync-wave: "40"
+      argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    destination:
+      namespace: knowhere
+    source:
+      path: components-infra/knowhere/base
+
   node-config:
     annotations:
       argocd.argoproj.io/sync-wave: "99"
