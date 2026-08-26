@@ -56,5 +56,17 @@ spec:
             name: knowhere-rootdisk
         - name: cloudinitdisk
           cloudInitNoCloud:
+            # `secretRef` only maps to KubeVirt's userDataSecretRef — it does
+            # NOT also pull `networkData` from the same secret, despite both
+            # keys living in one Secret here. A separate networkDataSecretRef
+            # (same secret) is required or the second NIC's static IP is
+            # silently dropped: the seed ISO ends up with only user-data/
+            # meta-data, no network-config, and cloud-init falls back to its
+            # own single-NIC DHCP-only generated config. Confirmed live
+            # 2026-08-26 — enp2s0 came up link-up but administratively down,
+            # "unmanaged" per `netplan status`, with no network-config file
+            # in the seed ISO at all.
             secretRef:
+              name: knowhere-cloudinit
+            networkDataSecretRef:
               name: knowhere-cloudinit
