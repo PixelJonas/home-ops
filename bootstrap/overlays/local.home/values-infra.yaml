@@ -37,6 +37,14 @@ applications:
     source:
       path: components-infra/synology-csi
 
+  openshift-virtualization:
+    annotations:
+      argocd.argoproj.io/sync-wave: "2"
+    destination:
+      namespace: openshift-cnv
+    source:
+      path: components-infra/openshift-virtualization/base
+
   external-secrets-doppler:
     annotations:
       argocd.argoproj.io/sync-wave: "2"
