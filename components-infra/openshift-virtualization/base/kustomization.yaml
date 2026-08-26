@@ -1,0 +1,3 @@
+resources:
+  - github.com/redhat-cop/gitops-catalog/virtualization-operator/base
+  - hyperconverged.yaml
