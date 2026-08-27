@@ -1,0 +1,22 @@
+# Maps a new OVN "localnet" physical-network name onto the node's EXISTING
+# br-ex OVS bridge (the same bridge OVN-Kubernetes already uses for the
+# node's own LAN uplink via enp4s0). This does NOT create/modify any
+# interface, and does NOT touch br-ex's own ports/IP — it only adds one
+# `knowhere-lan:br-ex` entry to the OVS `external_ids:ovn-bridge-mappings`
+# string, alongside OVN-Kubernetes's own pre-existing `physnet:br-ex` entry
+# (confirmed additive/per-entry, not a whole-string replace).
+apiVersion: nmstate.io/v1
+kind: NodeNetworkConfigurationPolicy
+metadata:
+  name: knowhere-lan-bridge-mapping
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: altus
+  desiredState:
+    ovn:
+      bridge-mappings:
+        - localnet: knowhere-lan
+          bridge: br-ex
+          state: present
