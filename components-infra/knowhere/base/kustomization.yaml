@@ -1,6 +1,7 @@
 resources:
   - namespace.yaml
   - network-attachment-definition.yaml
+  - cluster-user-defined-network.yaml
   - datavolume.yaml
   - datavolume-projects.yaml
   - external-secret-cloudinit.yaml
