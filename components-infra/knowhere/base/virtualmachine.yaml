@@ -1,8 +1,11 @@
 # 8 vCPU / 32 GiB, measured against altus's live headroom (~15 free cores,
-# ~56 GiB free RAM at time of writing) rather than a guess. Two NICs on
+# ~56 GiB free RAM at time of writing) rather than a guess. Three NICs on
 # purpose: "default" (masquerade, pod network) carries the VM's internet
 # egress; "br0" (multus, bridged to the host's br0) is the NAS-only link and
-# carries no default route, so it can't be used for egress by accident.
+# carries no default route, so it can't be used for egress by accident;
+# "lan" (multus, riding the OVN localnet knowhere-lan-net onto br-ex) gives
+# a real home-LAN IP via UniFi DHCP, for SSH/mosh access without needing
+# Tailscale running client-side.
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
@@ -53,12 +56,20 @@ spec:
               masquerade: {}
             - name: br0
               bridge: {}
+            - name: lan
+              bridge: {}
       networks:
         - name: default
           pod: {}
         - name: br0
           multus:
             networkName: br0
+        - name: lan
+          multus:
+            # References the ClusterUserDefinedNetwork's metadata.name — the
+            # CUDN controller auto-generates a same-named NAD in this
+            # namespace (../cluster-user-defined-network.yaml).
+            networkName: knowhere-lan-net
       volumes:
         - name: rootdisk
           dataVolume:
