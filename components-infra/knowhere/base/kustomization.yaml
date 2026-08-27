@@ -2,5 +2,7 @@ resources:
   - namespace.yaml
   - network-attachment-definition.yaml
   - datavolume.yaml
+  - datavolume-projects.yaml
   - external-secret-cloudinit.yaml
   - virtualmachine.yaml
+  - ./backup
