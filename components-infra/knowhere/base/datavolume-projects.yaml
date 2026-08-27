@@ -1,0 +1,26 @@
+# Second disk, deliberately separate from knowhere-rootdisk: project data
+# under /home/jonas/projects is the only thing on this VM worth backing up
+# (see backup/projects/), while the OS disk is fully reprovisionable from
+# stacks/knowhere/ansible/playbook.yml in infra-ops and doesn't need it.
+# Blank source — formatted and mounted by the project_disk Ansible role.
+# 120Gi against ~3.1TB free cluster-wide on lvms-vg1 at time of writing;
+# ~22GB of real project data today, sized generously since local NVMe/SSD
+# capacity here is cheap and headroom isn't a constraint.
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: knowhere-projects
+  namespace: knowhere
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  source:
+    blank: {}
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 120Gi
+    storageClassName: lvms-vg1

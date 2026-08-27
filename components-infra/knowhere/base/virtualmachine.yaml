@@ -36,6 +36,15 @@ spec:
             - name: rootdisk
               disk:
                 bus: virtio
+            - name: projectsdisk
+              disk:
+                bus: virtio
+              # Explicit serial so the guest gets a stable
+              # /dev/disk/by-id/virtio-projectsdisk path — without this,
+              # KubeVirt doesn't guarantee /dev/vdb stays /dev/vdb across
+              # reboots or future disk additions. Referenced by the
+              # project_disk Ansible role's fstab entry.
+              serial: projectsdisk
             - name: cloudinitdisk
               disk:
                 bus: virtio
@@ -54,6 +63,9 @@ spec:
         - name: rootdisk
           dataVolume:
             name: knowhere-rootdisk
+        - name: projectsdisk
+          dataVolume:
+            name: knowhere-projects
         - name: cloudinitdisk
           cloudInitNoCloud:
             # `secretRef` only maps to KubeVirt's userDataSecretRef — it does
