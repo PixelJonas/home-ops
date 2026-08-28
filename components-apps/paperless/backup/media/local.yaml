@@ -5,3 +5,16 @@
 - op: replace
   path: /spec/restic/repository
   value: restic-config-media
+
+# Fleet-wide follow-up to PR #370: copyMethod: Direct mounts the live
+# source PVC into the backup mover pod, which can trigger an SELinux
+# relabel and cause permission/IO-contention issues against the live
+# workload. This StorageClass genuinely supports CSI snapshots
+# (confirmed via `oc get csidriver`/`oc get volumesnapshotclass` on
+# altus), so switch to Snapshot to avoid ever touching the live PVC.
+- op: add
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: lvms-vg1
