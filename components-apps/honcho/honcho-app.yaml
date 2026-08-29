@@ -141,7 +141,7 @@ spec:
               vllm:
                 image:
                   repository: docker.io/vllm/vllm-openai-cpu
-                  tag: v0.28.0
+                  tag: v0.27.1-x86_64
                   pullPolicy: IfNotPresent
                 # NOTE: the vllm/vllm-openai-cpu image entrypoint is already
                 # "vllm serve" — args are appended to it directly. A leading
