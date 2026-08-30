@@ -1,0 +1,58 @@
+# PLACEHOLDER — intentionally NOT wired into kustomization.yaml yet.
+#
+# This Job is deliberately not part of the ArgoCD-managed resource set:
+# `image` below does not exist in any registry yet (no container runtime
+# was available to build/verify it in the session that wrote the crawler
+# code). Adding an unbuildable image to a selfHeal-managed Application
+# would just produce a permanently ImagePullBackOff'd pod and, since Jobs
+# are immutable, recurring "OutOfSync" noise on every ArgoCD reconcile
+# (a Job's pod template can't be patched in place the way a Deployment's
+# can).
+#
+# To actually run the crawl once cosmere-knowledge-index:<tag> is built
+# and pushed somewhere reachable from the cluster:
+#   1. Update the `image:` field below to the real registry/tag.
+#   2. Add `- crawl-job.yaml` to this directory's kustomization.yaml.
+#   3. Commit/push/PR/merge as usual (or `oc apply -f` it directly for a
+#      true one-shot run outside GitOps, since re-syncing an already-run
+#      Job via ArgoCD requires a name bump or manual delete first).
+#
+# FlareSolverr in-cluster DNS name confirmed live via `oc get svc -n media
+# flaresolverr -o yaml` (2026-08-30): ClusterIP Service `flaresolverr` in
+# namespace `media`, port 8191 -> standard cluster DNS gives
+# flaresolverr.media.svc.cluster.local (cross-namespace, so the namespace
+# segment is required — bare `flaresolverr` would not resolve from the
+# qdrant namespace).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cosmere-knowledge-index
+  namespace: qdrant
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: crawl
+          image: ghcr.io/pixeljonas/cosmere-knowledge-index:latest  # TODO: not yet built — finalize before applying
+          args:
+            - --flaresolverr-url
+            - http://flaresolverr.media.svc.cluster.local:8191
+            - --qdrant-url
+            - http://qdrant-app-qdrant.qdrant.svc.cluster.local:6333
+            - --progress-file
+            - /progress/coppermind_progress.json
+          env:
+            - name: QDRANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qdrant-credentials
+                  key: QDRANT_API_KEY
+          volumeMounts:
+            - name: progress
+              mountPath: /progress
+      volumes:
+        - name: progress
+          persistentVolumeClaim:
+            claimName: cosmere-knowledge-index-progress
