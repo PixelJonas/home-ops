@@ -91,6 +91,20 @@ spec:
             size: 10Gi
             globalMounts:
               - path: /qdrant/storage
+          # /qdrant/snapshots is NOT part of the storage volume above — it
+          # lives on the container's root filesystem layer (owned by root
+          # from the image build), so fsGroup (PR #384) never chowns it and
+          # Qdrant fails with "Can't create Snapshots directory: Os { code:
+          # 13, kind: PermissionDenied }" even on the -unprivileged image.
+          # Confirmed fix from https://github.com/orgs/qdrant/discussions/2868:
+          # give /qdrant/snapshots its own PVC.
+          snapshots:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 5Gi
+            globalMounts:
+              - path: /qdrant/snapshots
 
         # Chart-managed ingress -> OpenShift Route. Qdrant's own API-key
         # check (QDRANT__SERVICE__API_KEY above) is the actual auth gate;
