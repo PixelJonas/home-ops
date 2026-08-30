@@ -34,10 +34,14 @@ public hostname `git.janz.digital` for the two HTTP paths:
    additional SAN (a real Let's Encrypt cert via the existing
    `cloudflare-issuer` ClusterIssuer, DNS-01). This satisfies "LAN doesn't
    use cloudflared" + "Let's Encrypt."
-3. **Git-over-SSH** — `ssh://git@gitea.<tailnet>.ts.net:2222` → Tailscale
+3. **Git-over-SSH** — `ssh://git@gitea.<tailnet>.ts.net:22` → Tailscale
    Kubernetes Operator-exposed Service (`tailscale.com/expose: "true"`,
-   `tailscale.com/hostname: "gitea"`) → Gitea's built-in SSH server.
-   Reachable from LAN and anywhere on the tailnet; never exposed publicly.
+   `tailscale.com/hostname: "gitea"` set directly as `service.ssh.annotations`
+   on the chart's own SSH `Service` — no separate Service object needed,
+   confirmed against the chart's actual `values.yaml` schema) → Gitea's
+   built-in SSH server (rootless image, `SSH_LISTEN_PORT: 2222` inside the
+   container, chart-managed port mapping to the external `22`). Reachable
+   from LAN and anywhere on the tailnet; never exposed publicly.
 
 **Correction from initial research:** the cluster's Altus-targeting overlay
 directory is `bootstrap/overlays/local.home/` in home-ops, not `sakaar`
@@ -61,17 +65,35 @@ alongside its tunnel path), not a copy of an existing pattern.
 
 ## Deployment (home-ops repo)
 
-`components-apps/gitea/`, following `docs/adding-apps.md` conventions:
+`components-apps/gitea/`, following `docs/adding-apps.md` conventions as
+closely as a non-`app-template` chart allows:
 
-- Official Gitea Helm chart (`gitea-charts/gitea`) as the ArgoCD Application
-  source — not `app-template` — since Gitea's chart has first-class support
-  for external Postgres, a dedicated SSH service, admin bootstrap via
-  `gitea.admin.existingSecret`, and Actions, which would otherwise mean
+- Official Gitea Helm chart (confirmed real repo/coordinates:
+  `repoURL: https://dl.gitea.com/charts`, `chart: gitea`, latest published
+  version `1.5.5`, `appVersion 1.27.2`) as the ArgoCD Application source —
+  not `app-template` — since Gitea's chart has first-class support for
+  external Postgres, a native OpenShift `route.*` block (confirmed in the
+  chart's own `values.yaml`, so no need for `app-template`'s Ingress
+  wrapper), a dedicated SSH `Service`, and admin bootstrap via
+  `gitea.admin.existingSecret`, which would otherwise mean
   hand-reimplementing Gitea's own app.ini/entrypoint logic.
+- **Correction from initial research:** the chart's `route.enabled: true` +
+  `route.host: git.janz.digital` + `route.tls.termination: edge` (leaving
+  `route.tls.certificate`/`key` unset so it falls back to the
+  IngressController's default certificate, per the SAN addition above) is
+  what creates the LAN-direct Route — no `app-template` `ingress:` block
+  involved at all, since this chart is deployed standalone.
+- Bundled `postgresql-ha` and `postgresql` subcharts both explicitly
+  disabled (`postgresql-ha.enabled: false`, `postgresql.enabled: false`);
+  external DB wired via `deployment.env` using Gitea's standard
+  `GITEA__database__*` environment-variable override convention (`DB_TYPE`,
+  `HOST`, `NAME`, `USER` as plain values, `PASSWD` via `valueFrom.secretKeyRef`
+  against the CNPG-generated password Secret).
 - CNPG `Cluster` (`postgresql-database.yaml`), single instance, matching the
   `paperless-db` pattern exactly (`bootstrap.initdb` with a Doppler-sourced
   password Secret).
-- `/data` (repos, LFS, avatars, config) on `lvms-vg1`.
+- `/data` (repos, LFS, avatars, config) on `lvms-vg1`, via the chart's own
+  `persistence.*` block (not `app-template`'s `persistence:` key).
 - Namespace `gitea`, registered in
   `bootstrap/overlays/local.home/values-apps.yaml` only.
 
@@ -104,41 +126,48 @@ alongside its tunnel path), not a copy of an existing pattern.
 
 ## Actions / CI Runner
 
-Gitea Actions enabled with a Docker-capable `act_runner`, reusing this
-homelab's proven OpenShift privileged-runner pattern
-(`home-ops/containers/gha-runner/Containerfile` +
-`components-infra/gha-runner-scale-set-recordbuddy/base/privileged-clusterrolebinding.yaml`),
-adapted for Gitea instead of GitHub:
+**Correction from initial research:** Gitea publishes its own official
+`actions` Helm chart (`gitea.com/gitea/helm-actions`, chart repo
+`https://dl.gitea.com/charts`, latest `0.1.2`/`appVersion 0.261.3`) purpose
+-built for act_runner. Its `StatefulSet` template
+(`gitea.com/gitea/helm-actions/src/branch/main/templates/statefulset.yaml`)
+already runs a **privileged Docker-in-Docker sidecar** (a K8s 1.28+ init
+container with `restartPolicy: Always`, `securityContext.privileged: true`,
+sharing a `docker.sock` `emptyDir` with the `runner` container) —
+hardcoded, not configurable away. This directly answers the "unverified
+gap" the first pass of research flagged: act_runner's Docker executor talks
+to the Docker Engine API over a socket, not the CLI, which is exactly why
+Gitea ships DinD rather than a CLI-shim image. **The
+`gha-runner`/podman-docker-shim approach this homelab built for GitHub
+Actions does not transfer here** — it solved a problem (no ready-made
+runner chart existed for GitHub) that doesn't exist for Gitea. No custom
+Containerfile, no new GHCR image, no new build workflow.
 
-- New image `home-ops/containers/gitea-act-runner/Containerfile`:
-  `FROM docker.gitea.com/gitea/act_runner:<pinned tag>`, then as root:
-  `apt-get install -y podman podman-docker netavark aardvark-dns iptables`,
-  force `driver = "vfs"` in `/etc/containers/storage.conf` (avoids
-  overlay/fuse-overlayfs issues under OpenShift's constrained storage).
-  Built and pushed by a new GitHub Actions workflow mirroring
-  `.github/workflows/build-gha-runner-image.yaml`, publishing to
-  `ghcr.io/pixeljonas/gitea-act-runner`.
-- **Verification flag carried over from research, not silently resolved:**
-  `podman-docker`'s CLI shim covers `docker build`/`docker run` invoked as
-  subprocess commands (confirmed sufficient for the GitHub Actions runner).
-  If act_runner's Docker executor instead talks to
-  `DOCKER_HOST=unix:///var/run/docker.sock` (Docker Engine API) rather than
-  shelling out, the image additionally needs `podman system service` bound
-  at that socket path. This must be confirmed against act_runner's actual
-  invocation behavior during implementation, not assumed.
-- Runner pod: `privileged: true`, `runAsUser: 0`, `RUNNER_ALLOW_RUNASROOT`
-  n/a for act_runner (Gitea-specific env differs from GitHub's) — granted
-  via a `ClusterRoleBinding` to `system:openshift:scc:privileged` on the
-  `default` ServiceAccount in the `gitea` namespace (simpler than ARC's
-  generated per-scale-set ServiceAccount, since this isn't going through
-  ARC).
-- Registration: a bootstrap Job (or the same PostSync hook as the SSH-key
-  step) calls `POST /api/v1/admin/actions/runners/registration-token`
-  (confirmed against Gitea's own source,
-  `routers/api/v1/admin/runners.go` / `api.go` route table — global,
-  instance-level token, admin-authenticated) to obtain a token, then the
-  runner container runs `act_runner register --no-interactive --instance
-  <url> --token <token>` before `act_runner daemon`.
+**What does carry over, and is the actual reusable insight:** the
+privileged-SCC-grant pattern itself
+(`components-infra/gha-runner-scale-set-recordbuddy/base/privileged-clusterrolebinding.yaml`
+— a `ClusterRoleBinding` to `system:openshift:scc:privileged` on the
+runner pod's ServiceAccount). The official chart's DinD sidecar needs
+exactly the same OpenShift admission grant the GitHub runner's DinD/podman
+container needed, just applied to a different ServiceAccount.
+
+- Deploy the `actions` chart as its own ArgoCD Application in the `gitea`
+  namespace (`repoURL: https://dl.gitea.com/charts`, `chart: actions`),
+  alongside the main `gitea` chart Application.
+- `giteaRootURL` set to the in-cluster Gitea Service URL (e.g.
+  `http://gitea-http.gitea.svc.cluster.local:3000`).
+- `statefulset.serviceAccountName` set to a dedicated `gitea-actions-runner`
+  ServiceAccount, bound to `system:openshift:scc:privileged` via a new
+  `ClusterRoleBinding` (namespace-scoped blast radius, matching the ARC
+  precedent).
+- `existingSecret`/`existingSecretKey` point at a Secret populated by a
+  one-time bootstrap step: call
+  `POST /api/v1/admin/actions/runners/registration-token` (confirmed
+  against Gitea's own source, `routers/api/v1/admin/runners.go` /
+  `api.go` route table — global, instance-level token,
+  admin-authenticated) using the admin credentials from the same
+  ExternalSecret as the chart's own admin bootstrap, and write the
+  returned token into the Secret the chart reads.
 
 ## Backup
 
