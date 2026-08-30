@@ -11,3 +11,5 @@ resources:
   - ./backup
   - bootstrap-rbac.yaml
   - bootstrap-job.yaml
+  - gitea-actions-privileged-clusterrolebinding.yaml
+  - gitea-actions-chart-app.yaml

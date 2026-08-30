@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitea-actions-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "112"
+spec:
+  destination:
+    namespace: gitea
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: actions
+    repoURL: https://dl.gitea.com/charts
+    targetRevision: 0.1.2
+    helm:
+      values: |-
+        enabled: true
+        giteaRootURL: "http://gitea-app-http.gitea.svc.cluster.local:3000"
+        existingSecret: "gitea-actions-runner-token"
+        existingSecretKey: "token"
+        statefulset:
+          serviceAccountName: gitea-actions-runner
+          persistence:
+            size: 5Gi
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
