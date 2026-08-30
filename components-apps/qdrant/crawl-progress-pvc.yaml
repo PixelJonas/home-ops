@@ -1,0 +1,19 @@
+# Small dedicated PVC for the (future) one-off crawl Job's resumable
+# progress file (coppermind_progress.json). Deliberately NOT the same PVC
+# as Qdrant's vector storage above: that PVC is ReadWriteOnce and already
+# mounted by the always-on qdrant-app pod, so a second pod (the crawl Job)
+# mounting it too would depend on both pods landing on the same node —
+# fragile. A separate small RWO volume, used only by the crawl Job, avoids
+# that contention entirely while still surviving a killed/restarted Job.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cosmere-knowledge-index-progress
+  namespace: qdrant
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lvms-vg1
+  resources:
+    requests:
+      storage: 1Gi
