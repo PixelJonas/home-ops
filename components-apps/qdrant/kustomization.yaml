@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - external-qdrant-credentials.yaml
+  - qdrant-app.yaml
+  - crawl-progress-pvc.yaml
+  # crawl-job.yaml intentionally NOT included yet — see that file's header
+  # comment. Add it here once cosmere-knowledge-index:<tag> is built.

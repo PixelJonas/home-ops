@@ -101,3 +101,8 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/gitea
+  qdrant:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/qdrant
