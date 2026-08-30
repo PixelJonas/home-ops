@@ -32,6 +32,7 @@ spec:
                   ROCKET_WORKERS: 15
                   LOG_LEVEL: "error"
                   EXTENDED_LOGGING: "true"
+                  SIGNUPS_ALLOWED: "false"
                   DOMAIN:
                     valueFrom:
                       secretKeyRef:
