@@ -25,7 +25,7 @@ spec:
             defaultMode: 0755
       containers:
         - name: nextcloud-bootstrap
-          image: quay.io/openshift/origin-cli:4.22
+          image: quay.io/openshift/origin-cli:5.1
           command: ["/bin/bash", "/scripts/bootstrap.sh"]
           env:
             - name: JONAS_PASSWORD
