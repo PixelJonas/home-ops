@@ -1,21 +1,9 @@
-# PLACEHOLDER — intentionally NOT wired into kustomization.yaml yet.
+# cosmere-knowledge-index crawl Job.
 #
-# This Job is deliberately not part of the ArgoCD-managed resource set:
-# `image` below does not exist in any registry yet (no container runtime
-# was available to build/verify it in the session that wrote the crawler
-# code). Adding an unbuildable image to a selfHeal-managed Application
-# would just produce a permanently ImagePullBackOff'd pod and, since Jobs
-# are immutable, recurring "OutOfSync" noise on every ArgoCD reconcile
-# (a Job's pod template can't be patched in place the way a Deployment's
-# can).
-#
-# To actually run the crawl once cosmere-knowledge-index:<tag> is built
-# and pushed somewhere reachable from the cluster:
-#   1. Update the `image:` field below to the real registry/tag.
-#   2. Add `- crawl-job.yaml` to this directory's kustomization.yaml.
-#   3. Commit/push/PR/merge as usual (or `oc apply -f` it directly for a
-#      true one-shot run outside GitOps, since re-syncing an already-run
-#      Job via ArgoCD requires a name bump or manual delete first).
+# Image built and pushed by jjanz directly via an in-cluster OpenShift
+# BuildConfig into Altus's internal registry, `qdrant` namespace (same
+# namespace this Job runs in) — no imagePullSecrets needed for an
+# in-namespace pull.
 #
 # FlareSolverr in-cluster DNS name confirmed live via `oc get svc -n media
 # flaresolverr -o yaml` (2026-08-30): ClusterIP Service `flaresolverr` in
@@ -23,6 +11,11 @@
 # flaresolverr.media.svc.cluster.local (cross-namespace, so the namespace
 # segment is required — bare `flaresolverr` would not resolve from the
 # qdrant namespace).
+#
+# QDRANT_URL points at the real Service name `qdrant-app` (confirmed via
+# `oc get svc -n qdrant`) — NOT `qdrant-app-qdrant`, which was a previous
+# guess. cli_index.py has no --qdrant-url CLI flag; QDRANT_URL is passed
+# via env instead.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -35,15 +28,15 @@ spec:
       restartPolicy: Never
       containers:
         - name: crawl
-          image: ghcr.io/pixeljonas/cosmere-knowledge-index:latest  # TODO: not yet built — finalize before applying
+          image: image-registry.openshift-image-registry.svc:5000/qdrant/cosmere-knowledge-index:latest
           args:
             - --flaresolverr-url
             - http://flaresolverr.media.svc.cluster.local:8191
-            - --qdrant-url
-            - http://qdrant-app-qdrant.qdrant.svc.cluster.local:6333
             - --progress-file
             - /progress/coppermind_progress.json
           env:
+            - name: QDRANT_URL
+              value: http://qdrant-app.qdrant.svc.cluster.local:6333
             - name: QDRANT_API_KEY
               valueFrom:
                 secretKeyRef:
