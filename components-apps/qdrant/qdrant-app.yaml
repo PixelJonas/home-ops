@@ -17,6 +17,10 @@ spec:
       values: |-
         controllers:
           qdrant:
+            pod:
+              securityContext:
+                fsGroup: 1001090000
+                fsGroupChangePolicy: "OnRootMismatch"
             containers:
               qdrant:
                 image:
