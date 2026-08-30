@@ -7,3 +7,4 @@ resources:
   - external-gitea-db-secret.yaml
   - external-gitea-admin-secret.yaml
   - gitea-chart-app.yaml
+  - ./backup
