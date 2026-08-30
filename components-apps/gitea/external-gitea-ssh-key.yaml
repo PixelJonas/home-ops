@@ -1,0 +1,17 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-ssh-key
+  namespace: gitea
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: gitea-ssh-key
+  data:
+    - secretKey: public-key
+      remoteRef:
+        key: GITEA_ADMIN_SSH_PUBLIC_KEY
