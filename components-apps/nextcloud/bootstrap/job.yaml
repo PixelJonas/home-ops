@@ -11,8 +11,13 @@ metadata:
     # hard-blocked every auto-sync with "spec.template: field is immutable"
     # once PR #305 drifted the template. A no-op annotation bump (PR #306)
     # was not enough because the stale Job object still existed in-cluster.
-    # Replace=true makes future template changes self-healing.
-    argocd.argoproj.io/sync-options: Replace=true
+    # 2026-09-01: Replace=true,Force=true so ArgoCD deletes+recreates this
+    # Job on any spec.template change instead of patching the immutable
+    # field. Replace alone is not enough: `oc replace` on a Job without an
+    # explicit spec.selector fails validation ("spec.selector: Required
+    # value"), so Force=true is required to make ArgoCD use
+    # `kubectl replace --force` (delete + recreate) instead.
+    argocd.argoproj.io/sync-options: Replace=true,Force=true
     # 2026-08-11: no-op annotation bump to force ArgoCD to re-evaluate
     # this Application after a prior sync attempt hard-failed with
     # "Job.batch nextcloud-bootstrap ... field is immutable" (the
