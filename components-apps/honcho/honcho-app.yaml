@@ -27,7 +27,7 @@ spec:
               honcho:
                 image:
                   repository: ghcr.io/plastic-labs/honcho
-                  tag: v3.0.12
+                  tag: v3.1.0
                   pullPolicy: IfNotPresent
                 command:
                   - sh
@@ -76,7 +76,7 @@ spec:
               deriver:
                 image:
                   repository: ghcr.io/plastic-labs/honcho
-                  tag: v3.0.12
+                  tag: v3.1.0
                   pullPolicy: IfNotPresent
                 command:
                   - /app/.venv/bin/python
