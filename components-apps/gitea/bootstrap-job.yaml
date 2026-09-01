@@ -14,7 +14,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: bootstrap
-          image: quay.io/openshift/origin-cli:4.22
+          image: quay.io/openshift/origin-cli:5.1
           env:
             - name: GITEA_URL
               value: "http://gitea-app-http.gitea.svc.cluster.local:3000"
