@@ -1,0 +1,69 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gitea-bootstrap
+  namespace: gitea
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: gitea-bootstrap
+      restartPolicy: Never
+      containers:
+        - name: bootstrap
+          image: quay.io/openshift/origin-cli:5.1
+          env:
+            - name: GITEA_URL
+              value: "http://gitea-app-http.gitea.svc.cluster.local:3000"
+            - name: GITEA_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-admin-secret
+                  key: username
+            - name: GITEA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-admin-secret
+                  key: password
+            - name: SSH_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-ssh-key
+                  key: public-key
+          command: ["/bin/bash", "-c"]
+          args:
+            - |-
+              set -euo pipefail
+
+              echo "Waiting for Gitea to become reachable..."
+              until curl -sf -o /dev/null "$GITEA_URL/api/v1/version"; do
+                sleep 5
+              done
+              echo "Gitea is up."
+
+              echo "Authorizing SSH key..."
+              curl -sf -u "$GITEA_ADMIN_USER:$GITEA_ADMIN_PASSWORD" \
+                -X POST "$GITEA_URL/api/v1/user/keys" \
+                -H "Content-Type: application/json" \
+                -d "{\"title\":\"jonas (personal)\",\"key\":\"$SSH_PUBLIC_KEY\"}" \
+                || echo "SSH key add returned non-zero (likely already exists) - continuing"
+
+              echo "Requesting Actions runner registration token..."
+              TOKEN=$(curl -sf -u "$GITEA_ADMIN_USER:$GITEA_ADMIN_PASSWORD" \
+                -X POST "$GITEA_URL/api/v1/admin/actions/runners/registration-token" \
+                | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+
+              if [ -z "$TOKEN" ]; then
+                echo "ERROR: empty registration token" >&2
+                exit 1
+              fi
+
+              echo "Writing token to gitea-actions-runner-token Secret..."
+              oc create secret generic gitea-actions-runner-token \
+                -n gitea --from-literal=token="$TOKEN" \
+                --dry-run=client -o yaml | oc apply -f -
+
+              echo "Bootstrap complete."
