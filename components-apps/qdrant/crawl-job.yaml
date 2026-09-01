@@ -1,0 +1,51 @@
+# cosmere-knowledge-index crawl Job.
+#
+# Image built and pushed by jjanz directly via an in-cluster OpenShift
+# BuildConfig into Altus's internal registry, `qdrant` namespace (same
+# namespace this Job runs in) — no imagePullSecrets needed for an
+# in-namespace pull.
+#
+# FlareSolverr in-cluster DNS name confirmed live via `oc get svc -n media
+# flaresolverr -o yaml` (2026-08-30): ClusterIP Service `flaresolverr` in
+# namespace `media`, port 8191 -> standard cluster DNS gives
+# flaresolverr.media.svc.cluster.local (cross-namespace, so the namespace
+# segment is required — bare `flaresolverr` would not resolve from the
+# qdrant namespace).
+#
+# QDRANT_URL points at the real Service name `qdrant-app` (confirmed via
+# `oc get svc -n qdrant`) — NOT `qdrant-app-qdrant`, which was a previous
+# guess. cli_index.py has no --qdrant-url CLI flag; QDRANT_URL is passed
+# via env instead.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cosmere-knowledge-index
+  namespace: qdrant
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: crawl
+          image: image-registry.openshift-image-registry.svc:5000/qdrant/cosmere-knowledge-index:latest
+          args:
+            - --flaresolverr-url
+            - http://flaresolverr.media.svc.cluster.local:8191
+            - --progress-file
+            - /progress/coppermind_progress.json
+          env:
+            - name: QDRANT_URL
+              value: http://qdrant-app.qdrant.svc.cluster.local:6333
+            - name: QDRANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qdrant-credentials
+                  key: QDRANT_API_KEY
+          volumeMounts:
+            - name: progress
+              mountPath: /progress
+      volumes:
+        - name: progress
+          persistentVolumeClaim:
+            claimName: cosmere-knowledge-index-progress

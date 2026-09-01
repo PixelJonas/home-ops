@@ -15,7 +15,7 @@ spec:
   # and a total LVM storage outage until bumped (hit for real on Altus's
   # 2026-07-26 reinstall, was still pinned to stable-4.19 against a
   # 4.21.24 cluster). Bump this alongside any OCP minor upgrade.
-  channel: stable-4.21
+  channel: stable-4.22
   installPlanApproval: Automatic
   name: lvms-operator
   source: redhat-operators
