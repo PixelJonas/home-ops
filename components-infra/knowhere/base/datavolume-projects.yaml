@@ -1,0 +1,47 @@
+# Second disk, deliberately separate from knowhere-rootdisk: project data
+# under /home/jonas/projects is the only thing on this VM worth backing up
+# (see backup/projects/), while the OS disk is fully reprovisionable from
+# stacks/knowhere/ansible/playbook.yml in infra-ops and doesn't need it.
+# Blank source — formatted and mounted by the project_disk Ansible role.
+# 120Gi against ~3.1TB free cluster-wide on lvms-vg1 at time of writing;
+# ~22GB of real project data today, sized generously since local NVMe/SSD
+# capacity here is cheap and headroom isn't a constraint.
+#
+# Explicit volumeMode: Filesystem — CDI otherwise defaults DataVolumes on
+# lvms-vg1 (TopoLVM, which advertises block support) to Block mode, same as
+# knowhere-rootdisk. That's fine for a disk only KubeVirt itself ever
+# touches, but VolSync's restic mover (see backup/projects/) bind-mounts the
+# source PVC via a plain volumeMount, which requires Filesystem mode —
+# confirmed live: a Block-mode knowhere-projects PVC (and the cache PVC
+# VolSync derives from it) made the mover pod fail immediately with
+# "volume ... has volumeMode Block, but is specified in volumeMounts".
+# KubeVirt mounts a Filesystem-mode PVC's disk.img transparently either way,
+# so this has no effect on the VM side.
+#
+# One-time provisioning quirk seen when this DataVolume was first created:
+# CDI's blank-image populator pod (running under the namespace's default
+# dynamic SCC) left disk.img as owner 107 / group <namespace-scc-gid> —
+# virt-launcher's fixed kubevirt-controller SCC runs qemu as uid:gid 107:107,
+# and the group mismatch caused libvirt to fail with "Cannot access storage
+# file ...: Permission denied" on first boot. Fixed once by hand
+# (`chown 107:107 disk.img` via a temporary debug pod mounting the PVC).
+# Only matters again if this DataVolume is ever deleted and recreated.
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: knowhere-projects
+  namespace: knowhere
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  source:
+    blank: {}
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    volumeMode: Filesystem
+    resources:
+      requests:
+        storage: 120Gi
+    storageClassName: lvms-vg1

@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# In-cluster restic REST server only — no Backblaze B2 template here.
+# Project data on this dev-playground VM is deliberately not offsited: B2 is
+# reserved for mission-critical data, and this is reprovisionable dev state
+# with its own git remotes as the real disaster-recovery story.
+namePrefix: projects-
+namespace: knowhere
+
+resources:
+  - ../../../../../templates/volsync/rest
+
+patches:
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    path: local.yaml
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: external-restic-config
+    path: local-secret.yaml
