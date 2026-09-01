@@ -26,6 +26,7 @@ projects:
       - https://github.com/redhat-cop/gitops-catalog
       - https://bjw-s-labs.github.io/helm-charts
       - https://nextcloud.github.io/helm/
+      - https://dl.gitea.com/charts
     destinations: |
       - namespace: '*'
         server: https://kubernetes.default.svc
@@ -100,3 +101,8 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/gitea
+  qdrant:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/qdrant
