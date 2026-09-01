@@ -10,6 +10,7 @@ resources:
   - synology-iscsi-storageclass.yaml
   - synology-smb-storageclass.yaml
   - storageclass-nfs.yaml
+  - volumesnapshotclass.yaml
   - https://raw.githubusercontent.com/SynologyOpenSource/synology-csi/v1.3.0/deploy/kubernetes/v1.20/controller.yml
   - https://raw.githubusercontent.com/SynologyOpenSource/synology-csi/v1.3.0/deploy/kubernetes/v1.20/csi-driver.yml
   - https://raw.githubusercontent.com/SynologyOpenSource/synology-csi/v1.3.0/deploy/kubernetes/v1.20/node.yml
@@ -43,3 +44,31 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/1/image
         value: synology/synology-csi@sha256:a9e5bc672a704440e839accb3758c283ffa19ed28930b888985841a0b5dbc134
+  - target:
+      group: apps
+      version: v1
+      kind: StatefulSet
+      name: synology-csi-snapshotter
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: registry.k8s.io/sig-storage/csi-snapshotter:v8.2.1
+  # csi-snapshotter v8.2.1 (client/v8) calls Patch() instead of Update() on
+  # VolumeSnapshotContent(s); the upstream synology-csi v1.3.0 ClusterRole
+  # predates that and only grants "update". Add "patch" additively per
+  # upstream external-snapshotter v8.2.1 rbac-csi-snapshotter.yaml, without
+  # touching the existing create/delete verbs synology-csi's manifest also
+  # grants (those aren't in the v8.2.1 upstream role either, but removing
+  # them isn't required to fix the Forbidden errors and is out of scope here).
+  - target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRole
+      name: synology-csi-snapshotter-role
+    patch: |-
+      - op: add
+        path: /rules/2/verbs/-
+        value: patch
+      - op: add
+        path: /rules/3/verbs/-
+        value: patch

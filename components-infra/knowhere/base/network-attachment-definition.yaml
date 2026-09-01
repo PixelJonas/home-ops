@@ -1,0 +1,23 @@
+# Binds the VM's second NIC directly to the host's existing "br0" linux
+# bridge (components-infra/nmstate/node-network-configuration-policy.yaml,
+# 10.10.10.50/24 on enp8s0 — the point-to-point link to the NAS). This gives
+# the VM full-speed kernel NFS to the NAS without going through Tailscale's
+# userspace networking, which can't bind a kernel NFS mount.
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: br0
+  namespace: knowhere
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "name": "br0",
+      "type": "cnv-bridge",
+      "bridge": "br0",
+      "macspoofchk": false,
+      "vlan": 0,
+      "preserveDefaultVlan": false
+    }

@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: database-
+namespace: gitea
+
+resources:
+  - ../../../../templates/psql-backup
+  - ../../../../templates/volsync/rest
+
+patches:
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    path: local.yaml
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: external-restic-config
+    path: local-secret.yaml
+  - target:
+      group: batch
+      version: v1
+      kind: CronJob
+      name: psql-backup
+    path: cron.yaml
+  - target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: RoleBinding
+      name: psql-backup
+    path: rolebinding.yaml
+  - target:
+      group: ""
+      version: v1
+      kind: PersistentVolumeClaim
+      name: syno-db-backup
+    path: pvc.yaml

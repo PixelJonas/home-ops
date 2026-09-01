@@ -1,0 +1,133 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qdrant-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: qdrant
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.1.0
+    helm:
+      values: |-
+        controllers:
+          qdrant:
+            pod:
+              securityContext:
+                fsGroup: 1001090000
+                fsGroupChangePolicy: "OnRootMismatch"
+            containers:
+              qdrant:
+                image:
+                  # "-unprivileged" variant: designed to run as an arbitrary
+                  # non-root UID (OpenShift restricted-v2 SCC compatible) —
+                  # no anyuid ClusterRoleBinding needed, unlike most images
+                  # in this repo. See docs/adding-apps.md's Pod Security
+                  # section for the general case this sidesteps.
+                  repository: docker.io/qdrant/qdrant
+                  tag: v1.19.0-unprivileged
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  # Enables Qdrant's built-in API-key auth (checked against
+                  # the `api-key` request header / `?api-key=` query param).
+                  # Value comes from Doppler `QDRANT_API_KEY` via the
+                  # ExternalSecret below — generate it once, store it in
+                  # Doppler first, then this env var picks it up on the
+                  # next ExternalSecret refresh / pod restart.
+                  QDRANT__SERVICE__API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: qdrant-credentials
+                        key: QDRANT_API_KEY
+                resources:
+                  requests:
+                    cpu: 250m
+                    memory: 512Mi
+                  limits:
+                    cpu: "2"
+                    memory: 2Gi
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /livez
+                        port: 6333
+                      initialDelaySeconds: 15
+                      periodSeconds: 20
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /readyz
+                        port: 6333
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+
+        service:
+          qdrant:
+            controller: qdrant
+            ports:
+              http:
+                port: 6333
+              grpc:
+                port: 6334
+
+        # One-time crawl's data — must survive restarts (not disposable),
+        # hence a real PVC rather than emptyDir.
+        persistence:
+          data:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 10Gi
+            globalMounts:
+              - path: /qdrant/storage
+          # /qdrant/snapshots is NOT part of the storage volume above — it
+          # lives on the container's root filesystem layer (owned by root
+          # from the image build), so fsGroup (PR #384) never chowns it and
+          # Qdrant fails with "Can't create Snapshots directory: Os { code:
+          # 13, kind: PermissionDenied }" even on the -unprivileged image.
+          # Confirmed fix from https://github.com/orgs/qdrant/discussions/2868:
+          # give /qdrant/snapshots its own PVC.
+          snapshots:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 5Gi
+            globalMounts:
+              - path: /qdrant/snapshots
+
+        # Chart-managed ingress -> OpenShift Route. Qdrant's own API-key
+        # check (QDRANT__SERVICE__API_KEY above) is the actual auth gate;
+        # the Route just provides edge-TLS external reachability, per this
+        # repo's standard ingress convention (see docs/adding-apps.md).
+        ingress:
+          qdrant:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: qdrant.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: qdrant
+                      port: http
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

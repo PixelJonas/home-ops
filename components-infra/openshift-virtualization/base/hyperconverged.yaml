@@ -1,0 +1,19 @@
+# Stock HyperConverged CR — deliberately empty spec, no featureGates.
+#
+# Altus previously ran OpenShift Virtualization with an experimental
+# USB-passthrough feature gate enabled (for a Windows 11 KNX-ETS VM). That
+# left the cluster in an unsupported state that blocked a major-version
+# upgrade and forced a full reinstall (see docs/journal in infra-ops:
+# altus-to-sakaar-migration.md). Do not add featureGates here without a
+# documented reason — every one is a fresh way to repeat that incident.
+apiVersion: hco.kubevirt.io/v1beta1
+kind: HyperConverged
+metadata:
+  name: kubevirt-hyperconverged
+  namespace: openshift-cnv
+  annotations:
+    # The HyperConverged CRD is installed by the Subscription's operator,
+    # which hasn't run yet on ArgoCD's first sync — same reasoning as
+    # nmstate's NMState CR in components-infra/nmstate/kustomization.yaml.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec: {}

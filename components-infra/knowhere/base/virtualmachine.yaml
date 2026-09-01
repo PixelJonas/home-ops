@@ -1,0 +1,95 @@
+# 8 vCPU / 32 GiB, measured against altus's live headroom (~15 free cores,
+# ~56 GiB free RAM at time of writing) rather than a guess. Three NICs on
+# purpose: "default" (masquerade, pod network) carries the VM's internet
+# egress; "br0" (multus, bridged to the host's br0) is the NAS-only link and
+# carries no default route, so it can't be used for egress by accident;
+# "lan" (multus, riding the OVN localnet knowhere-lan-net onto br-ex) gives
+# a real home-LAN IP via UniFi DHCP, for SSH/mosh access without needing
+# Tailscale running client-side.
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: knowhere
+  namespace: knowhere
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # Must sync after the cloudinit Secret (created by the ExternalSecret,
+    # wave "0") exists — the VM's cloudInitNoCloud volume references it by
+    # name, and ArgoCD applying this before the Secret exists just means the
+    # VM starts with no cloud-init data rather than failing loudly.
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  running: true
+  template:
+    metadata:
+      labels:
+        kubevirt.io/domain: knowhere
+    spec:
+      domain:
+        cpu:
+          cores: 8
+        resources:
+          requests:
+            memory: 32Gi
+          limits:
+            memory: 32Gi
+        devices:
+          rng: {}
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: projectsdisk
+              disk:
+                bus: virtio
+              # Explicit serial so the guest gets a stable
+              # /dev/disk/by-id/virtio-projectsdisk path — without this,
+              # KubeVirt doesn't guarantee /dev/vdb stays /dev/vdb across
+              # reboots or future disk additions. Referenced by the
+              # project_disk Ansible role's fstab entry.
+              serial: projectsdisk
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+            - name: br0
+              bridge: {}
+            - name: lan
+              bridge: {}
+      networks:
+        - name: default
+          pod: {}
+        - name: br0
+          multus:
+            networkName: br0
+        - name: lan
+          multus:
+            # References the ClusterUserDefinedNetwork's metadata.name — the
+            # CUDN controller auto-generates a same-named NAD in this
+            # namespace (../cluster-user-defined-network.yaml).
+            networkName: knowhere-lan-net
+      volumes:
+        - name: rootdisk
+          dataVolume:
+            name: knowhere-rootdisk
+        - name: projectsdisk
+          dataVolume:
+            name: knowhere-projects
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            # `secretRef` only maps to KubeVirt's userDataSecretRef — it does
+            # NOT also pull `networkData` from the same secret, despite both
+            # keys living in one Secret here. A separate networkDataSecretRef
+            # (same secret) is required or the second NIC's static IP is
+            # silently dropped: the seed ISO ends up with only user-data/
+            # meta-data, no network-config, and cloud-init falls back to its
+            # own single-NIC DHCP-only generated config. Confirmed live
+            # 2026-08-26 — enp2s0 came up link-up but administratively down,
+            # "unmanaged" per `netplan status`, with no network-config file
+            # in the seed ISO at all.
+            secretRef:
+              name: knowhere-cloudinit
+            networkDataSecretRef:
+              name: knowhere-cloudinit

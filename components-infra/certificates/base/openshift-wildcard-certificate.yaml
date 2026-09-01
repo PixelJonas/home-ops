@@ -13,3 +13,4 @@ spec:
   commonName: "*.apps.altus.janz.digital"
   dnsNames:
     - "*.apps.altus.janz.digital"
+    - "git.janz.digital"
