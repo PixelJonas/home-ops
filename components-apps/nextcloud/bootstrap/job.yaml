@@ -5,6 +5,14 @@ metadata:
   namespace: nextcloud
   annotations:
     argocd.argoproj.io/sync-wave: "150"
+    # 2026-09-01: Replace=true so ArgoCD deletes+recreates this Job on any
+    # spec.template change instead of trying to patch the immutable field.
+    # The previous completed Job (created 2026-08-25, pre-SERVERINFO_TOKEN)
+    # hard-blocked every auto-sync with "spec.template: field is immutable"
+    # once PR #305 drifted the template. A no-op annotation bump (PR #306)
+    # was not enough because the stale Job object still existed in-cluster.
+    # Replace=true makes future template changes self-healing.
+    argocd.argoproj.io/sync-options: Replace=true
     # 2026-08-11: no-op annotation bump to force ArgoCD to re-evaluate
     # this Application after a prior sync attempt hard-failed with
     # "Job.batch nextcloud-bootstrap ... field is immutable" (the
