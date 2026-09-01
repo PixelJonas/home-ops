@@ -141,7 +141,7 @@ spec:
               vllm:
                 image:
                   repository: docker.io/vllm/vllm-openai-cpu
-                  tag: v0.27.1-x86_64
+                  tag: v0.28.0-x86_64
                   pullPolicy: IfNotPresent
                 # NOTE: the vllm/vllm-openai-cpu image entrypoint is already
                 # "vllm serve" — args are appended to it directly. A leading
@@ -160,6 +160,20 @@ spec:
                   # in current vLLM; --runner pooling is the correct flag.
                   - --runner
                   - pooling
+                  # bge-m3's supported_tasks resolves to the COMBINED
+                  # 'embed&token_classify' task (it can do both dense
+                  # embedding and token classification), and vLLM's
+                  # get_pooling_task() priority list picks that combined
+                  # task first when no explicit task is pinned. The OpenAI
+                  # /v1/embeddings route is only wired up when the resolved
+                  # task is exactly "embed" -- so without this override the
+                  # route registers at startup (visible in the routes dump)
+                  # but every real request 501s with "The model does not
+                  # support Embeddings API" (confirmed on v0.27.1 AND
+                  # v0.28.0, 2026-08-31/09-01). Pin the task explicitly to
+                  # bypass the ambiguous auto-detection.
+                  - --pooler-config
+                  - '{"task": "embed"}'
                   - --served-model-name
                   - bge-m3
                   - --host
