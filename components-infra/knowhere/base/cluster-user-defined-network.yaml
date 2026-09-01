@@ -1,0 +1,29 @@
+# Cluster-scoped: OVN-Kubernetes localnet topologies can only be declared at
+# CUDN scope on this cluster version (namespaced UserDefinedNetwork's spec
+# only supports Layer2/Layer3, confirmed via `oc explain
+# userdefinednetwork.spec`). Scoped to just the `knowhere` namespace via
+# namespaceSelector.
+#
+# The CUDN controller auto-generates a NetworkAttachmentDefinition named
+# `knowhere-lan-net` inside every namespace the selector matches — it is not
+# hand-written here.
+apiVersion: k8s.ovn.org/v1
+kind: ClusterUserDefinedNetwork
+metadata:
+  name: knowhere-lan-net
+spec:
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: knowhere
+  network:
+    topology: Localnet
+    localnet:
+      role: Secondary
+      # Must exactly match the NNCP's ovn.bridge-mappings[].localnet value
+      # (node-network-configuration-policy-knowhere-lan.yaml, ../nmstate/).
+      physicalNetworkName: knowhere-lan
+      # The home LAN's UniFi DHCP server is the IPAM source — OVN-Kubernetes
+      # must not also hand out an address here, or the two IPAM sources
+      # fight.
+      ipam:
+        mode: Disabled

@@ -1,0 +1,18 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: knowhere-projects
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-projects
+# copyMethod: Direct mounts the live source PVC into the backup mover pod.
+# On this VM, that PVC is also the live-attached KubeVirt projectsdisk — the
+# mover pod's SELinux relabel on mount left the file's category mismatched
+# against the running virt-launcher process after the mover exited, which
+# broke virt-launcher's periodic disk-capacity check and paused the VM in a
+# loop (2026-08-28). Snapshot avoids ever touching the live PVC's files.
+- op: replace
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: lvms-vg1

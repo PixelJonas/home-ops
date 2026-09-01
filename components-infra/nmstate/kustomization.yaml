@@ -1,6 +1,7 @@
 resources:
   - github.com/redhat-cop/gitops-catalog/nmstate/aggregate/overlays/default
   - node-network-configuration-policy.yaml
+  - node-network-configuration-policy-knowhere-lan.yaml
 
 patches:
   - patch: |-

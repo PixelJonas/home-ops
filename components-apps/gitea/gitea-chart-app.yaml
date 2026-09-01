@@ -1,0 +1,84 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitea-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: gitea
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: gitea
+    repoURL: https://dl.gitea.com/charts
+    targetRevision: 12.7.0
+    helm:
+      values: |-
+        image:
+          rootless: true
+
+        gitea:
+          admin:
+            existingSecret: gitea-admin-secret
+          config:
+            server:
+              ROOT_URL: "https://git.janz.digital/"
+              DOMAIN: "git.janz.digital"
+            service:
+              DISABLE_REGISTRATION: true
+            security:
+              REVERSE_PROXY_TRUSTED_PROXIES: "10.42.0.11/32,10.128.0.0/14"
+            actions:
+              ENABLED: true
+
+        deployment:
+          env:
+            - name: GITEA__database__DB_TYPE
+              value: postgres
+            - name: GITEA__database__HOST
+              value: "gitea-db-rw:5432"
+            - name: GITEA__database__NAME
+              value: gitea
+            - name: GITEA__database__USER
+              value: gitea
+            - name: GITEA__database__PASSWD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-db-secret
+                  key: password
+
+        postgresql-ha:
+          enabled: false
+        postgresql:
+          enabled: false
+        valkey:
+          enabled: false
+        valkey-cluster:
+          enabled: false
+
+        service:
+          ssh:
+            annotations:
+              tailscale.com/expose: "true"
+              tailscale.com/hostname: "gitea"
+
+        route:
+          enabled: true
+          host: git.janz.digital
+          wildcardPolicy: None
+          tls:
+            termination: edge
+
+        persistence:
+          enabled: true
+          size: 20Gi
+          storageClass: lvms-vg1
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
