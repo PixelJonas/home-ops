@@ -1,0 +1,106 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mygarage-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: mygarage
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.1.0
+    helm:
+      values: |-
+        defaultPodOptions:
+          # A Service named "mygarage" would inject a MYGARAGE_PORT env var
+          # that collides with the app's own config parser.
+          enableServiceLinks: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+
+        controllers:
+          mygarage:
+            containers:
+              mygarage:
+                image:
+                  repository: ghcr.io/homelabforge/mygarage
+                  tag: 3.2.0
+                  pullPolicy: IfNotPresent
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                      - ALL
+                env:
+                  TZ: Europe/Berlin
+                  MYGARAGE_DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: mygarage-credentials
+                        key: db-url
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8686
+                      initialDelaySeconds: 15
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8686
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
+        service:
+          mygarage:
+            controller: mygarage
+            ports:
+              http:
+                port: 8686
+
+        ingress:
+          mygarage:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: mygarage.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: mygarage
+                      port: http
+
+        persistence:
+          data:
+            enabled: true
+            globalMounts:
+              - path: /data
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 5Gi
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
