@@ -1,0 +1,24 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: mygarage-db-mygarage-secret
+  namespace: mygarage
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: mygarage-db-mygarage-secret
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: "mygarage"
+        password: "{{ .password }}"
+
+  data:
+    - secretKey: password
+      remoteRef:
+        key: MYGARAGE_POSTGRES_USER_PASSWORD
