@@ -229,7 +229,7 @@ spec:
               valkey:
                 image:
                   repository: valkey/valkey
-                  tag: 9.1.2
+                  tag: 9.1.1
                   pullPolicy: IfNotPresent
                 args:
                   - valkey-server
