@@ -40,6 +40,9 @@ spec:
                       - ALL
                 env:
                   TZ: Europe/Berlin
+                  # Authelia OIDC issuer resolves to a LAN IP (split-horizon
+                  # DNS); relax the app's SSRF private-IP block for it only.
+                  MYGARAGE_TRUSTED_HOSTS: auth.app.janz.digital
                   MYGARAGE_DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
