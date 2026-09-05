@@ -30,7 +30,7 @@ spec:
                   # in this repo. See docs/adding-apps.md's Pod Security
                   # section for the general case this sidesteps.
                   repository: docker.io/qdrant/qdrant
-                  tag: v1.19.0-unprivileged
+                  tag: v1.19.1
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
