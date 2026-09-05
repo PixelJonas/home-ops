@@ -1,6 +1,6 @@
 - op: replace
   path: /spec/sourcePVC
-  value: mygarage-app-data
+  value: mygarage-app
 - op: replace
   path: /spec/restic/repository
   value: restic-config-data
