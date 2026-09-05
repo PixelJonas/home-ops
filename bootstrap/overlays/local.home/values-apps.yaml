@@ -106,3 +106,8 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/qdrant
+  mygarage:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/mygarage

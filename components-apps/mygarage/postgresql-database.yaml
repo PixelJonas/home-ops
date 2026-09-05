@@ -1,0 +1,20 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: mygarage-db
+  namespace: mygarage
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+
+  bootstrap:
+    initdb:
+      database: mygarage
+      owner: mygarage
+      secret:
+        name: mygarage-db-mygarage-secret
+
+  storage:
+    size: 5Gi
