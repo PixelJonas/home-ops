@@ -6,7 +6,8 @@
 #
 # Vehicles/devices are defined by the MYGARAGE_VEHICLES Doppler key (JSON
 # array of {vin, nickname, year, make, model, device_id, device_label,
-# sd_backfill}). If the key is absent the script falls back to the legacy
+# device_address, sd_backfill}). If the key is absent the script falls
+# back to the legacy
 # single-vehicle path (MYGARAGE_VEHICLE_VIN + hardcoded Multivan/WiCAN
 # values), so it stays safe to run before the key is created.
 #
@@ -139,8 +140,11 @@ for v in vehicles_cfg:
                       "label": v.get("device_label", f"WiCAN {v['nickname']}")}, H)
         assert st == 200, f"device link failed: {st} {r}"
         backfill = bool(v.get("sd_backfill", True))
+        sd_cfg = {"sd_backfill_enabled": backfill}
+        if v.get("device_address"):
+            sd_cfg["device_address"] = v["device_address"]
         st, r = call("PUT", f"/api/livelink/devices/{device}/sd-config",
-                     {"sd_backfill_enabled": backfill}, H)
+                     sd_cfg, H)
         assert st == 200, f"sd-config failed: {st} {r}"
         print(f"device {device} linked to '{v['nickname']}', "
               f"sd backfill {'enabled' if backfill else 'disabled'}")
