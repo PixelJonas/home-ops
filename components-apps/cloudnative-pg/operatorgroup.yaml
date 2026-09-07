@@ -5,4 +5,4 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
   name: cloudnative-pg
   namespace: cloudnative-pg-operator
-spec:
+spec: {}
