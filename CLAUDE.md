@@ -8,21 +8,22 @@ A GitOps-managed home lab Kubernetes/OpenShift cluster. All cluster state is dec
 
 ## Validation
 
+All lint/validation tools are pinned in `mise.toml` — run `mise install` first, then call tools directly or via `mise exec -- <tool>`.
+
 ```bash
-# Validate all Kustomize builds
+# Full validation: yamllint → kustomize build → kubeconform → kube-linter
 ./scripts/validate_manifests.sh
 
 # Validate a specific directory
 ./scripts/validate_manifests.sh -d components-apps/immich
 
-# Enforce strict schema validation
-./scripts/validate_manifests.sh -s
-
-# Lint YAML
-yamllint .
+# Skip the schema (kubeconform) or lint (kube-linter) phases
+./scripts/validate_manifests.sh --skip-schema --skip-lint
 ```
 
-CI runs `yamllint` and `kustomize build` validation on every push/PR via `.github/workflows/validate-manifests.yaml`.
+`validate_manifests.sh` runs yamllint once over the target tree, then per kustomization directory (dirs with a `.skip_validation` marker are skipped): `kustomize build --enable-helm`, kubeconform `-strict` schema validation (upstream Kubernetes schemas plus the datreeio CRDs catalog; CRDs missing from both are ignored), and kube-linter (config: `.kube-linter.yaml`).
+
+CI (`.github/workflows/validate-manifests.yaml`, push to `main` + PRs) runs parallel jobs: yamllint, actionlint, zizmor, gitleaks, shellcheck, hadolint, validate-manifests, and a renovate-config validator (only when `.github/renovate.json5` changes). Equivalent local hooks live in `.pre-commit-config.yaml` (`pre-commit install`).
 
 ## Repository Structure
 
@@ -78,4 +79,4 @@ See **[docs/adding-apps.md](docs/adding-apps.md)** for the full guide covering:
 - **YAML style:** enforced by `.yamllint` — no `document-start` (`---`), line length warnings ignored, truthy values (`yes`/`no`) are allowed.
 - **Renovate:** dependency updates are automated; commit messages follow `chore(deps): update …` convention. Do not manually bump image tags that Renovate tracks.
 - **Secret scanning:** `.gitleaks.toml` defines patterns; never commit keys, tokens, or kubeconfigs (see `.gitignore`).
-- **Occasional CLI tools** (e.g. `pv-migrate` for PV migrations) are declared in `mise.toml` via the `github:` backend rather than vendored as binaries — run via `mise exec -- <tool>` or `mise install` to fetch them.
+- **Occasional CLI tools** (e.g. `pv-migrate` for PV migrations) are declared in `mise.toml` via the `github:` backend rather than vendored as binaries — run via `mise exec -- <tool>` or `mise install` to fetch them. Lint/validation tools (kustomize, helm, kubeconform, kube-linter, yamllint, shellcheck, gitleaks, hadolint, actionlint, zizmor) are also pinned there via the `aqua:`/`pipx:` backends.

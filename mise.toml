@@ -1,2 +1,13 @@
 [tools]
 "github:utkuozdemir/pv-migrate" = "latest"
+"aqua:kubernetes-sigs/kustomize" = "5.8.1"
+# helm v3: kustomize's helmCharts inflator shells out to the helm CLI; v4 not yet validated against it
+"aqua:helm/helm" = "3.21.4"
+"aqua:yannh/kubeconform" = "0.8.0"
+"aqua:stackrox/kube-linter" = "0.8.3"
+"aqua:koalaman/shellcheck" = "0.11.0"
+"aqua:gitleaks/gitleaks" = "8.30.1"
+"aqua:hadolint/hadolint" = "2.15.1"
+"aqua:rhysd/actionlint" = "1.7.12"
+"aqua:zizmorcore/zizmor" = "1.30.0"
+"pipx:yamllint" = "1.38.0"
