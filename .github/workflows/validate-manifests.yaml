@@ -1,24 +1,132 @@
 name: Validate Manifests
+
 on:
   push:
-    branches:
-      - "*"
+    branches: [main]
   pull_request:
-    branches:
-      - "*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  validate:
+  yamllint:
     runs-on: ubuntu-latest
     steps:
       - name: Code Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      - name: Install yamllint
-        run: pip install 'yamllint>=1.25.0'
-      - name: Verify Kustomize CLI Installation
-        run: |
-          which kustomize
-          kustomize version
+        with:
+          persist-credentials: false
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c  # v4.3.0
+        with:
+          cache: true
+      - name: yamllint
+        run: mise exec -- yamllint .
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c  # v4.3.0
+        with:
+          cache: true
+      - name: actionlint
+        run: mise exec -- actionlint .github/workflows/*.yaml
+
+  zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c  # v4.3.0
+        with:
+          cache: true
+      - name: zizmor
+        run: mise exec -- zizmor .github/workflows/
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c  # v4.3.0
+        with:
+          cache: true
+      - name: gitleaks
+        run: mise exec -- gitleaks git --redact --config .gitleaks.toml .
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c  # v4.3.0
+        with:
+          cache: true
+      - name: shellcheck
+        run: mise exec -- shellcheck scripts/*.sh bootstrap.sh components-apps/mygarage/bootstrap.sh
+
+  hadolint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c  # v4.3.0
+        with:
+          cache: true
+      - name: hadolint
+        run: mise exec -- hadolint containers/gha-runner/Containerfile
+
+  validate-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c  # v4.3.0
+        with:
+          cache: true
       - name: Validate Manifests
-        run: |
-          ./scripts/validate_manifests.sh
+        run: mise exec -- ./scripts/validate_manifests.sh
+
+  renovate-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check for renovate.json5 changes
+        id: changes
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        with:
+          filters: |
+            renovate:
+              - ".github/renovate.json5"
+      - name: Validate renovate config
+        if: steps.changes.outputs.renovate == 'true'
+        run: npx --yes --package renovate renovate-config-validator .github/renovate.json5
