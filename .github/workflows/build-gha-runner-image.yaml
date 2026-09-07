@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Code Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
@@ -31,9 +33,11 @@ jobs:
         run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
+        env:
+          SHA_SHORT: ${{ steps.meta.outputs.sha_short }}
         run: |
           docker build -f containers/gha-runner/Containerfile \
-            -t ghcr.io/pixeljonas/sakaar-gha-runner:sha-${{ steps.meta.outputs.sha_short }} \
+            -t "ghcr.io/pixeljonas/sakaar-gha-runner:sha-${SHA_SHORT}" \
             -t ghcr.io/pixeljonas/sakaar-gha-runner:latest \
             containers/gha-runner
           docker push --all-tags ghcr.io/pixeljonas/sakaar-gha-runner
