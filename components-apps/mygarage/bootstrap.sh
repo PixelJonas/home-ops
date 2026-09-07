@@ -105,7 +105,10 @@ for v in vehicles_cfg:
     else:
         print(f"vehicle '{v['nickname']}' exists")
 
-# 3. LiveLink MQTT subscription
+# 3. LiveLink global enable (gates the scheduled jobs: session timeouts,
+# device offline detection, SD backfill triggers) + MQTT subscription
+st, r = call("PUT", "/api/livelink/settings", {"enabled": True}, H)
+assert st == 200, f"livelink settings failed: {st} {r}"
 st, r = call("PUT", "/api/livelink/mqtt/settings", {
     "enabled": True, "broker_host": "10.42.0.12", "broker_port": 1883,
     "username": mqtt_user, "password": mqtt_pw,
