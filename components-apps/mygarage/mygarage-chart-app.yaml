@@ -40,6 +40,9 @@ spec:
                       - ALL
                 env:
                   TZ: Europe/Berlin
+                  # Process-local APScheduler (session timeouts, device offline
+                  # detection, SD backfill triggers). Single replica, safe.
+                  SCHEDULER_ENABLED: "true"
                   # Authelia OIDC issuer resolves to a LAN IP (split-horizon
                   # DNS); relax the app's SSRF private-IP block for it only.
                   MYGARAGE_TRUSTED_HOSTS: auth.app.janz.digital
