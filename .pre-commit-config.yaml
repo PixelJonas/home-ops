@@ -1,0 +1,48 @@
+# Pre-commit hooks for this repo. Run `mise install` first: the *-system
+# hooks use the tool binaries pinned in mise.toml. Remote hook revs are
+# bumped automatically by Renovate (:enablePreCommit).
+# Setup: pre-commit install
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+      # Kubernetes manifests are multi-document YAML
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+  - repo: local
+    hooks:
+      # system hook (upstream shellcheck-precommit is docker-only): uses the
+      # shellcheck binary pinned in mise.toml
+      - id: shellcheck
+        name: shellcheck
+        entry: shellcheck
+        language: system
+        types: [shell]
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      # system variant: uses the gitleaks binary pinned in mise.toml
+      # (pass_filenames override: the upstream system hook lacks it)
+      - id: gitleaks-system
+        pass_filenames: false
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      # system variant: uses the actionlint binary pinned in mise.toml
+      - id: actionlint-system
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.30.0
+    hooks:
+      - id: zizmor
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.15.1
+    hooks:
+      # system variant: uses the hadolint binary pinned in mise.toml
+      - id: hadolint

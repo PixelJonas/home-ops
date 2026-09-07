@@ -18,6 +18,7 @@ BASE_URL="${1:-https://mygarage.apps.altus.janz.digital}"
 export BASE_URL
 
 # Doppler access (homelab/home via the bridge token in infra-ops/prd)
+# shellcheck source=/dev/null
 source /home/jonas/projects/infra-ops/.env.doppler
 HB=$(doppler secrets get ASGARD_DOPPLER_HOMELAB_TOKEN --plain -p infra-ops -c prd -t "$DOPPLER_TOKEN")
 export HB

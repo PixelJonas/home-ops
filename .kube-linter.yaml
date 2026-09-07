@@ -1,0 +1,43 @@
+# kube-linter configuration, applied to rendered kustomize output per
+# kustomization by scripts/validate_manifests.sh.
+#
+# kube-linter's default built-in check set is used; the checks below are
+# excluded because they are inapplicable to this OpenShift home lab or
+# produce false positives on this repo's architecture.
+checks:
+  exclude:
+    # Image tags are pinned/bumped by Renovate; floating tags on infra
+    # images are deliberate.
+    - latest-tag
+    # The home-lab cluster is capacity-managed by hand; workloads
+    # intentionally omit resource requests/limits.
+    - unset-cpu-requirements
+    - unset-memory-requirements
+    # Pod security is governed by OpenShift SCCs (arbitrary UIDs, explicit
+    # anyuid/privileged grants per component), not per-workload
+    # securityContext. Several infra components (Synology CSI driver,
+    # Tailscale) are privileged by design via the upstream charts.
+    - run-as-non-root
+    - no-read-only-root-fs
+    - privilege-escalation-container
+    - privileged-container
+    - drop-net-raw-capability
+    - host-network
+    - sensitive-host-mounts
+    # Triggered by the upstream synology-csi Helm chart (still uses the
+    # deprecated `serviceAccount` pod field); not fixable without forking
+    # the chart.
+    - deprecated-service-account-field
+    # False positives: fires on env vars whose value is a secret *name* or
+    # file path (e.g. tailscale-operator's OPERATOR_SECRET /
+    # CLIENT_SECRET_FILE), not a raw secret value.
+    - env-var-secret
+    # Secrets referenced via envFrom/valueFrom are created at runtime by
+    # External Secrets Operator from ExternalSecret CRs, and some service
+    # accounts live in sibling kustomizations (templates/, backup overlays);
+    # per-directory linting cannot resolve either.
+    - non-existent-service-account
+    # A TTL-deleted Job would immediately be recreated by ArgoCD self-heal
+    # (bootstrap-job loop). Completed-pod cleanup is handled by
+    # components-infra/clean-completed-pods instead.
+    - job-ttl-seconds-after-finished
