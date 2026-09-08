@@ -1,0 +1,32 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: trip-enricher-config
+  namespace: mygarage
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: trip-enricher-config
+  data:
+    - secretKey: HA_URL
+      remoteRef:
+        key: MYGARAGE_HA_URL
+    - secretKey: HA_TOKEN
+      remoteRef:
+        key: MYGARAGE_HA_TOKEN
+    - secretKey: MYGARAGE_USERNAME
+      remoteRef:
+        key: MYGARAGE_ADMIN_USERNAME
+    - secretKey: MYGARAGE_PASSWORD
+      remoteRef:
+        key: MYGARAGE_ADMIN_PASSWORD
+    - secretKey: VEHICLES_JSON
+      remoteRef:
+        key: MYGARAGE_TRIP_ENRICHER_VEHICLES
+    - secretKey: PHONES_JSON
+      remoteRef:
+        key: MYGARAGE_TRIP_ENRICHER_PHONES

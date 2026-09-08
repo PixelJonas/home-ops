@@ -1,0 +1,21 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: trip-enricher-db
+  namespace: mygarage
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: trip-enricher-db
+    template:
+      engineVersion: v2
+      data:
+        uri: "postgresql+psycopg://mygarage:{{ .password }}@mygarage-db-rw.mygarage.svc:5432/mygarage"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: MYGARAGE_POSTGRES_USER_PASSWORD
