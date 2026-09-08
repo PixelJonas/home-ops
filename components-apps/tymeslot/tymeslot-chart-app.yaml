@@ -26,9 +26,9 @@ spec:
             containers:
               tymeslot:
                 image:
-                  repository: luka1thb/tymeslot
-                  tag: "1.15.2"
-                  pullPolicy: IfNotPresent
+                  repository: ghcr.io/pixeljonas/tymeslot
+                  tag: "fix-reschedule-cache-write-through"
+                  pullPolicy: Always
                 env:
                   TZ: Europe/Berlin
                   DEPLOYMENT_TYPE: docker
