@@ -71,6 +71,81 @@ spec:
                       initialDelaySeconds: 5
                       periodSeconds: 10
 
+          trip-enricher:
+            replicas: 1
+            containers:
+              trip-enricher:
+                image:
+                  repository: ghcr.io/pixeljonas/trip-enricher
+                  tag: latest
+                  pullPolicy: Always
+                env:
+                  TZ: Europe/Berlin
+                  POLL_INTERVAL: "60"
+                  # In-cluster DNS of the bjw-s service above:
+                  # <release>-<service-key> = mygarage-app-mygarage.
+                  MYGARAGE_BASE_URL: http://mygarage-app-mygarage.mygarage.svc:8686
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: trip-enricher-db
+                        key: uri
+                  HA_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: trip-enricher-config
+                        key: HA_URL
+                  HA_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: trip-enricher-config
+                        key: HA_TOKEN
+                  MYGARAGE_USERNAME:
+                    valueFrom:
+                      secretKeyRef:
+                        name: trip-enricher-config
+                        key: MYGARAGE_USERNAME
+                  MYGARAGE_PASSWORD:
+                    valueFrom:
+                      secretKeyRef:
+                        name: trip-enricher-config
+                        key: MYGARAGE_PASSWORD
+                  VEHICLES_JSON:
+                    valueFrom:
+                      secretKeyRef:
+                        name: trip-enricher-config
+                        key: VEHICLES_JSON
+                  PHONES_JSON:
+                    valueFrom:
+                      secretKeyRef:
+                        name: trip-enricher-config
+                        key: PHONES_JSON
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - /bin/sh
+                          - -c
+                          - test "$(( $(date +%s) - $(stat -c %Y /tmp/trip-enricher-heartbeat) ))" -lt 300
+                      initialDelaySeconds: 30
+                      periodSeconds: 30
+                      timeoutSeconds: 5
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - test
+                          - -f
+                          - /tmp/trip-enricher-heartbeat
+                      initialDelaySeconds: 15
+                      periodSeconds: 15
+                      timeoutSeconds: 5
+
         service:
           mygarage:
             controller: mygarage
