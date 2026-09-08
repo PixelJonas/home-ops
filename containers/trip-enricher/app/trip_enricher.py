@@ -476,6 +476,29 @@ def insert_positions(conn, session_id, points):
             )
 
 
+def push_positions_to_mygarage(conn, vin, session_id, points):
+    """Write GPS breadcrumbs into MyGarage's own location_points table so its
+    Trips view (sessions with >=1 location point) picks them up. Mirrors
+    LocationService.record_point: naive-UTC timestamps, dedup on
+    (vin, timestamp, source). Returns rows inserted."""
+    inserted = 0
+    with conn.cursor() as cur:
+        for p in points:
+            cur.execute(
+                """
+                INSERT INTO location_points
+                    (vin, drive_session_id, source, timestamp,
+                     latitude, longitude, speed)
+                VALUES (%s, %s, 'trip-enricher', %s, %s, %s, %s)
+                ON CONFLICT (vin, timestamp, source) DO NOTHING
+                """,
+                (vin, int(session_id), p["ts"].replace(tzinfo=None),
+                 p["lat"], p["lon"], p["speed_kmh"]),
+            )
+            inserted += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+    return inserted
+
+
 def process_session(conn, mg, session, vehicle, phones, ha_url, ha_token):
     start = session["started_at"]
     end = session["ended_at"]
@@ -515,10 +538,18 @@ def process_session(conn, mg, session, vehicle, phones, ha_url, ha_token):
 
     effective, note = insert_trip(conn, session, vehicle, driver, evidence)
     insert_positions(conn, session["session_id"], points)
+    mg_points = 0
+    if points:
+        try:
+            mg_points = push_positions_to_mygarage(
+                conn, vehicle["vin"], session["session_id"], points)
+        except Exception as e:
+            log("error", "mygarage location_points push failed",
+                session_id=session["session_id"], error=str(e))
     log("info", "session processed", session_id=session["session_id"],
         vin=vehicle["vin"], vehicle=vehicle["name"], driver=driver,
         distance_km=session["distance_km"], distance_km_effective=effective,
-        overlap_note=note, positions=len(points))
+        overlap_note=note, positions=len(points), mg_location_points=mg_points)
 
 
 def connect_db(dsn):
