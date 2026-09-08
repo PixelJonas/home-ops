@@ -489,7 +489,7 @@ def push_positions_to_mygarage(conn, vin, session_id, points):
                 INSERT INTO location_points
                     (vin, drive_session_id, source, timestamp,
                      latitude, longitude, speed)
-                VALUES (%s, %s, 'trip-enricher', %s, %s, %s, %s)
+                VALUES (%s, %s, 'enricher', %s, %s, %s, %s)
                 ON CONFLICT (vin, timestamp, source) DO NOTHING
                 """,
                 (vin, int(session_id), p["ts"].replace(tzinfo=None),
@@ -596,6 +596,9 @@ def run_loop():
                     log("error", "failed to fetch sessions", vin=vehicle["vin"],
                         error=str(e))
                     continue
+                # Odometer-overlap dedup assumes earlier trips are recorded
+                # first — process in chronological order, not API order.
+                parsed = []
                 for raw in extract_sessions(payload, vehicle["vin"]):
                     session = parse_session(raw, vehicle["vin"])
                     if session is None:
@@ -604,6 +607,9 @@ def run_loop():
                         continue  # still open
                     if not session["distance_km"] or session["distance_km"] <= 0:
                         continue
+                    parsed.append(session)
+                parsed.sort(key=lambda s: s["started_at"] or s["ended_at"])
+                for session in parsed:
                     try:
                         if trip_exists(conn, session["session_id"]):
                             continue
