@@ -1,0 +1,39 @@
+name: build-trip-enricher-image
+on:
+  push:
+    branches: [main]
+    paths:
+      - "containers/trip-enricher/**"
+      - ".github/workflows/build-trip-enricher-image.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: build and push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        run: |
+          docker build -f containers/trip-enricher/Containerfile \
+            -t ghcr.io/pixeljonas/trip-enricher:sha-${{ steps.meta.outputs.sha_short }} \
+            -t ghcr.io/pixeljonas/trip-enricher:latest \
+            containers/trip-enricher
+          docker push --all-tags ghcr.io/pixeljonas/trip-enricher
