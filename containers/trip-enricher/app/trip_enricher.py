@@ -111,13 +111,18 @@ def normalize_vehicles(raw):
         data = json.loads(raw)
     except json.JSONDecodeError as e:
         raise RuntimeError(f"VEHICLES_JSON is not valid JSON: {e}")
-    items = data.values() if isinstance(data, dict) else data
+    if isinstance(data, dict):
+        entries = list(data.items())
+    elif isinstance(data, list):
+        entries = [(None, item) for item in data]
+    else:
+        entries = []
     vehicles = []
-    for item in items if isinstance(items, (list,)) or isinstance(data, dict) else []:
+    for key, item in entries:
         if not isinstance(item, dict):
             log("warn", "skipping malformed vehicle entry", entry=str(item)[:120])
             continue
-        vin = pick(item, "vin", "VIN")
+        vin = pick(item, "vin", "VIN") or key
         if not vin:
             log("warn", "vehicle entry without vin", entry=str(item)[:120])
             continue
