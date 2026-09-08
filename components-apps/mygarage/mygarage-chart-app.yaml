@@ -82,9 +82,9 @@ spec:
                 env:
                   TZ: Europe/Berlin
                   POLL_INTERVAL: "60"
-                  # In-cluster DNS of the bjw-s service above:
-                  # <release>-<service-key> = mygarage-app-mygarage.
-                  MYGARAGE_BASE_URL: http://mygarage-app-mygarage.mygarage.svc:8686
+                  # In-cluster DNS of the bjw-s service above (live-verified:
+                  # svc is named just "mygarage-app", port 8686).
+                  MYGARAGE_BASE_URL: http://mygarage-app.mygarage.svc:8686
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
