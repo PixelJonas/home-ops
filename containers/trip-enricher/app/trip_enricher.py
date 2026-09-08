@@ -378,6 +378,8 @@ SCHEMA_SQL = [
         UNIQUE (session_id, ts)
     )
     """,
+    "ALTER TABLE trips.trip_records ADD COLUMN IF NOT EXISTS distance_km_effective numeric",
+    "ALTER TABLE trips.trip_records ADD COLUMN IF NOT EXISTS overlap_note text",
 ]
 
 
@@ -394,21 +396,70 @@ def trip_exists(conn, session_id):
         return cur.fetchone() is not None
 
 
+def compute_effective_distance(conn, vin, session):
+    """Subtract odometer intervals already claimed by earlier trips.
+
+    MyGarage backfill can attribute an entire missing odometer range to a
+    zero-length phantom session, double-counting trips already recorded.
+    The effective distance is the session's reported distance scaled by the
+    fraction of its odometer span not covered by earlier records. Returns
+    (effective_km, note|None).
+    """
+    odo_start = session["odometer_start"]
+    odo_end = session["odometer_end"]
+    distance = session["distance_km"]
+    if odo_start is None or odo_end is None or distance is None:
+        return distance, None
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT odometer_start, odometer_end FROM trips.trip_records
+            WHERE vin = %s AND odometer_start IS NOT NULL
+              AND odometer_end IS NOT NULL
+              AND odometer_start < %s AND odometer_end > %s
+            """,
+            (vin, odo_end, odo_start),
+        )
+        overlaps = cur.fetchall()
+    if not overlaps:
+        return distance, None
+    intervals = sorted(
+        (max(float(s), float(odo_start)), min(float(e), float(odo_end)))
+        for s, e in overlaps
+    )
+    merged = []
+    for s, e in intervals:
+        if merged and s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    overlap_km = sum(e - s for s, e in merged)
+    span = float(odo_end) - float(odo_start)
+    effective = (round(float(distance) * max(0.0, span - overlap_km) / span, 1)
+                 if span > 0 else 0.0)
+    note = (f"odometer overlap {overlap_km:.1f}km with earlier sessions; "
+            f"distance scaled to uncovered span")
+    return effective, note
+
+
 def insert_trip(conn, session, vehicle, driver, evidence):
+    effective, note = compute_effective_distance(conn, vehicle["vin"], session)
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO trips.trip_records
                 (session_id, vin, vehicle, driver, started_at, ended_at,
-                 distance_km, odometer_start, odometer_end, evidence)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 distance_km, distance_km_effective, odometer_start,
+                 odometer_end, overlap_note, evidence)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (session_id) DO NOTHING
             """,
             (session["session_id"], vehicle["vin"], vehicle["name"], driver,
              session["started_at"], session["ended_at"], session["distance_km"],
-             session["odometer_start"], session["odometer_end"],
-             json.dumps(evidence)),
+             effective, session["odometer_start"], session["odometer_end"],
+             note, json.dumps(evidence)),
         )
+    return effective, note
 
 
 def insert_positions(conn, session_id, points):
@@ -462,11 +513,12 @@ def process_session(conn, mg, session, vehicle, phones, ha_url, ha_token):
         if tracker:
             points = breadcrumbs_from_tracker(history.get(tracker, []))
 
-    insert_trip(conn, session, vehicle, driver, evidence)
+    effective, note = insert_trip(conn, session, vehicle, driver, evidence)
     insert_positions(conn, session["session_id"], points)
     log("info", "session processed", session_id=session["session_id"],
         vin=vehicle["vin"], vehicle=vehicle["name"], driver=driver,
-        distance_km=session["distance_km"], positions=len(points))
+        distance_km=session["distance_km"], distance_km_effective=effective,
+        overlap_note=note, positions=len(points))
 
 
 def connect_db(dsn):
