@@ -86,7 +86,13 @@ def parse_ts(value):
         if s.isdigit():
             return parse_ts(int(s))
         try:
-            return datetime.fromisoformat(s.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            # MyGarage serializes UTC timestamps without a tz offset; a naive
+            # ISO string in the HA history path is interpreted as HA-server
+            # local time, silently shifting the query window. Assume UTC.
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
         except ValueError:
             log("warn", "unparseable timestamp", value=value)
             return None
