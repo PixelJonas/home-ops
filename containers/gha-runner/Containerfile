@@ -1,6 +1,10 @@
 FROM ghcr.io/actions/actions-runner:2.336.0
 
+# Runner intentionally runs as root (podman-in-runner needs it).
+# hadolint ignore=DL3002,DL3066
 USER root
+# apt packages intentionally unpinned; versions move with the base image.
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install -y --no-install-recommends podman podman-docker netavark aardvark-dns iptables build-essential python3-dev \
     && rm -rf /var/lib/apt/lists/* \

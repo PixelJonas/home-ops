@@ -10,6 +10,8 @@ config.yaml
 
 /*.yaml
 !devfile.yaml
+!/.kube-linter.yaml
+!/.pre-commit-config.yaml
 /*.json
 /bootstrap/ansible/inventories/.proxmox.yaml
 /bootstrap/ansible/inventories/hosts.yaml
