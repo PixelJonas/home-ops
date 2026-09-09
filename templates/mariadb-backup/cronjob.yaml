@@ -65,8 +65,14 @@ spec:
                   kubectl exec deploy/nextcloud-app --container nextcloud -- php occ maintenance:mode --on
                   echo -----------------------------------
                   echo "Backing up MariaDB (all databases, consistent snapshot)"
+                  # $MARIADB_ROOT_PASSWORD must be expanded HERE, in THIS job's own shell
+                  # (the only place the secret env is injected), NOT in the remote mariadb
+                  # pod. So it is NOT escaped: the job's shell interpolates the real password
+                  # into the command string before kubectl-exec ships it to the pod. A leading
+                  # backslash (\$) would defer expansion to the remote shell, where the env var
+                  # is unset, producing an empty password and "Access denied ... (using password: NO)".
                   kubectl exec nextcloud-app-mariadb-0 --container mariadb -- /bin/bash -c \
-                    "MYSQL_PWD=\$MARIADB_ROOT_PASSWORD mariadb-dump --single-transaction --routines --triggers --all-databases -u root" \
+                    "MYSQL_PWD=$MARIADB_ROOT_PASSWORD mariadb-dump --single-transaction --routines --triggers --all-databases -u root" \
                     > /backup/backup.sql
                   echo -----------------------------------
                   ls -lah /backup
