@@ -27,7 +27,7 @@ spec:
               tymeslot:
                 image:
                   repository: ghcr.io/pixeljonas/tymeslot
-                  tag: "fix-reschedule-cache-write-through"
+                  tag: "test-combined-calendar-fixes"
                   pullPolicy: Always
                 env:
                   TZ: Europe/Berlin
