@@ -12,6 +12,8 @@
 # window for point-in-time consistency between the DB dump and the app-data
 # snapshot. See docs/runbooks/nextcloud-restore.md for the actual resulting
 # guarantee.
+#
+# Monitoring: infra-ops now probes /status.php (not /) during this window.
 - op: replace
   path: /spec/trigger/schedule
   value: "10 3 * * *"
