@@ -30,6 +30,8 @@ spec:
             extraVolumeMounts:
               - name: dind-storage
                 mountPath: /var/lib/docker
+            extraArgs:
+              - --mtu=1400
 
   project: cluster-apps
   syncPolicy:
