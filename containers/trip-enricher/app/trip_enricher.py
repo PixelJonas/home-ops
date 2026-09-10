@@ -331,6 +331,20 @@ def score_person(cfg, history, hotspot_ssid):
     return score, signals
 
 
+def haversine_km(points):
+    """Sum of great-circle distances between consecutive points."""
+    from math import asin, cos, radians, sin, sqrt
+    total = 0.0
+    for a, b in zip(points, points[1:]):
+        dlat = radians(b["lat"] - a["lat"])
+        dlon = radians(b["lon"] - a["lon"])
+        h = (sin(dlat / 2) ** 2
+             + cos(radians(a["lat"])) * cos(radians(b["lat"]))
+             * sin(dlon / 2) ** 2)
+        total += 6371.0 * 2 * asin(sqrt(h))
+    return total
+
+
 def breadcrumbs_from_tracker(entries):
     points = []
     for e in entries:
@@ -443,7 +457,13 @@ def compute_effective_distance(conn, vin, session):
 
 
 def insert_trip(conn, session, vehicle, driver, evidence):
-    effective, note = compute_effective_distance(conn, vehicle["vin"], session)
+    if session["distance_km"] is None:
+        # No vehicle odometer at all (e.g. T7 gateway diagnostic filter):
+        # distance comes from the attributed phone's GPS breadcrumbs.
+        effective = session.get("gps_distance_km")
+        note = "distance derived from attributed phone GPS (no vehicle odometer)"
+    else:
+        effective, note = compute_effective_distance(conn, vehicle["vin"], session)
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -536,6 +556,21 @@ def process_session(conn, mg, session, vehicle, phones, ha_url, ha_token):
         if tracker:
             points = breadcrumbs_from_tracker(history.get(tracker, []))
 
+    if not session["distance_km"] or session["distance_km"] <= 0:
+        # Session without usable vehicle distance: only keep it if the
+        # phone GPS shows a genuine drive, otherwise it's a stationary
+        # wake/phantom session.
+        duration_s = ((end - start).total_seconds() if start and end else 0)
+        gps_km = round(haversine_km(points), 1) if len(points) >= 2 else 0.0
+        if duration_s < 60 or gps_km < 0.5:
+            log("info", "session skipped (no movement)",
+                session_id=session["session_id"], vin=vehicle["vin"],
+                distance_km=session["distance_km"],
+                duration_s=duration_s, gps_km=gps_km)
+            return
+        session["distance_km"] = None
+        session["gps_distance_km"] = gps_km
+
     effective, note = insert_trip(conn, session, vehicle, driver, evidence)
     insert_positions(conn, session["session_id"], points)
     mg_points = 0
@@ -605,8 +640,8 @@ def run_loop():
                         continue
                     if session["ended_at"] is None:
                         continue  # still open
-                    if not session["distance_km"] or session["distance_km"] <= 0:
-                        continue
+                    # distance-less sessions are handled in process_session
+                    # (phone-GPS fallback vs. phantom-skip)
                     parsed.append(session)
                 parsed.sort(key=lambda s: s["started_at"] or s["ended_at"])
                 for session in parsed:
