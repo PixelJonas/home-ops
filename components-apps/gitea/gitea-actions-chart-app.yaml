@@ -20,6 +20,7 @@ spec:
         existingSecret: "gitea-actions-runner-token"
         existingSecretKey: "token"
         statefulset:
+          replicas: 3
           serviceAccountName: gitea-actions-runner
           persistence:
             size: 5Gi
