@@ -23,6 +23,13 @@ spec:
           serviceAccountName: gitea-actions-runner
           persistence:
             size: 5Gi
+          extraVolumes:
+            - name: dind-storage
+              emptyDir: {}
+          dind:
+            extraVolumeMounts:
+              - name: dind-storage
+                mountPath: /var/lib/docker
 
   project: cluster-apps
   syncPolicy:
