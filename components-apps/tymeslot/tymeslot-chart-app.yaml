@@ -26,9 +26,9 @@ spec:
             containers:
               tymeslot:
                 image:
-                  repository: ghcr.io/pixeljonas/tymeslot
-                  tag: "test-combined-calendar-fixes"
-                  pullPolicy: Always
+                  repository: luka1thb/tymeslot
+                  tag: "1.15.3"
+                  pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
                   DEPLOYMENT_TYPE: docker
