@@ -32,6 +32,7 @@ spec:
                 mountPath: /var/lib/docker
             extraArgs:
               - --mtu=1400
+              - --storage-driver=vfs
 
   project: cluster-apps
   syncPolicy:
