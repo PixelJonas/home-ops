@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI
 
+from vehicle_pipeline.review_ui import router as review_ui_router
 from vehicle_pipeline.webhooks import router as webhooks_router
 
 logging.basicConfig(
@@ -13,6 +14,7 @@ logging.basicConfig(
 
 app = FastAPI(title="vehicle-pipeline")
 app.include_router(webhooks_router)
+app.include_router(review_ui_router)
 
 
 @app.get("/healthz")
