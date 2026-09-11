@@ -111,3 +111,8 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/mygarage
+  vehicle-pipeline:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/vehicle-pipeline
