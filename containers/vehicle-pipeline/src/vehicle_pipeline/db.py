@@ -31,6 +31,13 @@ CREATE TABLE IF NOT EXISTS vehicle_pipeline.review_items (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     reviewed_at TIMESTAMPTZ
 );
+
+CREATE TABLE IF NOT EXISTS vehicle_pipeline.reconciliation_watermark (
+    id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    last_run_at TIMESTAMPTZ
+);
+INSERT INTO vehicle_pipeline.reconciliation_watermark (id, last_run_at)
+VALUES (1, NULL) ON CONFLICT (id) DO NOTHING;
 """
 
 
@@ -61,3 +68,21 @@ class PostgresIngestEventStore:
                 (event_id, source, Jsonb(payload)),
             )
             return cur.rowcount > 0
+
+
+class PostgresWatermarkStore:
+    def __init__(self, pool: ConnectionPool) -> None:
+        self._pool = pool
+
+    def get(self) -> str | None:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT last_run_at FROM vehicle_pipeline.reconciliation_watermark WHERE id = 1")
+            row = cur.fetchone()
+            return row[0].isoformat() if row and row[0] else None
+
+    def set(self, iso: str) -> None:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE vehicle_pipeline.reconciliation_watermark SET last_run_at = %s WHERE id = 1",
+                (iso,),
+            )
