@@ -34,6 +34,7 @@ spec:
             extraArgs:
               - --mtu=1400
               - --storage-driver=vfs
+              - --default-network-opt=bridge=com.docker.network.driver.mtu=1400
 
   project: cluster-apps
   syncPolicy:
