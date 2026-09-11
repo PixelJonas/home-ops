@@ -45,6 +45,21 @@ async def test_get_tag_id_not_found() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_tag_names() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/tags/7/":
+            return httpx.Response(200, json={"id": 7, "name": "Fahrzeug:ID4-auto"})
+        if request.url.path == "/api/tags/9/":
+            return httpx.Response(200, json={"id": 9, "name": "Fahrzeug:Multivan-auto"})
+        return httpx.Response(404)
+
+    client = PaperlessClient("https://paperless.example.test", "ptoken", transport=_transport(handler))
+    names = await client.get_tag_names([7, 9])
+    assert names == {7: "Fahrzeug:ID4-auto", 9: "Fahrzeug:Multivan-auto"}
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_list_documents_by_tags_modified_since() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/documents/"
