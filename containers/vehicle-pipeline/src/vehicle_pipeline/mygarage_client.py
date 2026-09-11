@@ -33,13 +33,22 @@ class MyGarageClient:
     async def create_record(self, vin: str, entity: str, payload: dict[str, Any]) -> dict[str, Any]:
         path = _ENTITY_PATHS[entity]
         token = await self._get_token()
-        resp = await self._client.post(
+        resp = await self._post_record(vin, path, payload, token)
+        if resp.status_code == 401:
+            self._token = None
+            token = await self._get_token()
+            resp = await self._post_record(vin, path, payload, token)
+        resp.raise_for_status()
+        return resp.json()  # type: ignore[no-any-return]
+
+    async def _post_record(
+        self, vin: str, path: str, payload: dict[str, Any], token: str
+    ) -> httpx.Response:
+        return await self._client.post(
             f"/api/vehicles/{vin}/{path}",
             json=payload,
             headers={"Authorization": f"Bearer {token}"},
         )
-        resp.raise_for_status()
-        return resp.json()  # type: ignore[no-any-return]
 
     async def _get_token(self) -> str:
         if self._token is None:
