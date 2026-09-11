@@ -53,7 +53,8 @@ async def approve_review_item(
             payload[key] = _coerce(form[key], type(item.payload[key]))
     review_store.update_payload(item_id, payload)
 
-    result = await mygarage.create_record(item.vin or "", item.mygarage_entity, payload)
+    vin = payload.get("vin", item.vin) or ""
+    result = await mygarage.create_record(vin, item.mygarage_entity, payload)
     review_store.mark_approved(item_id, str(result.get("id", "")))
     return RedirectResponse(url="/review", status_code=303)
 

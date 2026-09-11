@@ -37,8 +37,17 @@ class FakeReviewStore:
 
 
 class FakeMyGarage:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, dict[str, Any]]] = []
+
     async def create_record(self, vin: str, entity: str, payload: dict[str, Any]) -> dict[str, Any]:
+        self.calls.append((vin, entity, dict(payload)))
         return {"id": "created-1"}
+
+
+class FailingMyGarage:
+    async def create_record(self, vin: str, entity: str, payload: dict[str, Any]) -> dict[str, Any]:
+        raise RuntimeError("mygarage unreachable")
 
 
 def _item(item_id: int = 1) -> ReviewItem:
@@ -143,4 +152,49 @@ def test_edit_form_prefills_payload_values() -> None:
     assert resp.status_code == 200
     assert 'value="120.5"' in resp.text
     assert 'value="KFZ-Steuer"' in resp.text
+    app.dependency_overrides.clear()
+
+
+def test_approve_uses_edited_vin_for_mygarage_routing() -> None:
+    """A human correcting a misidentified VIN in the review form must route
+    the MyGarage write to the corrected vehicle, not the original guess."""
+    store = FakeReviewStore([_item()])
+    mygarage = FakeMyGarage()
+    app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_mygarage] = lambda: mygarage
+    client = TestClient(app)
+
+    corrected_vin = "WV2ZZZ7HZNH000000"
+    resp = client.post("/review/1/approve", data={
+        "vin": corrected_vin, "date": "2026-03-01", "amount": "125.0",
+        "tax_type": "KFZ-Steuer", "notes": "corrected vin",
+    })
+
+    assert resp.status_code in (200, 303)
+    assert len(mygarage.calls) == 1
+    called_vin, called_entity, called_payload = mygarage.calls[0]
+    assert called_vin == corrected_vin
+    assert called_vin != "WVGZZZE27SE017858"  # the original, pre-edit item.vin
+    assert called_payload["vin"] == corrected_vin
+    app.dependency_overrides.clear()
+
+
+def test_approve_does_not_mark_approved_when_mygarage_call_fails() -> None:
+    """Guards the core safety invariant: mark_approved must only be reached
+    if create_record actually succeeds. A future regression (e.g. wrapping
+    the call in a broad try/except) must not silently mark a failed write
+    as approved."""
+    store = FakeReviewStore([_item()])
+    app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_mygarage] = lambda: FailingMyGarage()
+    client = TestClient(app, raise_server_exceptions=False)
+
+    resp = client.post("/review/1/approve", data={
+        "vin": "WVGZZZE27SE017858", "date": "2026-03-01", "amount": "125.0",
+        "tax_type": "KFZ-Steuer", "notes": "corrected amount",
+    })
+
+    assert resp.status_code >= 500
+    assert store.approved == []
+    assert store.get(1).status == "pending"
     app.dependency_overrides.clear()
