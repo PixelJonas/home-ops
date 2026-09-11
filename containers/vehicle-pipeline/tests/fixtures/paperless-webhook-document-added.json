@@ -1,0 +1,10 @@
+{
+  "doc_id": 42,
+  "doc_title": "KFZ-Steuerbescheid 2026",
+  "doc_url": "https://paperless.example.test/documents/42/",
+  "correspondent": "Hauptzollamt",
+  "document_type": "Steuerbescheid",
+  "added": "2026-03-01T10:00:00+01:00",
+  "owner_username": "jonas",
+  "filename": "kfz-steuer-2026.pdf"
+}
