@@ -179,6 +179,44 @@ def test_approve_uses_edited_vin_for_mygarage_routing() -> None:
     app.dependency_overrides.clear()
 
 
+def _vinless_documents_item(item_id: int = 2) -> ReviewItem:
+    """Mirrors taxonomy._build_documents's payload shape: no "vin" key,
+    used when classify_vehicle couldn't identify a vehicle."""
+    return ReviewItem(
+        id=item_id, paperless_doc_id=43, paperless_doc_title="Unklares Dokument",
+        paperless_doc_url="https://paperless.example.test/documents/43/",
+        vin=None, mygarage_entity="documents", extracted_category="other",
+        payload={"title": "Unklares Dokument", "document_type": "other", "description": None},
+        confidence="low", status="pending", mygarage_record_id=None,
+    )
+
+
+def test_approve_uses_submitted_vin_for_vinless_documents_item() -> None:
+    """A vin-less 'documents' draft (classify_vehicle couldn't match a
+    vehicle) has no 'vin' key in its payload. The edit form renders a
+    standalone vin field for this case (see review_edit.html); approving
+    with a human-supplied VIN must route the MyGarage write to that VIN,
+    not fall through to an empty string."""
+    store = FakeReviewStore([_vinless_documents_item()])
+    mygarage = FakeMyGarage()
+    app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_mygarage] = lambda: mygarage
+    client = TestClient(app)
+
+    supplied_vin = "WVGZZZE27SE017858"
+    resp = client.post("/review/2/approve", data={
+        "vin": supplied_vin,
+        "title": "Unklares Dokument", "document_type": "other", "description": "",
+    })
+
+    assert resp.status_code in (200, 303)
+    assert len(mygarage.calls) == 1
+    called_vin, called_entity, _called_payload = mygarage.calls[0]
+    assert called_vin == supplied_vin
+    assert called_entity == "documents"
+    app.dependency_overrides.clear()
+
+
 def test_approve_does_not_mark_approved_when_mygarage_call_fails() -> None:
     """Guards the core safety invariant: mark_approved must only be reached
     if create_record actually succeeds. A future regression (e.g. wrapping

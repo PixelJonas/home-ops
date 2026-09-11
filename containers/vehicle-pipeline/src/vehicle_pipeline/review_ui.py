@@ -53,7 +53,13 @@ async def approve_review_item(
             payload[key] = _coerce(form[key], type(item.payload[key]))
     review_store.update_payload(item_id, payload)
 
-    vin = payload.get("vin", item.vin) or ""
+    # For entity types whose payload has no "vin" key (e.g. "documents"),
+    # the edit form renders a standalone vin field (see review_edit.html) —
+    # read it directly from the submitted form rather than only from the
+    # merged payload, so a human-supplied VIN on a vin-less draft actually
+    # reaches MyGarage instead of falling through to "".
+    submitted_vin = form.get("vin")
+    vin = (str(submitted_vin) if submitted_vin else None) or payload.get("vin") or item.vin or ""
     result = await mygarage.create_record(vin, item.mygarage_entity, payload)
     review_store.mark_approved(item_id, str(result.get("id", "")))
     return RedirectResponse(url="/review", status_code=303)

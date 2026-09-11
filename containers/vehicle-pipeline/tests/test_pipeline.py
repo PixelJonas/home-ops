@@ -41,6 +41,24 @@ class FakeReviewStore:
         return len(self.created)
 
 
+class FakeIdempotentReviewStore:
+    """Mimics ReviewQueueStore.create_draft's pending-dedup behavior, to
+    verify process_document's contract with the store without requiring a
+    real Postgres connection. The actual correctness guarantee lives in
+    ReviewQueueStore itself (see test_review_store_integration.py) — this
+    only checks that pipeline.process_document doesn't route around it."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+
+    def create_draft(self, *, paperless_doc_id: int, **kwargs: Any) -> int:
+        for idx, row in enumerate(self.rows):
+            if row["paperless_doc_id"] == paperless_doc_id and row["status"] == "pending":
+                return idx
+        self.rows.append({"paperless_doc_id": paperless_doc_id, "status": "pending", **kwargs})
+        return len(self.rows) - 1
+
+
 @pytest.mark.asyncio
 async def test_process_document_creates_review_draft() -> None:
     doc = {"id": 42, "title": "KFZ-Steuerbescheid 2026", "content": "...", "tags": [7]}
@@ -90,3 +108,24 @@ async def test_process_document_extraction_failure_still_creates_low_confidence_
     assert draft["extracted_category"] == "other"
     assert draft["confidence"] == "low"
     assert draft["mygarage_entity"] == "documents"
+
+
+@pytest.mark.asyncio
+async def test_process_document_double_trigger_does_not_duplicate_review_item() -> None:
+    """Simulates a webhook delivery followed by a reconciliation pass
+    re-scanning the same document (disjoint idempotency keyspaces at the
+    ingest layer previously let both paths reach process_document for the
+    same doc). process_document itself just calls create_draft each time —
+    the dedup guarantee belongs to the store (see
+    test_review_store_integration.py's idempotency tests), but this
+    confirms process_document doesn't bypass that contract."""
+    doc = {"id": 42, "title": "KFZ-Steuerbescheid 2026", "content": "...", "tags": [7]}
+    paperless = FakePaperless(doc)
+    extraction = ExtractionResult(category="kfz_steuer", amount=120.5, date="2026-03-01",
+                                   vendor="Hauptzollamt", odometer_km=None, notes=None, confidence="high")
+    review_store = FakeIdempotentReviewStore()
+
+    await process_document(42, paperless, FakeExtractor(extraction), review_store, VEHICLES)
+    await process_document(42, paperless, FakeExtractor(extraction), review_store, VEHICLES)
+
+    assert len(review_store.rows) == 1

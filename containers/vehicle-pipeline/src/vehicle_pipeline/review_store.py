@@ -39,7 +39,31 @@ class ReviewQueueStore:
         payload: dict[str, Any],
         confidence: str | None,
     ) -> int:
+        """Idempotent create: if a `pending` row already exists for this
+        paperless_doc_id, return its id instead of inserting a duplicate.
+
+        This is the single choke point that protects against duplicate
+        drafts regardless of which caller (webhook or reconciliation poll)
+        triggers processing for a given document — both paths funnel
+        through here. Only in-flight `pending` rows are treated as
+        duplicates; if the only existing rows for this doc_id are already
+        `approved`/`rejected`, a new draft is inserted as before (so a
+        legitimate re-draft after a document update still works).
+        """
         with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id FROM vehicle_pipeline.review_items
+                WHERE paperless_doc_id = %s AND status = 'pending'
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                (paperless_doc_id,),
+            )
+            existing = cur.fetchone()
+            if existing is not None:
+                return int(existing[0])
+
             cur.execute(
                 """
                 INSERT INTO vehicle_pipeline.review_items

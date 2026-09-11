@@ -5,6 +5,9 @@
 <h1>{{ item.paperless_doc_title }}</h1>
 <p><a href="{{ item.paperless_doc_url }}" target="_blank">Original in Paperless öffnen</a></p>
 <form method="post" action="/review/{{ item.id }}/approve">
+  {% if "vin" not in item.payload %}
+  <label>vin (Fahrzeug): <input type="text" name="vin" value="{{ item.vin or '' }}"></label><br>
+  {% endif %}
   {% for key, value in item.payload.items() %}
   <label>{{ key }}: <input type="text" name="{{ key }}" value="{{ value if value is not none else '' }}"></label><br>
   {% endfor %}
