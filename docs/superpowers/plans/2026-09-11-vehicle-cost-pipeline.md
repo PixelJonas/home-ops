@@ -1950,6 +1950,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 **Files:**
 - Create: `containers/vehicle-pipeline/src/vehicle_pipeline/reconciliation.py`
+- Modify: `containers/vehicle-pipeline/src/vehicle_pipeline/db.py` (add watermark table DDL + `PostgresWatermarkStore`, per Step 1 below)
 - Test: `containers/vehicle-pipeline/tests/test_reconciliation.py`
 
 **Interfaces:**
@@ -2718,11 +2719,20 @@ spec:
       data:
         username: "vehicle_pipeline"
         password: "{{ .password }}"
+        # Self-contained rather than relying on CNPG to enrich this
+        # secret with a `uri` key post-provisioning (unverified for this
+        # plan — see ledger ruling): builds the connection string from
+        # the same password value plus CNPG's standard `<cluster>-rw`
+        # read-write Service DNS name, which is stable regardless of
+        # CNPG's own secret-management behavior.
+        uri: "postgresql://vehicle_pipeline:{{ .password }}@vehicle-pipeline-db-rw.vehicle-pipeline.svc:5432/vehicle_pipeline"
   data:
     - secretKey: password
       remoteRef:
         key: VEHICLE_PIPELINE_POSTGRES_PASSWORD
 ```
+
+**Note:** `vehicle-pipeline-app.yaml`'s `DATABASE_URL` env var (Step 7) reads `secretKeyRef: {name: vehicle-pipeline-db-app-secret, key: uri}` — the same secret this step creates, not a separate `-db-connection` secret. (Ruling recorded in the SDD ledger pre-flight scan: the original draft referenced a `vehicle-pipeline-db-connection` secret no file created — an unintentional mirror of taxbuddy's naming without copying the file that actually populates it. Fixed by self-templating the `uri` here instead of assuming CNPG auto-populates the named bootstrap secret with connection fields.)
 
 - [ ] **Step 4: external-vehicle-pipeline-credentials.yaml**
 
@@ -2879,7 +2889,7 @@ spec:
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
-                        name: vehicle-pipeline-db-connection
+                        name: vehicle-pipeline-db-app-secret
                         key: uri
                   PAPERLESS_URL:
                     valueFrom:
