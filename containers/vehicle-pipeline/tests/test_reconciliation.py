@@ -85,7 +85,10 @@ async def test_reconciliation_enqueues_new_documents() -> None:
     )
 
     assert enqueued == 1
-    assert paperless.queried_since == "2026-09-01T00:00:00+00:00"
+    # LOOKBACK (1h) is applied even against an existing watermark, so the
+    # query intentionally re-scans a small overlap window (see comment in
+    # reconciliation.py) — cheap because the dedup key includes `modified`.
+    assert paperless.queried_since == "2026-08-31T23:00:00+00:00"
     assert watermark.get() is not None
 
 

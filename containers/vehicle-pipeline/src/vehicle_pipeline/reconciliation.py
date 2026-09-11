@@ -35,8 +35,22 @@ async def run_reconciliation_pass(
         logger.warning("reconciliation skipped: no vehicle tags found in Paperless yet")
         return 0
 
+    # LOOKBACK is applied unconditionally, not just on first run: Paperless may
+    # have read-after-write lag between a document's `modified` timestamp and
+    # that document becoming visible to the modified_since query, so a
+    # steady-state watermark with no backward margin can let a document
+    # permanently fall through the gap. The resulting overlap re-scan is cheap
+    # because the reconciliation idempotency key includes `modified`
+    # (`paperless-reconciliation:{doc_id}:{modified}`) — already-processed
+    # documents in the overlap window are skipped via ingest_store.record_event
+    # returning False, so nothing is double-processed. Matches the proven
+    # taxbuddy ingestion_api reconciliation pattern.
     stored_watermark = watermark_store.get()
-    since = datetime.fromisoformat(stored_watermark) if stored_watermark else now - LOOKBACK
+    since = (
+        datetime.fromisoformat(stored_watermark) - LOOKBACK
+        if stored_watermark
+        else now - LOOKBACK
+    )
 
     docs = await paperless.list_documents_by_tags_modified_since(tag_ids, since.isoformat())
 
