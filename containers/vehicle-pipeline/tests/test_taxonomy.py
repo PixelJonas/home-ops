@@ -53,6 +53,16 @@ def test_garantie_maps_to_warranties() -> None:
     assert draft.payload["warranty_type"] == "VW Garantie"
 
 
+def test_ersatzteile_maps_to_service_visits_with_cost() -> None:
+    """Confirmed live 2026-09-12: a real Reifenreparatur invoice (41.60 EUR)
+    landed in the cost-less `documents` fallback before this fix -- the
+    amount must reach a cost-bearing entity."""
+    draft = map_to_mygarage(_result(category="ersatzteile", amount=41.60), VIN)
+    assert draft.entity == "service-visits"
+    assert draft.payload["service_category"] == "Maintenance"
+    assert draft.payload["total_cost"] == 41.60
+
+
 def test_unmapped_category_falls_back_to_documents() -> None:
     draft = map_to_mygarage(_result(category="finanzierung_zinsen"), VIN)
     assert draft.entity == "documents"

@@ -87,6 +87,17 @@ _BUILDERS = {
     "reifenwechsel": _build_service_visit("Maintenance"),
     "autowaesche": _build_service_visit("Detailing"),
     "oel_betriebsstoffe": _build_service_visit("Maintenance"),
+    # Confirmed live 2026-09-12: a real Reifenreparatur invoice landed with
+    # a real amount (41.60 EUR) but the generic `documents` fallback has no
+    # cost field at all -- MyGarage's `documents` entity is upload-only
+    # metadata (title/document_type/description), so the cost was silently
+    # invisible to any cost total. This is NOT the financing/fork gap
+    # (docs/research/mygarage-financing-cost-gap-fork-vs-sink.md) -- that's
+    # specific to loan/lease principal+interest. service-visits already has
+    # a total_cost field and needs no fork; ticket #16's own taxonomy table
+    # explicitly listed "service-visits line-item or documents" as the two
+    # options for this category and only the cost-less one got implemented.
+    "ersatzteile": _build_service_visit("Maintenance"),
     "kraftstoff": _build_fuel,
     "adblue": _build_def,
     "garantie": _build_warranty,
