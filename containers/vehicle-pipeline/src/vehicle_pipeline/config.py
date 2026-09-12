@@ -31,9 +31,31 @@ class Settings:
             mygarage_url=_require("MYGARAGE_URL").rstrip("/"),
             mygarage_username=_require("MYGARAGE_USERNAME"),
             mygarage_password=_require("MYGARAGE_PASSWORD"),
-            vehicles=json.loads(_require("MYGARAGE_VEHICLES")),
+            vehicles=_parse_vehicles(_require("MYGARAGE_VEHICLES")),
             poll_interval_seconds=_parse_interval(os.environ.get("POLL_INTERVAL", "15m")),
         )
+
+
+def _parse_vehicles(raw: str) -> dict[str, str]:
+    """MYGARAGE_VEHICLES is a list of rich vehicle objects shared with the
+    WiCAN/trip-enricher telemetry pipeline (vin, nickname, year, make, model,
+    device_id, ...) -- not a plain {vin: label} map. Confirmed against the
+    live Doppler value 2026-09-12 (this Settings module originally assumed
+    the wrong shape, silently caught only once a real document reached
+    classify_vehicle() and crashed on vehicles.items()). Extract just what
+    classify_vehicle() needs: vin -> "id4"/"multivan", matching
+    classify_vehicle.py's _TAG_TO_LABEL values exactly. Entries for neither
+    vehicle (e.g. a future third car added for trip-enricher only) are
+    silently skipped, not an error -- this pipeline only cares about these
+    two per ticket #16's scope."""
+    vehicles: dict[str, str] = {}
+    for entry in json.loads(raw):
+        text = f"{entry.get('model', '')} {entry.get('nickname', '')}".lower()
+        if "id.4" in text or "id4" in text:
+            vehicles[entry["vin"]] = "id4"
+        elif "multivan" in text:
+            vehicles[entry["vin"]] = "multivan"
+    return vehicles
 
 
 def _require(name: str) -> str:
