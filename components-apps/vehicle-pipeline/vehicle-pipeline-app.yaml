@@ -1,0 +1,114 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vehicle-pipeline-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: vehicle-pipeline
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.1.0
+    helm:
+      values: |-
+        defaultPodOptions:
+          imagePullSecrets:
+            - name: vehicle-pipeline-ghcr-pull-secret
+
+        controllers:
+          app:
+            replicas: 1
+            containers:
+              app:
+                image:
+                  repository: ghcr.io/pixeljonas/vehicle-pipeline
+                  tag: latest
+                  pullPolicy: Always
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: vehicle-pipeline-db-app-secret
+                        key: uri
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: PAPERLESS_URL}
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: PAPERLESS_TOKEN}
+                  PAPERLESS_WEBHOOK_SECRET:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: PAPERLESS_WEBHOOK_SECRET}
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: LITELLM_BASE_URL}
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: LITELLM_API_KEY}
+                  # In-cluster DNS (live-verified against mygarage's own
+                  # trip-enricher controller, components-apps/mygarage/
+                  # mygarage-chart-app.yaml: "svc is named just
+                  # mygarage-app, port 8686") -- avoids an unnecessary
+                  # round trip through the public Route for an in-cluster
+                  # caller.
+                  MYGARAGE_URL: http://mygarage-app.mygarage.svc:8686
+                  MYGARAGE_USERNAME:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_USERNAME}
+                  MYGARAGE_PASSWORD:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_PASSWORD}
+                  MYGARAGE_VEHICLES:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_VEHICLES}
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet: {path: /healthz, port: 8000}
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet: {path: /healthz, port: 8000}
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+        # No public Ingress/Route at all -- Paperless is itself deployed
+        # in-cluster (components-apps/paperless, same as taxbuddy, whose
+        # live "Tax Agent Ingest" workflow calls its webhook at
+        # http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000,
+        # confirmed via GET /api/workflows/2 -- not a public URL), so
+        # /webhooks needs no public exposure either. /healthz is only ever
+        # hit by kubelet's own probe directly against the pod's container
+        # port, never through a Service/Ingress. /review is reachable only
+        # via the Tailscale-operator-exposed Service below (mirrors
+        # pricing-tool's `pricing-tool` service -- "already gated by
+        # tailnet membership" per that file's own comment); Caddy on the
+        # Synology (itself tailnet-joined) reverse-proxies a public
+        # app.janz.digital domain to it with Authelia forward-auth in
+        # front (infra-ops docs/authelia-sso-forward-auth-2026-08-31.md).
+        service:
+          app:
+            controller: app
+            annotations:
+              tailscale.com/expose: "true"
+              tailscale.com/hostname: "vehicle-pipeline"
+            ports:
+              http:
+                port: 8000
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,19 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: vehicle-pipeline-db
+  namespace: vehicle-pipeline
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+  bootstrap:
+    initdb:
+      database: vehicle_pipeline
+      owner: vehicle_pipeline
+      secret:
+        name: vehicle-pipeline-db-app-secret
+  storage:
+    size: 5Gi
+    storageClass: lvms-vg1
