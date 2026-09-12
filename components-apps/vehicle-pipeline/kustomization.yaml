@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - external-vehicle-pipeline-credentials.yaml
+  - external-vehicle-pipeline-db.yaml
+  - external-vehicle-pipeline-ghcr-pull.yaml
+  - postgresql-database.yaml
+  - vehicle-pipeline-app.yaml

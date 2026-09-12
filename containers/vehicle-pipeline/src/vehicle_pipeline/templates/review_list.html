@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Vehicle Pipeline — Review</title></head>
+<body>
+<h1>Offene Kostenbelege</h1>
+<table border="1" cellpadding="6">
+  <tr><th>Dokument</th><th>Fahrzeug</th><th>Kategorie</th><th>Ziel</th><th>Betrag</th><th>Confidence</th><th></th></tr>
+  {% for item in items %}
+  <tr>
+    <td><a href="{{ item.paperless_doc_url }}" target="_blank">{{ item.paperless_doc_title }}</a></td>
+    <td>{{ item.vin or "unbekannt" }}</td>
+    <td>{{ item.extracted_category }}</td>
+    <td>{{ item.mygarage_entity }}</td>
+    <td>{{ item.payload.get("amount") or item.payload.get("total_cost") or item.payload.get("cost") or item.payload.get("premium_amount") or "-" }}</td>
+    <td>{{ item.confidence }}</td>
+    <td><a href="/review/{{ item.id }}/edit">Prüfen</a></td>
+  </tr>
+  {% endfor %}
+</table>
+</body>
+</html>
