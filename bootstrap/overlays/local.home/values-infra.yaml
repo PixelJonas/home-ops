@@ -162,6 +162,32 @@ applications:
     source:
       path: components-infra/volsync
 
+  # Same component Sakaar already runs (bootstrap/overlays/sakaar/values-infra.yaml)
+  # -- Altus has no Tailscale K8s operator of its own yet, so
+  # tailscale.com/expose annotations on Altus Services (e.g.
+  # vehicle-pipeline's /review) are currently no-ops. Deploying the
+  # identical base here (including its litellm-egress ProxyGroup/Service,
+  # which stays unused/harmless on this cluster) unlocks the same
+  # per-Service ingress-exposure pattern pricing-tool already uses on
+  # Sakaar, directly on Altus.
+  tailscale-operator:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: tailscale
+    source:
+      path: components-infra/tailscale-operator/base
+    syncOptions:
+      - CreateNamespace=true
+    extraFields: |
+      ignoreDifferences:
+        - group: ""
+          kind: Service
+          name: litellm-egress
+          namespace: tailscale
+          jsonPointers:
+            - /spec/externalName
+
   restic-rest-server:
     annotations:
       argocd.argoproj.io/sync-wave: "22"
