@@ -50,7 +50,13 @@ spec:
                   LITELLM_API_KEY:
                     valueFrom:
                       secretKeyRef: {name: vehicle-pipeline-credentials, key: LITELLM_API_KEY}
-                  MYGARAGE_URL: https://mygarage.apps.altus.janz.digital
+                  # In-cluster DNS (live-verified against mygarage's own
+                  # trip-enricher controller, components-apps/mygarage/
+                  # mygarage-chart-app.yaml: "svc is named just
+                  # mygarage-app, port 8686") -- avoids an unnecessary
+                  # round trip through the public Route for an in-cluster
+                  # caller.
+                  MYGARAGE_URL: http://mygarage-app.mygarage.svc:8686
                   MYGARAGE_USERNAME:
                     valueFrom:
                       secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_USERNAME}
@@ -75,19 +81,20 @@ spec:
                       httpGet: {path: /healthz, port: 8000}
                       initialDelaySeconds: 5
                       periodSeconds: 10
-        # Single service, no basic-auth sidecar: /review is intentionally
-        # NOT on the public Ingress below. It's reachable only via the
-        # Tailscale-operator-exposed Service (tailscale.com/expose),
-        # mirroring pricing-tool's `pricing-tool` service (port 8080, no
-        # auth sidecar -- "already gated by tailnet membership", per that
-        # file's own comment). Caddy on the Synology (itself tailnet-joined)
-        # reverse-proxies a public app.janz.digital domain to this
-        # Tailscale-only address with Authelia forward-auth in front
-        # (see infra-ops docs/authelia-sso-forward-auth-2026-08-31.md) --
-        # so nothing outside the cluster can reach /review without going
-        # through Authelia first. Only /webhooks and /healthz (which
-        # Paperless and kubelet need to reach directly) stay on the public
-        # OpenShift Route.
+        # No public Ingress/Route at all -- Paperless is itself deployed
+        # in-cluster (components-apps/paperless, same as taxbuddy, whose
+        # live "Tax Agent Ingest" workflow calls its webhook at
+        # http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000,
+        # confirmed via GET /api/workflows/2 -- not a public URL), so
+        # /webhooks needs no public exposure either. /healthz is only ever
+        # hit by kubelet's own probe directly against the pod's container
+        # port, never through a Service/Ingress. /review is reachable only
+        # via the Tailscale-operator-exposed Service below (mirrors
+        # pricing-tool's `pricing-tool` service -- "already gated by
+        # tailnet membership" per that file's own comment); Caddy on the
+        # Synology (itself tailnet-joined) reverse-proxies a public
+        # app.janz.digital domain to it with Authelia forward-auth in
+        # front (infra-ops docs/authelia-sso-forward-auth-2026-08-31.md).
         service:
           app:
             controller: app
@@ -97,20 +104,6 @@ spec:
             ports:
               http:
                 port: 8000
-
-        ingress:
-          app:
-            enabled: true
-            className: openshift-default
-            annotations:
-              route.openshift.io/termination: "edge"
-            hosts:
-              - host: vehicle-pipeline.apps.altus.janz.digital
-                paths:
-                  - path: /webhooks
-                    service: {identifier: app, port: http}
-                  - path: /healthz
-                    service: {identifier: app, port: http}
 
   project: cluster-apps
   syncPolicy:
