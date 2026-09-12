@@ -61,7 +61,12 @@ class LiteLLMExtractor:
         self,
         base_url: str,
         api_key: str,
-        model: str = "gpt-4o-mini",
+        # "gpt-4o-mini" was never a real registered model on this LiteLLM
+        # deployment -- confirmed live 2026-09-12 via GET /v1/models against
+        # this service's own scoped key, which crashed every real extraction
+        # with a 400 ("Invalid model name"). gpt-5-nano is the actual
+        # available lightweight/cheap model.
+        model: str = "gpt-5-nano",
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._model = model
@@ -73,19 +78,31 @@ class LiteLLMExtractor:
         )
 
     async def extract(self, document_text: str) -> ExtractionResult:
-        resp = await self._client.post(
-            "/chat/completions",
-            json={
-                "model": self._model,
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Dokumenttext:\n{document_text[:8000]}"},
-                ],
-            },
-        )
-        resp.raise_for_status()
+        try:
+            resp = await self._client.post(
+                "/chat/completions",
+                json={
+                    "model": self._model,
+                    "temperature": 0,
+                    "response_format": {"type": "json_object"},
+                    "messages": [
+                        {"role": "system", "content": _SYSTEM_PROMPT},
+                        {"role": "user", "content": f"Dokumenttext:\n{document_text[:8000]}"},
+                    ],
+                },
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            # A live extraction crashed the whole reconciliation pass on a
+            # transient/config LLM-gateway error (confirmed 2026-09-12: an
+            # httpx.HTTPStatusError from raise_for_status() propagated
+            # uncaught past this point, past process_document's
+            # ExtractionError-only catch, and killed the pass instead of
+            # producing the intended generic low-confidence draft). Any
+            # HTTP-level failure here (4xx/5xx, timeout, connection error)
+            # must degrade the same way a malformed LLM response already
+            # does, not crash the caller.
+            raise ExtractionError(f"LiteLLM request failed: {exc}") from exc
         raw_content = resp.json()["choices"][0]["message"]["content"]
         try:
             parsed = json.loads(raw_content)
