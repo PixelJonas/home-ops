@@ -33,7 +33,27 @@ def test_hu_au_maps_to_service_visits_inspection() -> None:
     assert draft.entity == "service-visits"
     assert draft.payload["service_category"] == "Inspection"
     assert draft.payload["odometer_km"] == 54000
-    assert draft.payload["line_items"] == []
+    assert draft.payload["total_cost"] == 120.5
+
+
+def test_service_visit_line_item_carries_the_cost() -> None:
+    """MyGarage's tax-deduction PDF report reads only
+    service_visit.line_items[].cost, never total_cost -- confirmed live
+    2026-09-12 against the real report handler's source. A service-visits
+    draft with an empty line_items list would be entirely invisible to
+    that report despite total_cost being correctly set."""
+    draft = map_to_mygarage(
+        _result(category="hu_au", amount=89.0, notes="TÜV Hauptuntersuchung"), VIN
+    )
+    assert draft.payload["line_items"] == [{"description": "TÜV Hauptuntersuchung", "cost": 89.0}]
+
+
+def test_service_visit_line_item_falls_back_to_vendor_then_category_for_description() -> None:
+    draft = map_to_mygarage(_result(category="hu_au", notes=None, vendor="TÜV Nord"), VIN)
+    assert draft.payload["line_items"][0]["description"] == "TÜV Nord"
+
+    draft = map_to_mygarage(_result(category="hu_au", notes=None, vendor=None), VIN)
+    assert draft.payload["line_items"][0]["description"] == "Inspection"
 
 
 def test_kraftstoff_maps_to_fuel() -> None:
