@@ -46,7 +46,18 @@ def _build_service_visit(category: str):
             "service_category": category,
             "notes": e.notes,
             "total_cost": e.amount,
-            "line_items": [],
+            # MyGarage's tax-deduction PDF report (backend/app/routes/
+            # reports.py's download_tax_deduction_pdf) reads ONLY
+            # service_visit.line_items[].cost -- it never looks at
+            # total_cost at all. Confirmed live 2026-09-12 by fetching that
+            # handler's source directly: with an empty line_items list (the
+            # prior version of this code), a real, correctly-costed
+            # service-visits record would still be entirely invisible to
+            # the one report this whole pipeline exists to feed. One line
+            # item carrying the same amount is required, not optional
+            # polish -- total_cost alone only feeds MyGarage's general
+            # cost views, not this report.
+            "line_items": [{"description": e.notes or e.vendor or category, "cost": e.amount}],
         })
     return _build
 
