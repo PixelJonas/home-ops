@@ -75,76 +75,28 @@ spec:
                       httpGet: {path: /healthz, port: 8000}
                       initialDelaySeconds: 5
                       periodSeconds: 10
-              # Basic-auth reverse-proxy sidecar in front of the app, for the
-              # /review path only -- mirrors pricing-tool's proven
-              # nginxinc/nginx-unprivileged + conf.d/default.conf shape
-              # (components-apps/pricing-tool/pricing-tool-app.yaml), not a
-              # freshly-invented pattern. Stock `nginx` (root-oriented image)
-              # would fail under OpenShift's arbitrary-non-root-UID SCC; the
-              # `-unprivileged` variant is built for that and already
-              # listens on 8080.
-              authproxy:
-                image:
-                  repository: nginxinc/nginx-unprivileged
-                  tag: "1.27-alpine"
-                  pullPolicy: IfNotPresent
-                ports:
-                  - name: authproxy
-                    containerPort: 8080
-                probes:
-                  liveness:
-                    enabled: true
-                    custom: true
-                    spec:
-                      tcpSocket: {port: 8080}
-                      initialDelaySeconds: 5
-                      periodSeconds: 30
-                  readiness:
-                    enabled: true
-                    custom: true
-                    spec:
-                      tcpSocket: {port: 8080}
-                      initialDelaySeconds: 3
-                      periodSeconds: 10
-
-        # Two services on the same controller: `app` (port 8000, the FastAPI
-        # app itself -- serves /webhooks and /healthz unauthenticated) and
-        # `app-review` (port 8080, routed through the authproxy sidecar --
-        # serves /review behind nginx basic-auth). Port key names must be
-        # unique per controller (bjw-s app-template matches service ports to
-        # container ports by name) -- using "http" for both here would be
-        # ambiguous, unlike pricing-tool's http/authproxy split.
+        # Single service, no basic-auth sidecar: /review is intentionally
+        # NOT on the public Ingress below. It's reachable only via the
+        # Tailscale-operator-exposed Service (tailscale.com/expose),
+        # mirroring pricing-tool's `pricing-tool` service (port 8080, no
+        # auth sidecar -- "already gated by tailnet membership", per that
+        # file's own comment). Caddy on the Synology (itself tailnet-joined)
+        # reverse-proxies a public app.janz.digital domain to this
+        # Tailscale-only address with Authelia forward-auth in front
+        # (see infra-ops docs/authelia-sso-forward-auth-2026-08-31.md) --
+        # so nothing outside the cluster can reach /review without going
+        # through Authelia first. Only /webhooks and /healthz (which
+        # Paperless and kubelet need to reach directly) stay on the public
+        # OpenShift Route.
         service:
           app:
             controller: app
+            annotations:
+              tailscale.com/expose: "true"
+              tailscale.com/hostname: "vehicle-pipeline"
             ports:
               http:
                 port: 8000
-          app-review:
-            controller: app
-            ports:
-              authproxy:
-                port: 8080
-
-        persistence:
-          nginx-conf:
-            type: configMap
-            name: vehicle-pipeline-nginx-basic-auth
-            advancedMounts:
-              app:
-                authproxy:
-                  - path: /etc/nginx/conf.d/default.conf
-                    subPath: default.conf
-                    readOnly: true
-          basic-auth:
-            type: secret
-            name: vehicle-pipeline-basic-auth
-            advancedMounts:
-              app:
-                authproxy:
-                  - path: /etc/nginx/.htpasswd
-                    subPath: htpasswd
-                    readOnly: true
 
         ingress:
           app:
@@ -159,8 +111,6 @@ spec:
                     service: {identifier: app, port: http}
                   - path: /healthz
                     service: {identifier: app, port: http}
-                  - path: /review
-                    service: {identifier: app-review, port: authproxy}
 
   project: cluster-apps
   syncPolicy:

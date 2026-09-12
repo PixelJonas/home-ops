@@ -5,8 +5,6 @@ resources:
   - namespace.yaml
   - external-vehicle-pipeline-credentials.yaml
   - external-vehicle-pipeline-db.yaml
-  - external-vehicle-pipeline-basic-auth.yaml
   - external-vehicle-pipeline-ghcr-pull.yaml
-  - nginx-basic-auth-configmap.yaml
   - postgresql-database.yaml
   - vehicle-pipeline-app.yaml
