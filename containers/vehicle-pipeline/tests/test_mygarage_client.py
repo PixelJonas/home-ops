@@ -18,6 +18,7 @@ async def test_create_record_logs_in_then_posts() -> None:
                                               "expires_in": 3600, "csrf_token": "csrf"})
         assert request.url.path == "/api/vehicles/WVGZZZE27SE017858/tax-records"
         assert request.headers["Authorization"] == "Bearer tok123"
+        assert request.headers["X-CSRF-Token"] == "csrf"
         return httpx.Response(201, json={"id": 99, "amount": 120.5})
 
     client = MyGarageClient(
@@ -96,4 +97,39 @@ async def test_create_record_raises_if_retry_also_401s() -> None:
     )
     with pytest.raises(httpx.HTTPStatusError):
         await client.create_record("VIN1", "def", {"vin": "VIN1", "date": "2026-01-01"})
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_create_record_sends_csrf_token_and_retries_on_403() -> None:
+    """Live bug found 2026-09-12 backfilling real Multivan cost records:
+    every write against the real deployment was rejected with
+    `{"detail": "CSRF token missing. Include X-CSRF-Token header with
+    your request."}` -- a plain 403, not a 401, and true from the very
+    first request (not just after token expiry). No prior test caught
+    this because they all only asserted the Authorization header."""
+    login_calls = 0
+    post_attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal login_calls, post_attempts
+        if request.url.path == "/api/auth/login":
+            login_calls += 1
+            csrf = "csrf-stale" if login_calls == 1 else "csrf-fresh"
+            return httpx.Response(200, json={"access_token": "tok123", "token_type": "bearer",
+                                              "expires_in": 3600, "csrf_token": csrf})
+        post_attempts += 1
+        if post_attempts == 1:
+            assert request.headers["X-CSRF-Token"] == "csrf-stale"
+            return httpx.Response(403, json={"detail": "CSRF token missing."})
+        assert request.headers["X-CSRF-Token"] == "csrf-fresh"
+        return httpx.Response(201, json={"id": 7})
+
+    client = MyGarageClient(
+        "https://mygarage.example.test", "admin", "adminpw", transport=httpx.MockTransport(handler)
+    )
+    result = await client.create_record("VIN1", "def", {"vin": "VIN1", "date": "2026-01-01"})
+    assert result == {"id": 7}
+    assert login_calls == 2
+    assert post_attempts == 2
     await client.aclose()
