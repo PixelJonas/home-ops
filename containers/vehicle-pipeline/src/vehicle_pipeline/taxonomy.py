@@ -64,18 +64,26 @@ def _build_service_visit(category: str):
 
 def _build_fuel(e: ExtractionResult, vin: str) -> MyGarageDraft:
     # MyGarage rejects a fuel record with a 422 unless odometer_km is set
-    # OR missed_fillup=True is passed -- confirmed live 2026-09-12
-    # backfilling real Multivan fuel receipts, none of which print an
-    # odometer reading (ordinary gas-station receipts never do). This
-    # field was already extracted by the LLM (ExtractionResult.odometer_km)
-    # but never included in this payload. missed_fillup's own description
-    # ("Skipped recording a fill-up") is the correct semantic fit: it
-    # tells MyGarage's fuel-economy calculations not to expect this
-    # record to participate in a consecutive-fillup chain.
+    # -- confirmed live 2026-09-12 backfilling real Multivan fuel receipts,
+    # none of which print an odometer reading (ordinary gas-station
+    # receipts never do). This field was already extracted by the LLM
+    # (ExtractionResult.odometer_km) but never included in this payload.
+    #
+    # missed_fillup is NOT a valid bypass here -- confirmed by the API's
+    # own error text ("set missed_fillup=True only if you ALSO can't
+    # supply a fuel amount") and by testing it live: a record with real
+    # liters/cost data still 422s with missed_fillup=True and no
+    # odometer_km. An earlier version of this fix wrongly auto-set that
+    # flag whenever odometer_km was null, which does not work and was
+    # never actually exercised against the live API before merging (the
+    # unit test mocked the transport). The real answer: leave odometer_km
+    # null in the draft when the LLM couldn't find one, and let Jonas
+    # supply the real value in review_edit.html's already-generic
+    # per-payload-key form before approving -- he's the one who can look
+    # up the car's actual mileage at fill-up time, the pipeline can't.
     return MyGarageDraft("fuel", {
         "vin": vin, "date": e.date, "cost": e.amount, "notes": e.notes,
         "odometer_km": e.odometer_km,
-        "missed_fillup": e.odometer_km is None,
     })
 
 
