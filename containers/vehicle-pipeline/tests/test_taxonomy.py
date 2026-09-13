@@ -62,6 +62,21 @@ def test_kraftstoff_maps_to_fuel() -> None:
     assert draft.payload["cost"] == 65.0
 
 
+def test_kraftstoff_without_odometer_sets_missed_fillup() -> None:
+    """MyGarage rejects a fuel record with a 422 unless odometer_km is set
+    or missed_fillup=True -- confirmed live 2026-09-12; ordinary gas-station
+    receipts never print an odometer reading."""
+    draft = map_to_mygarage(_result(category="kraftstoff", amount=65.0, odometer_km=None), VIN)
+    assert draft.payload["odometer_km"] is None
+    assert draft.payload["missed_fillup"] is True
+
+
+def test_kraftstoff_with_odometer_does_not_set_missed_fillup() -> None:
+    draft = map_to_mygarage(_result(category="kraftstoff", amount=65.0, odometer_km=21714.0), VIN)
+    assert draft.payload["odometer_km"] == 21714.0
+    assert draft.payload["missed_fillup"] is False
+
+
 def test_adblue_maps_to_def() -> None:
     draft = map_to_mygarage(_result(category="adblue", amount=15.0), VIN)
     assert draft.entity == "def"
