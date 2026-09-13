@@ -62,19 +62,20 @@ def test_kraftstoff_maps_to_fuel() -> None:
     assert draft.payload["cost"] == 65.0
 
 
-def test_kraftstoff_without_odometer_sets_missed_fillup() -> None:
-    """MyGarage rejects a fuel record with a 422 unless odometer_km is set
-    or missed_fillup=True -- confirmed live 2026-09-12; ordinary gas-station
-    receipts never print an odometer reading."""
-    draft = map_to_mygarage(_result(category="kraftstoff", amount=65.0, odometer_km=None), VIN)
-    assert draft.payload["odometer_km"] is None
-    assert draft.payload["missed_fillup"] is True
-
-
-def test_kraftstoff_with_odometer_does_not_set_missed_fillup() -> None:
+def test_kraftstoff_carries_odometer_when_extracted() -> None:
+    """MyGarage rejects a fuel record with a 422 unless odometer_km is set.
+    Confirmed live 2026-09-13: missed_fillup=True is NOT a valid bypass
+    when real cost/liters data is present (only for a genuinely skipped
+    log entry with no fuel amount at all) -- odometer_km must be the real
+    value, or null so the human can supply it in the review-edit form."""
     draft = map_to_mygarage(_result(category="kraftstoff", amount=65.0, odometer_km=21714.0), VIN)
     assert draft.payload["odometer_km"] == 21714.0
-    assert draft.payload["missed_fillup"] is False
+    assert "missed_fillup" not in draft.payload
+
+
+def test_kraftstoff_leaves_odometer_null_when_not_extracted() -> None:
+    draft = map_to_mygarage(_result(category="kraftstoff", amount=65.0, odometer_km=None), VIN)
+    assert draft.payload["odometer_km"] is None
 
 
 def test_adblue_maps_to_def() -> None:
