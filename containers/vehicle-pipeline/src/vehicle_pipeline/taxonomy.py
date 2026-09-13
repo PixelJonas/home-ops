@@ -63,8 +63,19 @@ def _build_service_visit(category: str):
 
 
 def _build_fuel(e: ExtractionResult, vin: str) -> MyGarageDraft:
+    # MyGarage rejects a fuel record with a 422 unless odometer_km is set
+    # OR missed_fillup=True is passed -- confirmed live 2026-09-12
+    # backfilling real Multivan fuel receipts, none of which print an
+    # odometer reading (ordinary gas-station receipts never do). This
+    # field was already extracted by the LLM (ExtractionResult.odometer_km)
+    # but never included in this payload. missed_fillup's own description
+    # ("Skipped recording a fill-up") is the correct semantic fit: it
+    # tells MyGarage's fuel-economy calculations not to expect this
+    # record to participate in a consecutive-fillup chain.
     return MyGarageDraft("fuel", {
         "vin": vin, "date": e.date, "cost": e.amount, "notes": e.notes,
+        "odometer_km": e.odometer_km,
+        "missed_fillup": e.odometer_km is None,
     })
 
 
