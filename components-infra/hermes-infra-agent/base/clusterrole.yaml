@@ -59,3 +59,14 @@ rules:
       - clusterversions
       - clusteroperators
     verbs: ["get", "list", "watch"]
+  # networking.k8s.io/ingresses added 2026-09-14: confirmed 2026-09-13 the
+  # agent's k8s_get tool hit a genuine RBAC Forbidden here during a live
+  # outage investigation (route.openshift.io/routes was already granted
+  # and was NOT the actual blocker that day -- the real gap was a
+  # hostname-mapping convention issue, see the incident writeup). Adding
+  # this anyway since it's a real, confirmed gap and the same read-only
+  # class as everything else in this role.
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
