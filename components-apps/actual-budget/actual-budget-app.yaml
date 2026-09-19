@@ -60,7 +60,6 @@ spec:
             globalMounts:
               - path: /data
             size: 5Gi
-          ...
 
   syncPolicy:
     automated:
