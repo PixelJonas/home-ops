@@ -257,6 +257,65 @@ spec:
                       initialDelaySeconds: 5
                       periodSeconds: 5
 
+          # Daily Actual Budget -> tax.transactions mirror sync (taxbuddy
+          # repo services/sync_worker, ADR-0020 / P2-T04). One-shot pod; the
+          # app exits non-zero if any bank fails, so the CronJob records the
+          # failure. 05:15 Berlin — offset from the actual-budget volsync
+          # backup at 05:00. PSD2's 4x/day background cap is safely met.
+          # Manual re-trigger:
+          #   oc create job --from=cronjob/taxbuddy-app-sync-worker \
+          #     taxbuddy-sync-manual-$(date +%s) -n taxbuddy
+          # Digest: same placeholder convention as the other controllers —
+          # taxbuddy's release.yml regex-matches `repository:` + `digest:`
+          # for sync_worker in this file and opens an auto-merging bump PR
+          # against home-ops on every taxbuddy main build.
+          sync-worker:
+            type: cronjob
+            cronjob:
+              schedule: "15 5 * * *"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 3
+              backoffLimit: 1
+            containers:
+              sync-worker:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/sync_worker
+                  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"   # PLACEHOLDER — taxbuddy release.yml bumps this on the next main build
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  # In-cluster service of the actual-budget app (cross-
+                  # namespace; no route round-trip).
+                  ACTUAL_SERVER_URL: http://actual-budget-app-actual.actual-budget.svc:5006
+                  ACTUAL_PASSWORD_FILE: /secrets/actual-sync/password
+                  # Budget sync ID — from the ESO-managed secret; only
+                  # resolves after the owner sets Doppler key
+                  # TAXBUDDY_ACTUAL_SYNC_ID (post budget creation, see
+                  # external-taxbuddy-actual-sync.yaml).
+                  ACTUAL_SYNC_ID:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-actual-sync
+                        key: ACTUAL_SYNC_ID
+                  # The CLI downloads a local budget replica per call —
+                  # keep it on the (writable) emptyDir-backed /tmp, not in
+                  # $HOME assumptions of the UBI9 image.
+                  ACTUAL_DATA_DIR: /tmp/actual-data
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+
         service:
           ingestion-api:
             controller: ingestion-api
@@ -279,6 +338,21 @@ spec:
               valkey:
                 valkey:
                   - path: /data
+          # ACTUAL_BUDGET_PASSWORD mounted as a file for the sync worker's
+          # ACTUAL_PASSWORD_FILE (CLI 26.9.0 has no working _FILE support;
+          # the actual_client wrapper reads the file itself).
+          actual-sync-credentials:
+            enabled: true
+            type: secret
+            name: taxbuddy-actual-sync
+            items:
+              - key: ACTUAL_BUDGET_PASSWORD
+                path: password
+            advancedMounts:
+              sync-worker:
+                sync-worker:
+                  - path: /secrets/actual-sync
+                    readOnly: true
 
   project: cluster-apps
   syncPolicy:
