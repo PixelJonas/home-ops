@@ -5,8 +5,8 @@ namePrefix: data-
 namespace: actual-budget
 
 resources:
-  - ../../../../templates/volsync/rest        # in-cluster restic REST server
-  - ../../../../templates/volsync/backblaze   # Backblaze B2 (offsite)
+  - ../../../../templates/volsync/rest
+  - ../../../../templates/volsync/backblaze
 
 patches:
   - target:
@@ -15,21 +15,18 @@ patches:
       kind: ReplicationSource
       name: backup
     path: local.yaml
-
   - target:
       group: external-secrets.io
       version: v1
       kind: ExternalSecret
       name: external-restic-config
     path: local-secret.yaml
-
   - target:
       group: volsync.backube
       version: v1alpha1
       kind: ReplicationSource
       name: backup-b2
     path: backblaze.yaml
-
   - target:
       group: external-secrets.io
       version: v1
