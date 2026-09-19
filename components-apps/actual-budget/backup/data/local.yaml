@@ -1,6 +1,6 @@
 - op: replace
   path: /spec/sourcePVC
-  value: actual-budget-app
+  value: actual-budget-app-data
 
 - op: replace
   path: /spec/restic/repository
