@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:5d5dc4b94a543648114d9ffbafbcd3d9091ce52060052617058c7a2746802739"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:2b3dbf3a8f5a1b074014dc2798510893c7f73eed416b23e941979734007e4c8d"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -182,7 +182,7 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:43afb22afca74abbc171cb4616d46cdfedb27d1a98a81d7f49b280ccb9851496"
+                  digest: "sha256:c4c285acdb15fd51f86a7f37288f1906c57e27edbae5361d35dc766a85e46ed5"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -283,7 +283,7 @@ spec:
               sync-worker:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/sync_worker
-                  digest: "sha256:28e1380162adc71f63e9a063c44b9a83742f2f24382070a76bde026ea3cd08cd"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
+                  digest: "sha256:0ae20788cb1f3a8ae7e963d03b180b76d2d1db520d16f565570b12e1248416ee"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
