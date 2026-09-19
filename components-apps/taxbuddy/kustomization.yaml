@@ -6,6 +6,7 @@ resources:
   - anyuid-rolebinding.yaml
   - agent-runtime-hermes-exec-rbac.yaml
   - external-taxbuddy-credentials.yaml
+  - external-taxbuddy-actual-sync.yaml
   - external-taxbuddy-db.yaml
   - external-taxbuddy-db-connection.yaml
   - external-taxbuddy-ghcr-pull.yaml

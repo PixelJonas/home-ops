@@ -1,0 +1,31 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: external-taxbuddy-actual-sync
+  namespace: taxbuddy
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: taxbuddy-actual-sync
+  data:
+    # Server login password — same Doppler key the actual-budget namespace
+    # already syncs; mounted as a file for ACTUAL_PASSWORD_FILE (the CLI
+    # 26.9.0 has no working _FILE support, so the sync worker reads the
+    # file itself — see taxbuddy packages/actual_client/config.py).
+    - secretKey: ACTUAL_BUDGET_PASSWORD
+      remoteRef:
+        key: ACTUAL_BUDGET_PASSWORD
+    # Budget sync ID. MANUAL STEP: this Doppler key does not exist until
+    # the owner has done the Actual first-login + budget-creation steps
+    # (see components-apps/actual-budget/README.md "Post-deploy bootstrap")
+    # and then set TAXBUDDY_ACTUAL_SYNC_ID in Doppler homelab/home to the
+    # budget's Sync ID (Actual UI: Settings -> Advanced). Until then this
+    # ExternalSecret stays in error state and the sync-worker CronJob pod
+    # cannot start — that gating is deliberate.
+    - secretKey: ACTUAL_SYNC_ID
+      remoteRef:
+        key: TAXBUDDY_ACTUAL_SYNC_ID
