@@ -6,7 +6,7 @@
 - Image: `actualbudget/actual-server`, digest-pinned (bump deliberately; monthly
   upstream releases, migrations run on file open).
 - Route: `https://actual.apps.altus.janz.digital` (edge TLS, `openshift-default`).
-- Data: single PVC `actual-budget-app` at `/data` (`lvms-vg1`, 5Gi).
+- Data: single PVC `actual-budget-app-data` at `/data` (`lvms-vg1`, 5Gi).
   SQLite only — server state in `/data/server-files/account.sqlite`, budget
   blobs in `/data/user-files/`.
 - Backups: volsync restic, in-cluster REST server + Backblaze B2 offsite,
