@@ -1,0 +1,113 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: actual-budget-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: actual-budget
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.1.0
+    helm:
+      values: |-
+        controllers:
+          actual-budget:
+            pod:
+              securityContext:
+                # The actual-server image creates user `actual` (UID/GID
+                # 1001) and chowns /data to it, but has no USER directive.
+                # Pin UID/GID here (anyuid SCC granted via
+                # anyuid-rolebinding.yaml) so the PVC stays writable.
+                runAsUser: 1001
+                runAsGroup: 1001
+                fsGroup: 1001
+                fsGroupChangePolicy: "OnRootMismatch"
+            containers:
+              actual-budget:
+                image:
+                  repository: actualbudget/actual-server
+                  tag: "26.9.0"
+                  digest: "sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3"
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 5006
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 5006
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
+        service:
+          actual-budget:
+            controller: actual-budget
+            ports:
+              http:
+                port: 5006
+
+        ingress:
+          actual-budget:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+              # First budget download on a new client replays the whole
+              # change log, and bank-sync setup uses server-side
+              # long-polling — both can exceed the default 30s Route
+              # timeout (same class of issue as the eb-spike 504s, see
+              # taxbuddy docs/spikes/p0-banking.md).
+              haproxy.router.openshift.io/timeout: 300s
+            hosts:
+              - host: actual-budget.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: actual-budget
+                      port: http
+
+        persistence:
+          data:
+            enabled: true
+            # Explicit suffix so the PVC is `actual-budget-app-data` —
+            # without it app-template v5 names a lone PVC after the release
+            # (`actual-budget-app`). The volsync backup patches reference
+            # this name as sourcePVC.
+            suffix: data
+            globalMounts:
+              - path: /data
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 1Gi
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
