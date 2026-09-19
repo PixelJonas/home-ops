@@ -1,0 +1,70 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: actual-budget-app
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: actual-budget
+    server: "https://kubernetes.default.svc"
+  project: cluster-apps
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.1.0
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+            fsGroup: 1001
+
+        controllers:
+          actual:
+            containers:
+              actual:
+                image:
+                  repository: actualbudget/actual-server
+                  tag: 26.9.0@sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+
+        service:
+          actual:
+            controller: actual
+            ports:
+              http:
+                port: 5006
+
+        ingress:
+          actual:
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: actual.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: actual
+                      port: http
+
+        persistence:
+          data:
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            globalMounts:
+              - path: /data
+            size: 5Gi
+          ...
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
