@@ -41,6 +41,11 @@ applications:
       argocd.argoproj.io/sync-wave: "200"
     source:
       path: components-apps/cloudnative-pg
+  actual-budget:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/actual-budget
   resilio-sync:
     annotations:
       argocd.argoproj.io/sync-wave: "300"
@@ -66,11 +71,6 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/taxbuddy
-  actual-budget:
-    annotations:
-      argocd.argoproj.io/sync-wave: "300"
-    source:
-      path: components-apps/actual-budget
   taxbuddy-hermes:
     annotations:
       argocd.argoproj.io/sync-wave: "300"

@@ -9,30 +9,32 @@ spec:
   destination:
     namespace: actual-budget
     server: "https://kubernetes.default.svc"
+  project: cluster-apps
   source:
     chart: app-template
     repoURL: https://bjw-s-labs.github.io/helm-charts
     targetRevision: 5.1.0
     helm:
       values: |-
+
+        defaultPodOptions:
+          securityContext:
+            # The actual-server image creates user `actual` (UID/GID 1001)
+            # and chowns /data to it, but has no USER directive. Pin the
+            # UID/GID here (anyuid SCC granted via anyuid-rolebinding.yaml)
+            # so the PVC stays writable.
+            runAsUser: 1001
+            runAsGroup: 1001
+            fsGroup: 1001
+            fsGroupChangePolicy: "OnRootMismatch"
+
         controllers:
-          actual-budget:
-            pod:
-              securityContext:
-                # The actual-server image creates user `actual` (UID/GID
-                # 1001) and chowns /data to it, but has no USER directive.
-                # Pin UID/GID here (anyuid SCC granted via
-                # anyuid-rolebinding.yaml) so the PVC stays writable.
-                runAsUser: 1001
-                runAsGroup: 1001
-                fsGroup: 1001
-                fsGroupChangePolicy: "OnRootMismatch"
+          actual:
             containers:
-              actual-budget:
+              actual:
                 image:
                   repository: actualbudget/actual-server
-                  tag: "26.9.0"
-                  digest: "sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3"
+                  tag: 26.9.0@sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -64,15 +66,14 @@ spec:
                       periodSeconds: 10
 
         service:
-          actual-budget:
-            controller: actual-budget
+          actual:
+            controller: actual
             ports:
               http:
                 port: 5006
 
         ingress:
-          actual-budget:
-            enabled: true
+          actual:
             className: openshift-default
             annotations:
               route.openshift.io/termination: "edge"
@@ -83,31 +84,30 @@ spec:
               # taxbuddy docs/spikes/p0-banking.md).
               haproxy.router.openshift.io/timeout: 300s
             hosts:
-              - host: actual-budget.apps.altus.janz.digital
+              - host: actual.apps.altus.janz.digital
                 paths:
                   - path: /
                     service:
-                      identifier: actual-budget
+                      identifier: actual
                       port: http
 
         persistence:
           data:
-            enabled: true
             # Explicit suffix so the PVC is `actual-budget-app-data` —
             # without it app-template v5 names a lone PVC after the release
-            # (`actual-budget-app`). The volsync backup patches reference
-            # this name as sourcePVC.
+            # (`actual-budget-app`), which would NOT match the volsync
+            # backup sourcePVC (verified via helm template against
+            # app-template 5.1.0).
             suffix: data
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
             globalMounts:
               - path: /data
-            accessMode: ReadWriteOnce
-            storageClass: lvms-vg1
-            size: 1Gi
+            size: 5Gi
 
-  project: cluster-apps
   syncPolicy:
-    syncOptions:
-      - CreateNamespace=true
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

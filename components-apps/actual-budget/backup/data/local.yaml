@@ -6,9 +6,6 @@
   path: /spec/restic/repository
   value: restic-config-data
 
-# Same fleet-wide follow-up as PR #370 (see components-apps/paperless):
-# copyMethod: Snapshot avoids mounting the live PVC into the backup mover
-# pod; lvms-vg1 supports CSI snapshots on altus.
 - op: add
   path: /spec/restic/copyMethod
   value: Snapshot
