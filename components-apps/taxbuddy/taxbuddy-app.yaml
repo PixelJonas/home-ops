@@ -187,6 +187,7 @@ spec:
                 env:
                   TZ: Europe/Berlin
                   AGENT_RUNTIME: hermes
+                  QUEUE_URL: redis://taxbuddy-app-valkey:6379/0
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
