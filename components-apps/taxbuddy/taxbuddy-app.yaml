@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:33ac56f1b688feed79204682696ed848167edbecc2022381b0ad39aee8bc6442"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:4b65a937162ed302e9343125e1e2a8a8ad9a89a365e6fa81d72082765e697852"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -88,7 +88,7 @@ spec:
               doc-pipeline:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/doc_pipeline
-                  digest: "sha256:d30b2db89d741895e0112a913d3ecf7cbb854a94ce08d6deed7e17870c092e8e"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:ae28122fc45cf1e6d94bbdb18e9a8515d9428e58de724596469871669fd758fc"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -182,7 +182,7 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:90f228a9def22662da26d031b7e0018102e004ff0e1ef8722a7682745e1837ab"
+                  digest: "sha256:9c55f5327a54ceaca8f03188a764bbcafda0c0d0d538da492e0930a698535fac"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -205,6 +205,99 @@ spec:
                         key: PAPERLESS_TOKEN
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
+          # HARD-T02 (taxbuddy #101, ADR-013): scheduled in-cluster
+          # extraction-accuracy self-benchmark. Scores the versioned
+          # synthetic corpus baked into the image against the real
+          # extract/classify stages via in-cluster LiteLLM, checks against
+          # the baked-in baseline, and delivers the outcome to the
+          # taxbuddy-hermes kanban board (flagged task on regression,
+          # heartbeat-only otherwise). Runs under the chart's default
+          # taxbuddy-app ServiceAccount, which already holds pods/exec in
+          # the taxbuddy-hermes namespace (agent-runtime-hermes-exec-rbac.yaml)
+          # — the kanban path shells out via `oc exec`.
+          self-benchmark:
+            type: cronjob
+            cronjob:
+              schedule: "23 5 * * 1"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 5
+            pod:
+              # Same rationale as agent-runtime above: kanban delivery
+              # shells out via `oc exec deploy/taxbuddy-hermes-app` using
+              # the pod's own in-cluster token.
+              automountServiceAccountToken: true
+            containers:
+              self-benchmark:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
+                  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  # Isolated eval workspace only — the runner refuses to
+                  # seed synthetic profiles or fall back to the synthetic
+                  # default peer against any other workspace
+                  # (self_benchmark.evaluate.require_eval_workspace).
+                  HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
+                  HONCHO_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: HONCHO_API_KEY
+                  HONCHO_WORKSPACE: taxbuddy-eval
+                  HERMES_NAMESPACE: taxbuddy-hermes
+                  HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                  # Baseline-unchanged runs post a create+immediately-closed
+                  # heartbeat task instead of staying fully silent.
+                  SELF_BENCHMARK_HEARTBEAT: "true"
+
+          web-ui:
+            replicas: 1
+            containers:
+              web-ui:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/web_ui
+                  digest: "sha256:b91f33e0828eeabf43ec90d7aa71da30d8d560572cef6096185d43fa7752f807"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
                 probes:
                   liveness:
                     enabled: true
@@ -283,7 +376,7 @@ spec:
               sync-worker:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/sync_worker
-                  digest: "sha256:ce44b50d47765d90469bb8446de70c92376e497faeb17da0214a6e77656f0580"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
+                  digest: "sha256:8191e2a5258431dfc6ffba18b654080400fa042ace984f84a29a09b8c8c6d35a"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -323,11 +416,30 @@ spec:
             ports:
               http:
                 port: 8000
+          web-ui:
+            controller: web-ui
+            ports:
+              http:
+                port: 8000
           valkey:
             controller: valkey
             ports:
               redis:
                 port: 6379
+
+        ingress:
+          web-ui:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: taxbuddy.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: web-ui
+                      port: http
 
         persistence:
           valkey-data:
