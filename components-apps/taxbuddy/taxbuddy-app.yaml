@@ -205,6 +205,26 @@ spec:
                         key: PAPERLESS_TOKEN
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                  # taxbuddy P3-T04 (weekly digest): optional cloud-rendered
+                  # Kurzüberblick. The narrator receives only structured
+                  # aggregates (counts, category labels, statutory deadline
+                  # titles/dates, public BMF titles) — never raw documents
+                  # or personal line items. llm.yaml ships inside the
+                  # agent_runtime image at its WORKDIR (LLMConfig.load()'s
+                  # default path). Same secret keys doc_pipeline already
+                  # consumes. If LiteLLM is unreachable the digest still
+                  # ships without the Kurzüberblick.
+                  WEEKLY_DIGEST_LLM_ENABLED: "true"
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
                 probes:
                   liveness:
                     enabled: true
