@@ -225,6 +225,64 @@ spec:
                       initialDelaySeconds: 5
                       periodSeconds: 10
 
+          # HARD-T02 (taxbuddy #101, ADR-013): scheduled in-cluster
+          # extraction-accuracy self-benchmark. Scores the versioned
+          # synthetic corpus baked into the image against the real
+          # extract/classify stages via in-cluster LiteLLM, checks against
+          # the baked-in baseline, and delivers the outcome to the
+          # taxbuddy-hermes kanban board (flagged task on regression,
+          # heartbeat-only otherwise). Runs under the chart's default
+          # taxbuddy-app ServiceAccount, which already holds pods/exec in
+          # the taxbuddy-hermes namespace (agent-runtime-hermes-exec-rbac.yaml)
+          # — the kanban path shells out via `oc exec`.
+          self-benchmark:
+            type: cronjob
+            cronjob:
+              schedule: "23 5 * * 1"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 5
+            pod:
+              # Same rationale as agent-runtime above: kanban delivery
+              # shells out via `oc exec deploy/taxbuddy-hermes-app` using
+              # the pod's own in-cluster token.
+              automountServiceAccountToken: true
+            containers:
+              self-benchmark:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
+                  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  # Isolated eval workspace only — the runner refuses to
+                  # seed synthetic profiles or fall back to the synthetic
+                  # default peer against any other workspace
+                  # (self_benchmark.evaluate.require_eval_workspace).
+                  HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
+                  HONCHO_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: HONCHO_API_KEY
+                  HONCHO_WORKSPACE: taxbuddy-eval
+                  HERMES_NAMESPACE: taxbuddy-hermes
+                  HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                  # Baseline-unchanged runs post a create+immediately-closed
+                  # heartbeat task instead of staying fully silent.
+                  SELF_BENCHMARK_HEARTBEAT: "true"
+
           valkey:
             containers:
               valkey:
