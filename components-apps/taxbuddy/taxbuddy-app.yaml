@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:cb67c380c99adfb163850ffe6f19a161f43e0416c417eca853979e87ea1684d9"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:e6e33a2d531a22613197017826ecedb8b3ae0d269af11c061c44ed8e3a22f895"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -278,7 +278,7 @@ spec:
               self-benchmark:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
-                  digest: "sha256:3c378be5cb30b6b5d0b4e2df4cbc3a26ae7757f22173b04adce5d8c568b6148a"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  digest: "sha256:3e47446441d537e817d161052902d2e7c6c308472e273c65d7b34191fa3794e1"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -345,7 +345,7 @@ spec:
               bmf-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:347887cf84c22246fb7e8f4b460f6f1bb632601d39d1ba4e4a60d369b1054b62"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
+                  digest: "sha256:6fdfed685ab73d93dce6c3e55ebacf85f4450b509da5776fb18e870de15160f7"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
@@ -444,7 +444,7 @@ spec:
               web-ui:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/web_ui
-                  digest: "sha256:cd9e963a052082490c592f22c6a0cfd17d3ee44d824ecd79a8cce108ddbafe47"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  digest: "sha256:f5224681b0ecf3916947d9dc5083bc154405d1fbf3fbaf84621d9b3aea79c639"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
