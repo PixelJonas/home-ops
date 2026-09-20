@@ -283,6 +283,41 @@ spec:
                   # heartbeat task instead of staying fully silent.
                   SELF_BENCHMARK_HEARTBEAT: "true"
 
+          web-ui:
+            replicas: 1
+            containers:
+              web-ui:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/web_ui
+                  digest: "sha256:2ea95895c6909040d8825bf5050b6549c675b6ab1a0795c01f11efe4a200e689"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the web_ui image (P3-T07)
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
           valkey:
             containers:
               valkey:
@@ -381,11 +416,30 @@ spec:
             ports:
               http:
                 port: 8000
+          web-ui:
+            controller: web-ui
+            ports:
+              http:
+                port: 8000
           valkey:
             controller: valkey
             ports:
               redis:
                 port: 6379
+
+        ingress:
+          web-ui:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: taxbuddy.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: web-ui
+                      port: http
 
         persistence:
           valkey-data:
