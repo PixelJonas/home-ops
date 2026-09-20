@@ -16,9 +16,13 @@ metadata:
     # applied, and the rollout is blocked loudly (HARD-T01).
     argocd.argoproj.io/sync-wave: "105"
     # Job pod templates are immutable — a bumped image digest would make
-    # every sync fail with "field is immutable". Replace recreates the Job
-    # instead, which is also what re-runs the migration on each new build.
-    argocd.argoproj.io/sync-options: Replace=true
+    # every sync fail with "field is immutable". Replace=true alone maps to
+    # `kubectl replace`, which still cannot change spec.template (or the
+    # controller-injected spec.selector) and failed exactly that way on the
+    # first digest bump after this Job was introduced (#101 verification).
+    # Force=true turns it into `kubectl replace --force` — delete +
+    # recreate — which is also what re-runs the migration on each new build.
+    argocd.argoproj.io/sync-options: Force=true,Replace=true
 spec:
   # Retries absorb a not-yet-ready CNPG primary (fresh deploy: the Cluster
   # CR is healthy to ArgoCD before postgres actually accepts connections).
