@@ -25,8 +25,9 @@ image on every sync. Properties:
 - **Not a PreSync hook, on purpose:** hook phase takes precedence over sync
   waves in ArgoCD's ordering, so a PreSync hook would run before the CNPG
   cluster exists on a fresh deploy and deadlock the first sync. The Job is a
-  regular wave-105 resource with `sync-options: Replace=true` (Job pod
-  templates are immutable — the digest bump would otherwise fail every sync).
+  regular wave-105 resource with `sync-options: Force=true,Replace=true` (Job
+  pod templates are immutable; plain `Replace=true` is `kubectl replace`, which
+  still can't change `spec.template` — Force turns it into delete + recreate).
   `ttlSecondsAfterFinished` keeps the last run inspectable for a week; if the
   TTL cleaner deletes it, selfHeal recreates it and the no-op re-run succeeds.
 
