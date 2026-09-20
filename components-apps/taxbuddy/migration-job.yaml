@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: taxbuddy-db-migrate
+  namespace: taxbuddy
+  annotations:
+    # Regular sync-phase resource at wave 105 — deliberately NOT a PreSync
+    # hook: hook phase takes precedence over sync waves in ArgoCD's ordering
+    # (phase → wave → kind → name), so a PreSync hook would run before the
+    # CNPG cluster (wave 100) and the db-connection secret (wave 30) are
+    # even applied on a fresh deploy and deadlock the first sync. As a
+    # wave-105 resource it runs after them and still strictly before the
+    # taxbuddy-app Application CR (wave 111): ArgoCD waits for each wave to
+    # be healthy before proceeding, and a Job is only healthy once complete
+    # — so a failed migration fails the sync, the new app spec is never
+    # applied, and the rollout is blocked loudly (HARD-T01).
+    argocd.argoproj.io/sync-wave: "105"
+    # Job pod templates are immutable — a bumped image digest would make
+    # every sync fail with "field is immutable". Replace recreates the Job
+    # instead, which is also what re-runs the migration on each new build.
+    argocd.argoproj.io/sync-options: Replace=true
+spec:
+  # Retries absorb a not-yet-ready CNPG primary (fresh deploy: the Cluster
+  # CR is healthy to ArgoCD before postgres actually accepts connections).
+  # A real migration error exhausts them quickly and fails the sync.
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  # Keep finished runs inspectable for a week; after TTL expiry selfHeal
+  # recreates the Job, which re-runs `upgrade head` as a no-op at head.
+  ttlSecondsAfterFinished: 604800
+  template:
+    spec:
+      serviceAccountName: taxbuddy-db-migrate
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: taxbuddy-ghcr-pull-secret
+      containers:
+        - name: migrate
+          # Same image + digest as the ingestion-api controller in
+          # taxbuddy-app.yaml — taxbuddy's release.yml bumps both in the
+          # same PR, so the migrations applied here always come from the
+          # code being rolled out. Requires an image built from a taxbuddy
+          # commit containing `python -m tax_core.migrations` (#107).
+          image: "ghcr.io/pixeljonas/taxbuddy/ingestion_api@sha256:4b65a937162ed302e9343125e1e2a8a8ad9a89a365e6fa81d72082765e697852"
+          command: ["python", "-m", "tax_core.migrations", "upgrade", "head"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: taxbuddy-db-connection
+                  key: uri
