@@ -203,6 +203,12 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: PAPERLESS_TOKEN
+                  # P4-T01 [STEUERPAKET] kanban delivery (taxbuddy #67):
+                  # base URL used to render the pack Markdown/PDF/ZIP
+                  # export links in the kanban task. The owner clicks these
+                  # from outside the cluster, so it's the edge-terminated
+                  # route, not the in-cluster service.
+                  KNOWLEDGE_SERVICE_URL: https://taxbuddy-knowledge.apps.altus.janz.digital
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
                   # taxbuddy P3-T04 (weekly digest): optional cloud-rendered
@@ -374,6 +380,64 @@ spec:
                     cpu: 500m
                     memory: 512Mi
 
+          # OPS-T01 (taxbuddy #118): knowledge-service HTTP API. Serves
+          # GET /knowledge/items (the bmf-watcher's proposed candidates,
+          # P3-T02) and the per-Anlage pack endpoints (JSON overview,
+          # Belegverzeichnis MD/PDF, Paperless ZIP bundle) from P4-T01.
+          # Same image as the bmf-watcher CronJob — its default CMD is
+          # this HTTP service. release.yml's digest regex replaces ALL
+          # `repository:` + `digest:` occurrences of the knowledge_service
+          # image in this file, so both blocks stay on the same digest
+          # without a #100-style regex extension.
+          knowledge-service:
+            replicas: 1
+            containers:
+              knowledge-service:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
+                  digest: "sha256:54cbd558de393c7447df3522657a2d107c060058d3059a721f1670298c957caa"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  # Only the pack ZIP bundle endpoint
+                  # (/packs/<jahr>/<anlage>/belege.zip) and the Beleg links
+                  # in the indexes call Paperless; generation itself runs
+                  # off the DB mirror.
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_TOKEN
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
           web-ui:
             replicas: 1
             containers:
@@ -507,6 +571,11 @@ spec:
             ports:
               http:
                 port: 8000
+          knowledge-service:
+            controller: knowledge-service
+            ports:
+              http:
+                port: 8000
           web-ui:
             controller: web-ui
             ports:
@@ -530,6 +599,21 @@ spec:
                   - path: /
                     service:
                       identifier: web-ui
+                      port: http
+          # Edge-terminated like web-ui: the pack export links the
+          # agent-runtime renders into [STEUERPAKET] kanban tasks
+          # (KNOWLEDGE_SERVICE_URL) must resolve from outside the cluster.
+          knowledge-service:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: taxbuddy-knowledge.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: knowledge-service
                       port: http
 
         persistence:
