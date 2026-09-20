@@ -271,11 +271,16 @@ spec:
                   # default peer against any other workspace
                   # (self_benchmark.evaluate.require_eval_workspace).
                   HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
+                  # Workspace-scoped key: in-cluster Honcho runs with
+                  # AUTH_USE_AUTH=true (JWTs are per-workspace), so the
+                  # doc-pipeline key (scoped to "taxbuddy") cannot touch
+                  # the taxbuddy-eval workspace. Separate Doppler key
+                  # TAXBUDDY_EVAL_HONCHO_API_KEY scoped to taxbuddy-eval.
                   HONCHO_API_KEY:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-credentials
-                        key: HONCHO_API_KEY
+                        key: HONCHO_EVAL_API_KEY
                   HONCHO_WORKSPACE: taxbuddy-eval
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
