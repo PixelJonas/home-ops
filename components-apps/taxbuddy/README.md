@@ -2,7 +2,8 @@
 
 German tax-assistant platform (repo: `PixelJonas/taxbuddy`). ArgoCD Application
 `taxbuddy-app` (bjw-s app-template) with controllers: `ingestion-api`,
-`doc-pipeline`, `agent-runtime`, `valkey`, and the `sync-worker` CronJob.
+`doc-pipeline`, `agent-runtime`, `web-ui`, `valkey`, and the `sync-worker`,
+`self-benchmark`, and `bmf-watcher` CronJobs.
 
 ## Database migrations (HARD-T01)
 
@@ -119,6 +120,28 @@ oc create job --from=cronjob/taxbuddy-app-sync-worker \
 
 Re-runs are idempotent (upsert keyed on `actual_id`); `import_runs` records
 `imported_count` vs `duplicate_count`.
+
+## bmf-watcher (BMF-Schreiben → proposed knowledge candidates, P3-T02)
+
+CronJob `taxbuddy-app-bmf-watcher` at 06:23 and 18:23 Europe/Berlin from the
+`knowledge_service` image (digest placeholder until taxbuddy's `release.yml`
+pins it on the first main build containing the watcher). Per run: fetch the
+BMF "Steuern" RSS topic feed, keep only BMF-Schreiben (`/BMF_Schreiben/` URL
+prefix), diff against `tax.knowledge_items.source_url`, classify relevance
+via the `classification` LLM role, and write relevant Schreiben as knowledge
+candidates with `status='proposed'` — never auto-published (owner-confirm
+gate per taxbuddy #56). One `[WISSEN]` kanban task summarizes each run that
+found new candidates (kanban-only delivery per taxbuddy #59, same
+`oc exec` pods/exec RBAC as agent-runtime). No changes → quiet; failure →
+non-zero exit, visible in the CronJob history. Re-runs are idempotent
+(source-URL diff + `ON CONFLICT DO NOTHING`).
+
+### Manual re-trigger
+
+```bash
+oc create job --from=cronjob/taxbuddy-app-bmf-watcher \
+  bmf-watcher-manual-$(date +%s) -n taxbuddy
+```
 
 ## Secrets (Doppler `homelab`/`home` via ESO)
 
