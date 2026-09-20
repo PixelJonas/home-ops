@@ -2,8 +2,8 @@
 
 German tax-assistant platform (repo: `PixelJonas/taxbuddy`). ArgoCD Application
 `taxbuddy-app` (bjw-s app-template) with controllers: `ingestion-api`,
-`doc-pipeline`, `agent-runtime`, `web-ui`, `valkey`, and the `sync-worker`,
-`self-benchmark`, and `bmf-watcher` CronJobs.
+`doc-pipeline`, `agent-runtime`, `knowledge-service`, `web-ui`, `valkey`, and
+the `sync-worker`, `self-benchmark`, and `bmf-watcher` CronJobs.
 
 ## Database migrations (HARD-T01)
 
@@ -142,6 +142,33 @@ non-zero exit, visible in the CronJob history. Re-runs are idempotent
 oc create job --from=cronjob/taxbuddy-app-bmf-watcher \
   bmf-watcher-manual-$(date +%s) -n taxbuddy
 ```
+
+## knowledge-service HTTP API (OPS-T01 / taxbuddy #118)
+
+Deployment `taxbuddy-app-knowledge-service` from the same `knowledge_service`
+image as the bmf-watcher CronJob (the image's default CMD is the HTTP
+service). Serves:
+
+- `GET /knowledge/items?steuerjahr=<jahr>[&topic=…][&status=…]` — knowledge
+  items; `status=proposed` surfaces the bmf-watcher's owner-pending BMF
+  candidates (P3-T02), `status=trusted` is the consumer filter.
+- `GET /packs/<steuerjahr>` plus per-Anlage
+  `belegverzeichnis.md` / `belegverzeichnis.pdf` / `belege.zip` — the P4-T01
+  per-Anlage pack exports. Only the ZIP bundle (and the Beleg links in the
+  indexes) call Paperless (`PAPERLESS_URL`/`PAPERLESS_TOKEN` from the
+  `taxbuddy-credentials` ESO secret); pack generation itself runs off the DB
+  mirror.
+
+Edge-terminated route `taxbuddy-knowledge.apps.altus.janz.digital` (same
+pattern as web-ui). agent-runtime gets it as `KNOWLEDGE_SERVICE_URL` so the
+P4-T01 `[STEUERPAKET]` kanban task can render owner-clickable Markdown/PDF/ZIP
+export links — the URL must resolve from outside the cluster, hence the route
+rather than the in-cluster service name.
+
+Digest auto-bump: taxbuddy's `release.yml` regex replaces **all**
+`repository:` + `digest:` occurrences of the `knowledge_service` image in
+`taxbuddy-app.yaml`, so this controller and the bmf-watcher CronJob move to
+each new digest together — no separate regex/manifest wiring was needed.
 
 ## Secrets (Doppler `homelab`/`home` via ESO)
 
