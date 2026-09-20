@@ -10,6 +10,8 @@ resources:
   - external-taxbuddy-db.yaml
   - external-taxbuddy-db-connection.yaml
   - external-taxbuddy-ghcr-pull.yaml
+  - migration-sa.yaml
+  - migration-job.yaml
   - postgresql-database.yaml
   - taxbuddy-app.yaml
   # networkpolicy.yaml intentionally NOT included, matching tax-agent's own
