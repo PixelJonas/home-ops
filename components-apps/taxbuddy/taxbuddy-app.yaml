@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:a3792986b4b7986f217b4c305c1978be3535a9c6d7ea1e94474634be27385c73"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:4b65a937162ed302e9343125e1e2a8a8ad9a89a365e6fa81d72082765e697852"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -182,7 +182,7 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:7d763a443c8bb03ab1b0eaa612d4a82b6394deee1379aa4aa7ba182675a61c8b"
+                  digest: "sha256:9c55f5327a54ceaca8f03188a764bbcafda0c0d0d538da492e0930a698535fac"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -289,7 +289,7 @@ spec:
               web-ui:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/web_ui
-                  digest: "sha256:571c61128ac177105c5f6948883837a2da7ca566fb4972378c0a353e112f9d1b"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  digest: "sha256:b91f33e0828eeabf43ec90d7aa71da30d8d560572cef6096185d43fa7752f807"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -376,7 +376,7 @@ spec:
               sync-worker:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/sync_worker
-                  digest: "sha256:89d622087dca6daca1dc6b836df42f475fd45902215825027b5770719f6e2ab9"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
+                  digest: "sha256:8191e2a5258431dfc6ffba18b654080400fa042ace984f84a29a09b8c8c6d35a"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
