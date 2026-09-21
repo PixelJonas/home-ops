@@ -541,8 +541,10 @@ spec:
                         name: taxbuddy-db-connection
                         key: uri
                   # In-cluster service of the actual-budget app (cross-
-                  # namespace; no route round-trip).
-                  ACTUAL_SERVER_URL: http://actual-budget-app-actual.actual-budget.svc:5006
+                  # namespace; no route round-trip). Service name is
+                  # `actual-budget-app` (bjw-s app-template release name) —
+                  # verified via in-cluster DNS resolution.
+                  ACTUAL_SERVER_URL: http://actual-budget-app.actual-budget.svc:5006
                   ACTUAL_PASSWORD_FILE: /secrets/actual-sync/password
                   # Budget sync ID — from the ESO-managed secret; sourced
                   # from Doppler key ACTUAL_BUDGET_SYNC_ID (see
