@@ -103,9 +103,11 @@ The CronJob is deliberately gated on the Actual budget existing:
 1. Finish the Actual bootstrap in `components-apps/actual-budget/README.md`
    (password, budget file, enableBanking flag, bank linking).
 2. Copy the budget's Sync ID (Actual UI: Settings → Advanced) into Doppler
-   `homelab`/`home` as **`TAXBUDDY_ACTUAL_SYNC_ID`**. Until this key exists,
+   `homelab`/`home` as **`ACTUAL_BUDGET_SYNC_ID`** (recorded there since the
+   #87 bank linking on 2026-09-20). Until this key exists,
    ExternalSecret `external-taxbuddy-actual-sync` stays in error state and the
-   CronJob pod cannot start — that's intentional.
+   CronJob pod cannot start — that's intentional. (`TAXBUDDY_ACTUAL_SYNC_ID`
+   is an older, stale key from the pre-#87 test budget — not used.)
 3. Insert one `tax.bank_connections` row per linked bank with
    `channel='enable_banking'`, `status='active'`, and
    `meta->>'actual_account_id'` set to the Actual account UUID (Actual UI:
@@ -180,4 +182,4 @@ each new digest together — no separate regex/manifest wiring was needed.
 | `TAXBUDDY_DOCLING_SERVE_API_KEY` | docling-serve |
 | `TAXBUDDY_DOCPIPELINE_HONCHO_API_KEY` | Honcho memory |
 | `ACTUAL_BUDGET_PASSWORD` | Actual server password, file-mounted for the sync worker |
-| `TAXBUDDY_ACTUAL_SYNC_ID` | Actual budget sync ID (manual, post budget creation) |
+| `ACTUAL_BUDGET_SYNC_ID` | Actual budget sync ID (matches the live budget; `TAXBUDDY_ACTUAL_SYNC_ID` is stale) |
