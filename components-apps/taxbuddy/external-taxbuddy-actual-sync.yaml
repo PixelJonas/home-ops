@@ -19,13 +19,11 @@ spec:
     - secretKey: ACTUAL_BUDGET_PASSWORD
       remoteRef:
         key: ACTUAL_BUDGET_PASSWORD
-    # Budget sync ID. MANUAL STEP: this Doppler key does not exist until
-    # the owner has done the Actual first-login + budget-creation steps
-    # (see components-apps/actual-budget/README.md "Post-deploy bootstrap")
-    # and then set TAXBUDDY_ACTUAL_SYNC_ID in Doppler homelab/home to the
-    # budget's Sync ID (Actual UI: Settings -> Advanced). Until then this
-    # ExternalSecret stays in error state and the sync-worker CronJob pod
-    # cannot start — that gating is deliberate.
+    # Budget sync ID. Points at ACTUAL_BUDGET_SYNC_ID (recorded during the
+    # #87 bank linking on 2026-09-20 — matches the budget the server
+    # actually holds). The older TAXBUDDY_ACTUAL_SYNC_ID key predates that
+    # budget and is stale; do not switch back without re-verifying against
+    # the server's user-files group id.
     - secretKey: ACTUAL_SYNC_ID
       remoteRef:
-        key: TAXBUDDY_ACTUAL_SYNC_ID
+        key: ACTUAL_BUDGET_SYNC_ID

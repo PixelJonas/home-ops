@@ -544,9 +544,8 @@ spec:
                   # namespace; no route round-trip).
                   ACTUAL_SERVER_URL: http://actual-budget-app-actual.actual-budget.svc:5006
                   ACTUAL_PASSWORD_FILE: /secrets/actual-sync/password
-                  # Budget sync ID — from the ESO-managed secret; only
-                  # resolves after the owner sets Doppler key
-                  # TAXBUDDY_ACTUAL_SYNC_ID (post budget creation, see
+                  # Budget sync ID — from the ESO-managed secret; sourced
+                  # from Doppler key ACTUAL_BUDGET_SYNC_ID (see
                   # external-taxbuddy-actual-sync.yaml).
                   ACTUAL_SYNC_ID:
                     valueFrom:
