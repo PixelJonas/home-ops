@@ -51,12 +51,43 @@ spec:
                   # same way on Altus (a pod OOM-kill just restarts the pod,
                   # node has 92Gi allocatable), so this is set generously
                   # for backfill headroom rather than defensively.
+                  #
+                  # Raised 4Gi -> 8Gi 2026-09-22: confirmed OOMKilled
+                  # (exit code 137) during the InfluxDB 1.x->3.x backfill
+                  # (homeassistant repo) -- WAL replay on restart had grown
+                  # to 900+ files from the backfill's own sustained write
+                  # volume, and replaying that backlog on every crash-loop
+                  # restart exceeded 4Gi before the pod could become ready,
+                  # a self-reinforcing OOM/restart/replay-again cycle.
                   limits:
                     cpu: "2"
-                    memory: 4Gi
+                    memory: 8Gi
                 probes:
                   # No documented HTTP health endpoint confirmed for
                   # InfluxDB 3 Core -- plain TCP check on the serve port.
+                  #
+                  # Added startupProbe 2026-09-22: there was previously no
+                  # startup probe at all, so liveness (initialDelay 15s,
+                  # period 20s, default failureThreshold 3 = ~75s budget)
+                  # applied from boot -- confirmed via `oc get events`
+                  # ("failed liveness probe, will be restarted") that this
+                  # killed the pod mid-WAL-replay well before the ~900-file
+                  # backlog (see memory limit note above) could finish
+                  # replaying, compounding the OOM crash-loop rather than
+                  # just being caused by it. A generous ~10 minute startup
+                  # budget defers liveness/readiness until first success,
+                  # long enough for a large WAL backlog to finish replaying
+                  # even under memory/CPU pressure, while still eventually
+                  # detecting a genuinely hung container.
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8181
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                      failureThreshold: 60
                   liveness:
                     enabled: true
                     custom: true
