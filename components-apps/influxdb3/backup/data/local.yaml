@@ -1,0 +1,12 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: influxdb3-app-data
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-data
+- op: add
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: lvms-vg1
