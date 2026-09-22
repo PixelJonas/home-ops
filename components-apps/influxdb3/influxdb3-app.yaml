@@ -1,0 +1,125 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: influxdb3-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: influxdb3
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.1.0
+    helm:
+      values: |-
+        controllers:
+          influxdb3:
+            containers:
+              influxdb3:
+                image:
+                  repository: docker.io/library/influxdb
+                  tag: 3.11.4-core
+                  pullPolicy: IfNotPresent
+                # Fresh instance moving from the Synology NAS (2026-09-22,
+                # after InfluxDB 3 Core's memory growth OOM-crash-looped the
+                # whole NAS during the HA 1.x->3.x backfill). Data is NOT
+                # migrated -- the backfill script is simply re-run against
+                # this instance once it's up (see homeassistant repo,
+                # scripts/migrate_influxdb_1x_to_3x.py). node-id changed
+                # from synology-nas to altus to reflect the new home; admin
+                # token and ha_metrics_* databases are recreated out-of-band
+                # after first boot, same one-shot pattern used originally.
+                args:
+                  - serve
+                  - --node-id=altus
+                  - --object-store=file
+                  - --data-dir=/var/lib/influxdb3/data
+                  - --plugin-dir=/var/lib/influxdb3/plugins
+                  - --query-file-limit=10000
+                env:
+                  TZ: Europe/Berlin
+                resources:
+                  requests:
+                    cpu: 250m
+                    memory: 512Mi
+                  # The NAS instance was hard-capped at 2Gi (mem_limit) as a
+                  # defensive measure after an OOM there took the whole box
+                  # down via swap-thrashing -- that risk doesn't apply the
+                  # same way on Altus (a pod OOM-kill just restarts the pod,
+                  # node has 92Gi allocatable), so this is set generously
+                  # for backfill headroom rather than defensively.
+                  limits:
+                    cpu: "2"
+                    memory: 4Gi
+                probes:
+                  # No documented HTTP health endpoint confirmed for
+                  # InfluxDB 3 Core -- plain TCP check on the serve port.
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8181
+                      initialDelaySeconds: 15
+                      periodSeconds: 20
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8181
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+
+        service:
+          influxdb3:
+            controller: influxdb3
+            ports:
+              http:
+                port: 8181
+
+        # Only Home Assistant (an external host, not another in-cluster
+        # app) talks to this -- needs a real Route, unlike an in-cluster-
+        # only backend such as docling-serve. Auth stays on (admin token
+        # required for every read/write), same trust boundary as the old
+        # LAN-only NAS exposure.
+        ingress:
+          influxdb3:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: influxdb3.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: influxdb3
+                      port: http
+
+        persistence:
+          data:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 20Gi
+            globalMounts:
+              - path: /var/lib/influxdb3/data
+          plugins:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 1Gi
+            globalMounts:
+              - path: /var/lib/influxdb3/plugins
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
