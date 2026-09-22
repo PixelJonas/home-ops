@@ -152,7 +152,15 @@ spec:
                           - doc_pipeline.healthcheck
                       initialDelaySeconds: 15
                       periodSeconds: 15
-                      timeoutSeconds: 5
+                      # taxbuddy#129: process_document jobs now legitimately
+                      # run up to 15min (large docling OCR). Under node memory
+                      # pressure the exec probe (cold python start + valkey
+                      # ping) timed out 3x and kubelet SIGKILLed the worker
+                      # mid-job twice in one afternoon — an abandoned-job
+                      # limbo RQ retries don't cover. A batch worker that is
+                      # slow to answer a ping for a minute is not dead.
+                      timeoutSeconds: 10
+                      failureThreshold: 6
                   readiness:
                     enabled: true
                     custom: true
@@ -164,7 +172,7 @@ spec:
                           - doc_pipeline.healthcheck
                       initialDelaySeconds: 10
                       periodSeconds: 10
-                      timeoutSeconds: 5
+                      timeoutSeconds: 10
 
           agent-runtime:
             replicas: 1
