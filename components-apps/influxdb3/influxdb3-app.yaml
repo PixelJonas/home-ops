@@ -73,9 +73,28 @@ spec:
                   # is temporary, so generous headroom now avoids a third
                   # round of this rather than tuning to the minimum that
                   # happens to work.
+                  #
+                  # Raised 16Gi -> 20Gi, cpu 2 -> 3 2026-09-23: OOMKilled
+                  # twice more at 16Gi with a sharply shrinking interval
+                  # between crashes (~14h, then ~9h, then only ~2.4h),
+                  # and the second of those two crashed again within its
+                  # own ~10min startup window before finishing WAL
+                  # replay -- a genuine crash loop with live HA writes
+                  # fully down, not the periodic self-resolving pressure
+                  # seen at 14:53 and 18:24. Deliberately modest bump
+                  # (not another doubling) because the Altus node itself
+                  # is running near its own memory ceiling (83-92% across
+                  # all workloads during this incident, shared with
+                  # honcho-vllm at 12Gi and docling-serve at 8Gi) --
+                  # ~17Gi was free on the node at the time, comfortably
+                  # covering this increase without pushing the node into
+                  # pressure. CPU bumped alongside since node CPU
+                  # headroom is ample (6+ of 15.5 cores free) and a
+                  # faster WAL replay reduces the window during which
+                  # replay-driven memory pressure can compound.
                   limits:
-                    cpu: "2"
-                    memory: 16Gi
+                    cpu: "3"
+                    memory: 20Gi
                 probes:
                   # No documented HTTP health endpoint confirmed for
                   # InfluxDB 3 Core -- plain TCP check on the serve port.
