@@ -150,7 +150,17 @@ spec:
             enabled: true
             accessMode: ReadWriteOnce
             storageClass: lvms-vg1
-            size: 20Gi
+            # Raised 20Gi -> 100Gi 2026-09-23: PVC hit 100% full ("No space
+            # left on device" on every WAL/parquet write), blocking both
+            # live HA writes and the backfill for 25+ min with no self-
+            # recovery possible (unlike the transient DNS/OOM issues seen
+            # earlier). Root cause: ha_metrics_categorical/hourly have
+            # infinite retention and InfluxDB 3 Core has no compactor (see
+            # homeassistant repo ADR-0001), so the backfill's historical
+            # write volume accumulates without bound. lvms-vg1 had 369Gi
+            # free on the node at the time; sized generously since this
+            # will keep growing for the life of the backfill and beyond.
+            size: 100Gi
             globalMounts:
               - path: /var/lib/influxdb3/data
           plugins:
