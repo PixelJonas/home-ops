@@ -31,7 +31,7 @@ spec:
               mygarage:
                 image:
                   repository: ghcr.io/pixeljonas/mygarage
-                  tag: sha-f96ef62
+                  tag: sha-a064171
                   pullPolicy: IfNotPresent
                 securityContext:
                   allowPrivilegeEscalation: false
