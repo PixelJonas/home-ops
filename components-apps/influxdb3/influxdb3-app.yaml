@@ -122,6 +122,15 @@ spec:
                   # long enough for a large WAL backlog to finish replaying
                   # even under memory/CPU pressure, while still eventually
                   # detecting a genuinely hung container.
+                  #
+                  # Raised failureThreshold 60 -> 360 (~1h) 2026-09-24:
+                  # with the memory limit at 32Gi the replay no longer
+                  # OOMs, but persisting snapshot 115 writes one parquet
+                  # file per 10-min chunk (~2M files on disk) and takes
+                  # far longer than 10 minutes; the startup probe killed
+                  # the pod mid-persist ("failed startup probe, will be
+                  # restarted"), throwing the work away. Lower again once
+                  # the WAL is checkpointed and startup is fast.
                   startup:
                     enabled: true
                     custom: true
@@ -130,7 +139,7 @@ spec:
                         port: 8181
                       initialDelaySeconds: 10
                       periodSeconds: 10
-                      failureThreshold: 60
+                      failureThreshold: 360
                   liveness:
                     enabled: true
                     custom: true
