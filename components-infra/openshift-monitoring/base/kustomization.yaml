@@ -9,3 +9,4 @@ resources:
   - token-secret.yaml
   - pending-csr-rule.yaml
   - watchdog-absence-rule.yaml
+  - node-temperature-rule.yaml
