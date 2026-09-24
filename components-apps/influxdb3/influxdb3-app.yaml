@@ -92,9 +92,19 @@ spec:
                   # headroom is ample (6+ of 15.5 cores free) and a
                   # faster WAL replay reduces the window during which
                   # replay-driven memory pressure can compound.
+                  #
+                  # TEMPORARY: raised 20Gi -> 32Gi 2026-09-24. 20Gi was not
+                  # enough: every restart replays 1203 WAL files (with
+                  # ~2M parquet files on disk) and OOMs at the same
+                  # point persisting snapshot 115, never converging (62
+                  # restarts). Node had ~37Gi free (54Gi of 92Gi used)
+                  # after the cluster restart; influxdb3 requests only
+                  # 512Mi so it is the first OOM victim under node
+                  # pressure. Scale back down once the WAL is
+                  # checkpointed and the backfill has finished.
                   limits:
                     cpu: "3"
-                    memory: 20Gi
+                    memory: 32Gi
                 probes:
                   # No documented HTTP health endpoint confirmed for
                   # InfluxDB 3 Core -- plain TCP check on the serve port.
