@@ -105,7 +105,7 @@ spec:
               gotenberg:
                 image:
                   repository: docker.io/gotenberg/gotenberg
-                  tag: 8.36
+                  tag: 8.37
                 env:
                   - name: CHROMIUM_DISABLE_ROUTES
                     value: "1"
