@@ -10,3 +10,13 @@
 - op: add
   path: /spec/restic/volumeSnapshotClassName
   value: lvms-vg1
+- op: add
+  path: /spec/restic/cacheCapacity
+  value: 10Gi
+- op: add
+  path: /spec/restic/moverSecurityContext
+  value:
+    runAsUser: 1001140000
+    runAsGroup: 1001140000
+    fsGroup: 1001140000
+    fsGroupChangePolicy: OnRootMismatch
