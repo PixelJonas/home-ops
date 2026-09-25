@@ -1,0 +1,30 @@
+# Deliberately a SEPARATE ClusterRole/ServiceAccount from hermes-infra-read,
+# hermes-upgrade-agent and hermes-argocd-agent — same rationale as those:
+# a credential that can write anything is a fundamentally different risk
+# tier from the read-only investigate credential every other MCP tool call
+# relies on day-to-day, and each distinct write capability gets its own
+# minimal-blast-radius credential rather than widening an existing one.
+#
+# Scope is intentionally as narrow as Kubernetes RBAC can express: get/list/
+# watch/patch on volsync.backube ReplicationSources ONLY, cluster-wide
+# (matches hermes-argocd-agent's cluster-scoped shape). No delete, no
+# create, no other resource — in particular no PVCs/Pods/Jobs, so this
+# credential cannot touch the actual backup data or mover pods, only the
+# ReplicationSource CR that controls them.
+#
+# `patch` here structurally permits more than the unlock field — it also
+# allows rewriting `spec.trigger`, `spec.restic.retain`, etc. RBAC cannot
+# narrow a patch to one specific field. The restriction to *only*
+# `spec.restic.unlock` is enforced in the MCP server implementation
+# (mcp-servers/infra-volsync/server.py in infra-ops), not by this
+# ClusterRole — same two-layer model as hermes-argocd-agent's
+# refresh-only restriction.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hermes-volsync-unlock
+rules:
+  - apiGroups: ["volsync.backube"]
+    resources:
+      - replicationsources
+    verbs: ["get", "list", "watch", "patch"]

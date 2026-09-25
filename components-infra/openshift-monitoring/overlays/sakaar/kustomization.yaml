@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Sakaar-only subset of the openshift-monitoring base: just the pieces
+# needed for cross-cluster Thanos read access (Grafana's ntfy-alerting
+# bridge) and fleet-wide VolSync backup coverage. Deliberately excludes
+# configmap-cluster-monitoring.yaml/configmap-user-workload-monitoring.yaml
+# (openshift-user-workload-monitoring is already active on sakaar
+# out-of-band — applying Altus's storage-sizing tweaks here isn't wanted)
+# and node-temperature-rule.yaml/pending-csr-rule.yaml (Altus-hardware- and
+# bare-metal-specific, not applicable to sakaar's Hetzner VPS).
+#
+# Files below are COPIES of the matching ../../base/*.yaml, not references
+# — kustomize's default load restrictor blocks a resource path escaping an
+# overlay's own directory tree (see .claude/rules/kubernetes-argocd.md
+# equivalent gotcha in infra-ops for the sibling case). Keep both copies in
+# sync by hand if either changes.
+resources:
+  - service-account.yaml
+  - token-secret.yaml
+  - monitoring-role-binding.yaml
+  - volsync-backup-rule.yaml

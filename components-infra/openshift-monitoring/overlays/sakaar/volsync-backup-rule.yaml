@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: volsync-backup
+  namespace: openshift-monitoring
+spec:
+  groups:
+    - name: volsync-backup
+      rules:
+        - alert: VolSyncBackupMissedInterval
+          expr: increase(volsync_missed_intervals_total[1d]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VolSync backup {{ $labels.obj_name }} missed its scheduled window"
+            description: "ReplicationSource {{ $labels.obj_name }} in namespace {{ $labels.obj_namespace }} did not complete a backup sync before its next scheduled trigger — check for a stuck mover Job (e.g. a stale restic lock, see .claude/rules/kubernetes-argocd.md)."
+        - alert: VolSyncBackupOutOfSync
+          expr: volsync_volume_out_of_sync == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VolSync volume {{ $labels.obj_name }} is out of sync"
+            description: "ReplicationSource {{ $labels.obj_name }} in namespace {{ $labels.obj_namespace }} has been out of sync for over 30 minutes."
