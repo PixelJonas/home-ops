@@ -148,6 +148,12 @@ applications:
     source:
       path: components-infra/hermes-argocd-agent/base
 
+  hermes-volsync-agent:
+    annotations:
+      argocd.argoproj.io/sync-wave: "11"
+    source:
+      path: components-infra/hermes-volsync-agent/base
+
   cloudflared:
     annotations:
       argocd.argoproj.io/sync-wave: "22"
