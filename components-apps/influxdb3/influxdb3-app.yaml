@@ -17,28 +17,41 @@ spec:
       values: |-
         controllers:
           influxdb3:
-            # RE-PAUSED again 2026-09-25 (attempt 3 of the resume): with
-            # --wal-files-per-snapshot=50 added on top of the 16Gi limit
-            # from attempt 2, it OOMed at 13m24s -- FASTER than attempt 2
-            # (18m53s) and close to attempt 1's 13m35s, despite forcing
-            # much smaller snapshot batches. This means the
-            # --wal-files-per-snapshot theory (see RESUME ATTEMPT 3
-            # history preserved in the resources-block comment trail
-            # below) was likely wrong, or at least not the dominant
-            # factor -- three attempts (8Gi/plain, 16Gi/plain,
-            # 16Gi+wal-files-per-snapshot=50) have now failed with no
-            # clear monotonic relationship between the changes made and
-            # survival time. Re-paused via git (same proven mechanism).
-            # Needs a step back from incremental flag-tuning: get an
-            # actual heap profile / memory breakdown of what's resident
-            # at OOM time (e.g. jemalloc/heaptrack if available in the
-            # image, or at minimum finish sizing the full 2.92M-file
-            # dbs/ tree that the last investigation didn't have time to
-            # complete) rather than guessing at another flag. See
+            # FRESH START 2026-09-25: three resume attempts against the
+            # existing data (8Gi, 16Gi, 16Gi+--wal-files-per-snapshot=50)
+            # all OOMed at the identical stuck point -- consolidating WAL
+            # files 90104-90973 into SnapshotSequenceNumber(138). Isolated
+            # debug testing (clone of the real PVC via VolumeSnapshot,
+            # separate from production) confirmed this reproduces
+            # identically even at 16Gi with a sudden >10x memory spike
+            # (not gradual), and confirmed the root cause: a WAL file's
+            # snapshot batch boundary is fixed AT WRITE TIME (per
+            # influxdb3_wal source), not computed at replay time -- so
+            # --wal-files-per-snapshot only affects future writes, never
+            # this already-poisoned historical batch. Upstream issue
+            # influxdata/influxdb#25991 confirms persist-time sort/dedupe
+            # memory scales with buffered row volume, and #26422 confirms
+            # InfluxData's own stance is that persist has no memory bound
+            # by design -- there's no flag that fixes an existing bad
+            # batch, only avoiding creating one in the first place.
+            # Decision (Jonas, 2026-09-25): wipe influxdb3-app-data and
+            # influxdb3-app-plugins PVCs entirely and start completely
+            # fresh with --wal-files-per-snapshot=50 already in place from
+            # the very first WAL file, so no batch will ever grow past 50
+            # files again. Data recovery plan (both from sources
+            # independent of this poisoned instance): (1) HA's own
+            # recorder DB backfills the live-write gap since the
+            # 2026-09-18 cutover (homeassistant repo,
+            # scripts/backfill_gap_from_recorder.py), (2) the still-intact
+            # 1.x addon (never decommissioned, Task 6 of the 2026-09-14
+            # migration plan) backfills full history via the throttled
+            # wrapper (homeassistant repo,
+            # scripts/run_migrate_influxdb_1x_to_3x_throttled.sh). See
             # docs/superpowers/plans/2026-09-25-influxdb3-safe-backfill-
             # restart.md (homeassistant repo) Task 3 report for full
-            # detail.
-            replicas: 0
+            # detail. A pre-wipe VolumeSnapshot
+            # (influxdb3-app-data-debug-snap) is kept as a safety net
+            # until this fresh approach is verified.
             containers:
               influxdb3:
                 image:
