@@ -17,30 +17,28 @@ spec:
       values: |-
         controllers:
           influxdb3:
-            # RE-PAUSED again 2026-09-25 (attempt 2 of the resume): at
-            # 16Gi it survived 5 minutes longer than the first attempt
-            # (18m vs 13m35s) and got much further -- logs show it
-            # finished the catalog/snapshot-loading step silently, then
-            # entered ACTIVE WAL REPLAY (wal_file_number sequence numbers
-            # past 91000, mid-snapshot at SnapshotSequenceNumber(138))
-            # before OOMing. This is a DIFFERENT proximate cause than the
-            # "one-time catalog load" theory the 16Gi bump was sized for
-            # (see RESUME ATTEMPT 2 history preserved in the resources-
-            # block comment trail below) -- it's much closer to the
-            # original incident's WAL-replay-depth mechanism, just
-            # discovered one layer deeper now that 16Gi got far enough to
-            # reach it. --wal-replay-concurrency-limit=4 alone isn't
-            # bounding this enough at 16Gi. Re-pausing via git (same
-            # proven mechanism) rather than reflexively bumping the limit
-            # again -- next investigation should focus on WAL backlog
-            # depth/size (sequence numbers observed past 91000) and
-            # whether replay concurrency needs lowering (not raising) or
-            # whether this genuinely needs closer to the 32Gi the
-            # original incident settled on before its own retune. See
+            # RESUME ATTEMPT 3, 2026-09-25: attempts 1 (8Gi) and 2 (16Gi)
+            # both OOMed with ZERO forward checkpointing progress -- a
+            # live PVC check after attempt 2 found wal/snapshots/
+            # checkpoint dirs unchanged from the pre-attempt-1 baseline.
+            # Root cause isn't WAL file size (confirmed tiny: 1202 files,
+            # 44.7MB total -- can't plausibly explain a 16Gi OOM) or
+            # catalog loading alone -- it's --wal-files-per-snapshot
+            # (default 600, not previously set) triggering a snapshot
+            # only after consolidating ~600-900 WAL periods' worth of
+            # buffered rows in memory at once; attempt 2 died consolidating
+            # exactly that range (WAL files 90104-90973, ~869 files) into
+            # SnapshotSequenceNumber(138). Neither
+            # --wal-replay-concurrency-limit (bounds concurrent file
+            # *loading* only, confirmed via upstream issue
+            # influxdata/influxdb#26715) nor --force-snapshot-mem-size
+            # (its mem-pressure check likely isn't active yet during
+            # replay) covers this. Setting --wal-files-per-snapshot=50
+            # below to force much smaller, more frequent snapshots instead
+            # of one large buffered batch. See
             # docs/superpowers/plans/2026-09-25-influxdb3-safe-backfill-
             # restart.md (homeassistant repo) Task 3 report for full
             # detail.
-            replicas: 0
             containers:
               influxdb3:
                 image:
@@ -84,6 +82,14 @@ spec:
                   - --checkpoint-interval=5m
                   - --wal-replay-concurrency-limit=4
                   - --force-snapshot-mem-size=40%
+                  # Added 2026-09-25 for RESUME ATTEMPT 3: verified via
+                  # `serve --help-all` on this exact image (default 600,
+                  # aliased --wal-snapshot-size). Attempt 2 OOMed
+                  # consolidating ~869 WAL files into one snapshot --
+                  # forcing snapshots every 50 files instead trades more
+                  # frequent, smaller flushes for a much smaller peak
+                  # buffered-row memory footprint per snapshot.
+                  - --wal-files-per-snapshot=50
                 env:
                   TZ: Europe/Berlin
                 resources:
