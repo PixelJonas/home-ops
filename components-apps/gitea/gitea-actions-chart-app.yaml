@@ -66,6 +66,13 @@ spec:
               - --mtu=1400
               - --storage-driver=vfs
               - --default-network-opt=bridge=com.docker.network.driver.mtu=1400
+              # Pod resolv.conf carries ndots:5 plus the cluster's search domains; a
+              # 2-dot name like dl-cdn.alpinelinux.org is therefore tried under each
+              # search domain first, and one of them (altus.janz.digital) answers with
+              # something musl treats as fatal, so `apk`/`wget` in build containers fail
+              # with "DNS: no address for host" (glibc/nslookup are unaffected). ndots:1
+              # makes real FQDNs resolve as-is first; in-cluster FQDNs are unaffected.
+              - --dns-opt=ndots:1
 
   project: cluster-apps
   syncPolicy:
