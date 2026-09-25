@@ -17,13 +17,26 @@ spec:
       values: |-
         controllers:
           influxdb3:
-            # Resumed 2026-09-25 after the retune above (server flags +
-            # 4Gi/8Gi sizing) and switching the backfill itself to the
-            # throttled wrapper (homeassistant repo,
-            # scripts/run_migrate_influxdb_1x_to_3x_throttled.sh) instead
-            # of one sustained run. See docs/superpowers/plans/
-            # 2026-09-25-influxdb3-safe-backfill-restart.md (homeassistant
-            # repo) for the full incident + fix writeup.
+            # RE-PAUSED 2026-09-25, ~15 min after the resume above: the
+            # idle pod (zero backfill/client traffic, startup probe never
+            # once succeeded) OOMKilled at 13m35s runtime while loading
+            # "113 additional_snapshots" logged just before it went silent
+            # -- this is a DIFFERENT failure mode than the original
+            # incident (which was driven by sustained backfill write
+            # volume): here idle snapshot/index loading alone exceeded the
+            # 8Gi limit with no writes in flight. Confirmed via
+            # `oc describe pod` (Reason: OOMKilled) and `oc adm top pod`
+            # (flat ~1Gi usage for 13 straight minutes right up to the
+            # kill, i.e. not a slow leak either -- something in per-
+            # snapshot loading spiked memory sharply right at the end).
+            # Re-pausing via git (this same proven mechanism) to stop the
+            # resulting crash-loop (repeating every ~13-15 min) while this
+            # gets re-examined -- do not just raise the limit again without
+            # understanding why idle loading needs more than 8Gi; see
+            # docs/superpowers/plans/2026-09-25-influxdb3-safe-backfill-
+            # restart.md (homeassistant repo) Task 3 report for full
+            # detail and open questions.
+            replicas: 0
             containers:
               influxdb3:
                 image:
