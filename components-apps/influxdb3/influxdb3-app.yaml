@@ -17,26 +17,27 @@ spec:
       values: |-
         controllers:
           influxdb3:
-            # RE-PAUSED 2026-09-25, ~15 min after the resume above: the
-            # idle pod (zero backfill/client traffic, startup probe never
-            # once succeeded) OOMKilled at 13m35s runtime while loading
-            # "113 additional_snapshots" logged just before it went silent
-            # -- this is a DIFFERENT failure mode than the original
-            # incident (which was driven by sustained backfill write
-            # volume): here idle snapshot/index loading alone exceeded the
-            # 8Gi limit with no writes in flight. Confirmed via
-            # `oc describe pod` (Reason: OOMKilled) and `oc adm top pod`
-            # (flat ~1Gi usage for 13 straight minutes right up to the
-            # kill, i.e. not a slow leak either -- something in per-
-            # snapshot loading spiked memory sharply right at the end).
-            # Re-pausing via git (this same proven mechanism) to stop the
-            # resulting crash-loop (repeating every ~13-15 min) while this
-            # gets re-examined -- do not just raise the limit again without
-            # understanding why idle loading needs more than 8Gi; see
+            # RESUME ATTEMPT 2, 2026-09-25: root-caused the idle OOM from
+            # the first resume (see RE-PAUSED history preserved below via
+            # the resources-block comment trail). PVC has 2.92M files but
+            # only 38GB actual data (no-compactor tradeoff, ADR-0001) --
+            # startup loads `additional_snapshots=113` (gen1 catalog
+            # snapshots within the default 24h --gen1-lookback-duration
+            # window) and builds an in-memory catalog whose cost scales
+            # with file count, not data volume or write traffic. Confirmed
+            # via influxdata/influxdb#26715/#26498 (upstream, open, no
+            # fix yet) that --wal-replay-concurrency-limit/
+            # --force-snapshot-mem-size don't cover this startup-only
+            # step, and the snapshot count has a documented floor of 100
+            # regardless of --gen1-lookback-duration, so shrinking that
+            # flag wouldn't meaningfully help. No better lever exists in
+            # Core today (Enterprise has --compacted-data-skip-file-index,
+            # Core doesn't) -- so this is a one-time, bounded, now-
+            # understood memory cost, not a reactive guess: give it enough
+            # headroom to get through it once. See
             # docs/superpowers/plans/2026-09-25-influxdb3-safe-backfill-
             # restart.md (homeassistant repo) Task 3 report for full
-            # detail and open questions.
-            replicas: 0
+            # detail.
             containers:
               influxdb3:
                 image:
@@ -71,7 +72,13 @@ spec:
                   # --force-snapshot-mem-size forces a proactive snapshot
                   # well before the container's memory limit, instead of
                   # only the default ~50%-of-limit threshold.
-                  - --checkpoint-interval=15m
+                  # checkpoint-interval lowered 15m -> 5m 2026-09-25:
+                  # the idle-OOM resume attempt died at 13m35s, just
+                  # under the old 15m interval, so it never lived long
+                  # enough to reach a checkpoint even once. 5m gives it
+                  # a real chance to checkpoint before the next restart
+                  # if it survives the startup catalog-load cost below.
+                  - --checkpoint-interval=5m
                   - --wal-replay-concurrency-limit=4
                   - --force-snapshot-mem-size=40%
                 env:
@@ -152,9 +159,21 @@ spec:
                   # raise only after Task 3's watched first run shows a
                   # clear need, not reactively under fire like the five
                   # prior bumps (4Gi->8Gi->16Gi->20Gi->32Gi) all were.
+                  #
+                  # 8Gi -> 16Gi 2026-09-25, this time WITH a clear need:
+                  # the first resume attempt at 8Gi OOMKilled at idle
+                  # (zero write traffic) after 13m35s while building the
+                  # in-memory catalog for 113 gen1 snapshots -- root-
+                  # caused as a one-time startup cost that scales with
+                  # this backlog's 2.92M-file count (see RESUME ATTEMPT 2
+                  # comment above), not with write volume, so this bump
+                  # doesn't reopen the door to the original backfill-
+                  # write-pressure spiral. A measured step, not a
+                  # reflexive jump back to 32Gi -- node has ~22Gi real
+                  # free, comfortably covering this.
                   limits:
                     cpu: "2"
-                    memory: 8Gi
+                    memory: 16Gi
                 probes:
                   # No documented HTTP health endpoint confirmed for
                   # InfluxDB 3 Core -- plain TCP check on the serve port.
