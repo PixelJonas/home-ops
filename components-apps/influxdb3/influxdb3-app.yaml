@@ -17,6 +17,22 @@ spec:
       values: |-
         controllers:
           influxdb3:
+            # TEMPORARY: paused 2026-09-25. Even at the 32Gi memory limit
+            # (previous comment block below) this kept OOMing under the
+            # HA 1.x->3.x backfill's sustained write volume, and each
+            # crash was taking virt-handler down with it -- KubeVirt's
+            # node monitor was flagging the single-node Altus cluster
+            # "NodeUnresponsive" on the resulting CPU/memory pressure,
+            # cascading into API-server/DNS outages roughly every
+            # 20-30 min (5+ full-cluster episodes in ~10h). A live
+            # `oc scale --replicas=0` was tried first but ArgoCD's
+            # selfHeal reverted it within the reconcile interval since
+            # replicas=1 is still the desired state here -- this repo
+            # edit is what actually makes the pause stick. Set back to
+            # 1 (or remove) once the backfill is resumed in a way that
+            # won't repeat this, e.g. throttled/batched instead of one
+            # sustained run.
+            replicas: 0
             containers:
               influxdb3:
                 image:
