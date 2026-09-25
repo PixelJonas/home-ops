@@ -78,6 +78,20 @@ applications:
     source:
       path: components-infra/hermes-argocd-agent/base
 
+  hermes-volsync-agent:
+    annotations:
+      argocd.argoproj.io/sync-wave: "11"
+    source:
+      path: components-infra/hermes-volsync-agent/base
+
+  openshift-monitoring:
+    annotations:
+      argocd.argoproj.io/sync-wave: "1"
+    destination:
+      namespace: openshift-monitoring
+    source:
+      path: components-infra/openshift-monitoring/overlays/sakaar
+
   rbac:
     annotations:
       argocd.argoproj.io/compare-options: IgnoreExtraneous
