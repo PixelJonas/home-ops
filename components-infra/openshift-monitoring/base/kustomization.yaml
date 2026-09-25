@@ -10,3 +10,4 @@ resources:
   - pending-csr-rule.yaml
   - watchdog-absence-rule.yaml
   - node-temperature-rule.yaml
+  - volsync-backup-rule.yaml
