@@ -27,10 +27,41 @@ spec:
           extraVolumes:
             - name: dind-storage
               emptyDir: {}
+          # Requests give both containers real CPU shares (unset = BestEffort,
+          # minimal shares) so dind's `test -S` exec liveness probe (1s timeout,
+          # not configurable in this chart) isn't starved and killed under CI
+          # load. Deliberately no limits: an OOM/CPU cap on dind would kill job
+          # containers mid-build.
+          runner:
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+            # The chart mounts the shared docker-socket emptyDir into the runner
+            # with subPath: docker.sock; a subPath mount is pinned at container
+            # start, so any dind restart leaves the runner on a dead socket
+            # while the pod still reports 2/2 Ready ("Cannot connect to the
+            # Docker daemon"). Mount the whole volume at a directory instead and
+            # point DOCKER_HOST there; the same path is mounted in dind so
+            # socket bind mounts into job containers resolve identically.
+            # dockerd's default socket (/var/run/docker.sock) is the volume root
+            # (dind mounts it at /var/run/), so it appears here as docker.sock.
+            extraVolumeMounts:
+              - name: docker-socket
+                mountPath: /docker-sock
+            extraEnvs:
+              - name: DOCKER_HOST
+                value: unix:///docker-sock/docker.sock
           dind:
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
             extraVolumeMounts:
               - name: dind-storage
                 mountPath: /var/lib/docker
+              - name: docker-socket
+                mountPath: /docker-sock
             extraArgs:
               - --mtu=1400
               - --storage-driver=vfs
