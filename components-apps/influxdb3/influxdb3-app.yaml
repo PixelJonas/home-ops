@@ -55,12 +55,27 @@ spec:
                   - --data-dir=/var/lib/influxdb3/data
                   - --plugin-dir=/var/lib/influxdb3/plugins
                   - --query-file-limit=10000
+                  # Added 2026-09-25 alongside the resource retune below and
+                  # the throttled backfill wrapper (see homeassistant repo,
+                  # scripts/run_migrate_influxdb_1x_to_3x_throttled.sh) --
+                  # none of these three fixes is sufficient alone. Without
+                  # --checkpoint-interval, every OOM-restart re-replayed the
+                  # WAL from scratch, so each crash made the next restart's
+                  # replay bigger, not smaller (confirmed: 1203 WAL files,
+                  # 62 restarts, never converging). --wal-replay-concurrency-limit
+                  # caps memory used during that replay specifically.
+                  # --force-snapshot-mem-size forces a proactive snapshot
+                  # well before the container's memory limit, instead of
+                  # only the default ~50%-of-limit threshold.
+                  - --checkpoint-interval=15m
+                  - --wal-replay-concurrency-limit=4
+                  - --force-snapshot-mem-size=40%
                 env:
                   TZ: Europe/Berlin
                 resources:
                   requests:
-                    cpu: 250m
-                    memory: 512Mi
+                    cpu: 500m
+                    memory: 4Gi
                   # The NAS instance was hard-capped at 2Gi (mem_limit) as a
                   # defensive measure after an OOM there took the whole box
                   # down via swap-thrashing -- that risk doesn't apply the
@@ -118,9 +133,24 @@ spec:
                   # 512Mi so it is the first OOM victim under node
                   # pressure. Scale back down once the WAL is
                   # checkpointed and the backfill has finished.
+                  # RETUNED 2026-09-25, replacing the "TEMPORARY 32Gi" line
+                  # above: confirmed via `oc describe node altus` +
+                  # `oc adm top node` that even with influxdb3 fully paused,
+                  # the node only has ~22Gi of real free memory (CPU
+                  # requests already 88%, memory requests 76%) -- a 32Gi
+                  # Burstable limit was never actually safe here regardless
+                  # of how InfluxDB itself behaved, since the node
+                  # structurally can't back that much burst. Paired with
+                  # the checkpoint-interval/replay-concurrency/snapshot-
+                  # threshold flags above and the throttled backfill
+                  # wrapper (chunked runs, not one sustained firehose),
+                  # this is a deliberately conservative starting point --
+                  # raise only after Task 3's watched first run shows a
+                  # clear need, not reactively under fire like the five
+                  # prior bumps (4Gi->8Gi->16Gi->20Gi->32Gi) all were.
                   limits:
-                    cpu: "3"
-                    memory: 32Gi
+                    cpu: "2"
+                    memory: 8Gi
                 probes:
                   # No documented HTTP health endpoint confirmed for
                   # InfluxDB 3 Core -- plain TCP check on the serve port.
