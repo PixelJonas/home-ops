@@ -17,27 +17,30 @@ spec:
       values: |-
         controllers:
           influxdb3:
-            # RESUME ATTEMPT 2, 2026-09-25: root-caused the idle OOM from
-            # the first resume (see RE-PAUSED history preserved below via
-            # the resources-block comment trail). PVC has 2.92M files but
-            # only 38GB actual data (no-compactor tradeoff, ADR-0001) --
-            # startup loads `additional_snapshots=113` (gen1 catalog
-            # snapshots within the default 24h --gen1-lookback-duration
-            # window) and builds an in-memory catalog whose cost scales
-            # with file count, not data volume or write traffic. Confirmed
-            # via influxdata/influxdb#26715/#26498 (upstream, open, no
-            # fix yet) that --wal-replay-concurrency-limit/
-            # --force-snapshot-mem-size don't cover this startup-only
-            # step, and the snapshot count has a documented floor of 100
-            # regardless of --gen1-lookback-duration, so shrinking that
-            # flag wouldn't meaningfully help. No better lever exists in
-            # Core today (Enterprise has --compacted-data-skip-file-index,
-            # Core doesn't) -- so this is a one-time, bounded, now-
-            # understood memory cost, not a reactive guess: give it enough
-            # headroom to get through it once. See
+            # RE-PAUSED again 2026-09-25 (attempt 2 of the resume): at
+            # 16Gi it survived 5 minutes longer than the first attempt
+            # (18m vs 13m35s) and got much further -- logs show it
+            # finished the catalog/snapshot-loading step silently, then
+            # entered ACTIVE WAL REPLAY (wal_file_number sequence numbers
+            # past 91000, mid-snapshot at SnapshotSequenceNumber(138))
+            # before OOMing. This is a DIFFERENT proximate cause than the
+            # "one-time catalog load" theory the 16Gi bump was sized for
+            # (see RESUME ATTEMPT 2 history preserved in the resources-
+            # block comment trail below) -- it's much closer to the
+            # original incident's WAL-replay-depth mechanism, just
+            # discovered one layer deeper now that 16Gi got far enough to
+            # reach it. --wal-replay-concurrency-limit=4 alone isn't
+            # bounding this enough at 16Gi. Re-pausing via git (same
+            # proven mechanism) rather than reflexively bumping the limit
+            # again -- next investigation should focus on WAL backlog
+            # depth/size (sequence numbers observed past 91000) and
+            # whether replay concurrency needs lowering (not raising) or
+            # whether this genuinely needs closer to the 32Gi the
+            # original incident settled on before its own retune. See
             # docs/superpowers/plans/2026-09-25-influxdb3-safe-backfill-
             # restart.md (homeassistant repo) Task 3 report for full
             # detail.
+            replicas: 0
             containers:
               influxdb3:
                 image:
