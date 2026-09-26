@@ -23,6 +23,29 @@ def fake_ingest_store() -> FakeIngestEventStore:
     return FakeIngestEventStore()
 
 
+class FakeReviewStore:
+    """Mirrors ReviewQueueStore.create_draft's real idempotency: a `pending`
+    row for the same paperless_doc_id is reused rather than duplicated."""
+
+    def __init__(self) -> None:
+        self.drafts: list[dict[str, Any]] = []
+        self._next_id = 1
+
+    def create_draft(self, *, paperless_doc_id: int, **kwargs: Any) -> int:
+        for existing in self.drafts:
+            if existing["paperless_doc_id"] == paperless_doc_id:
+                return int(existing["id"])
+        item_id = self._next_id
+        self._next_id += 1
+        self.drafts.append({"id": item_id, "paperless_doc_id": paperless_doc_id, **kwargs})
+        return item_id
+
+
+@pytest.fixture
+def fake_review_store() -> FakeReviewStore:
+    return FakeReviewStore()
+
+
 @pytest.fixture
 def test_settings() -> Settings:
     return Settings(
@@ -36,5 +59,6 @@ def test_settings() -> Settings:
         mygarage_username="admin",
         mygarage_password="adminpw",
         vehicles={"WVGZZZE27SE017858": "id4", "WV2ZZZ7HZNH000000": "multivan"},
+        ingestbuddy_handoff_secret="handoffsecret",
         poll_interval_seconds=900,
     )

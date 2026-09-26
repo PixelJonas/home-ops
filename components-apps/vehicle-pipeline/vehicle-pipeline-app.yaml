@@ -66,6 +66,13 @@ spec:
                   MYGARAGE_VEHICLES:
                     valueFrom:
                       secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_VEHICLES}
+                  # New consumer hand-off receiver (ingestbuddy#12, additive
+                  # only -- see components-apps/vehicle-pipeline's other env
+                  # vars above, all still live): signed POST from
+                  # ingestbuddy's VehicleSink at /webhooks/ingestbuddy-handoff.
+                  INGESTBUDDY_HANDOFF_SECRET:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: INGESTBUDDY_HANDOFF_SECRET}
                 probes:
                   liveness:
                     enabled: true
