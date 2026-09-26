@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pipeline:eingang",
+    "color": "#0d6efd",
+    "is_inbox_tag": false
+  },
+  {
+    "name": "pipeline:verarbeitet",
+    "color": "#198754",
+    "is_inbox_tag": false
+  }
+]

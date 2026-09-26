@@ -9,6 +9,32 @@ resources:
   - external-paperless-db-paperless.yaml
   - external-paperless-ai-credentials.yaml
   - external-paperless-secret-key.yaml
+  - external-paperless-workflows-credentials.yaml
   - postgresql-database.yaml
   - ./backup
   - paperless-ai-chart-app.yaml
+  - workflows-job.yaml
+
+# Sourced from real files under workflows/ (ingestbuddy#7 / infra-ops#61)
+# rather than embedded inline, so the tag/workflow JSON stays independently
+# reviewable and diffable. The generated ConfigMap's name carries a content
+# hash (kustomize default) -- workflows-job.yaml's volume references the
+# base name "paperless-workflows-apply" below, which kustomize's built-in
+# nameReference transformer rewrites to the hashed name automatically. Any
+# edit to these three files is what forces ArgoCD to actually replace the
+# (otherwise-immutable) Job -- see workflows-job.yaml's annotation comment.
+configMapGenerator:
+  - name: paperless-workflows-apply
+    # Must match workflows-job.yaml's explicit metadata.namespace -- without
+    # this, kustomize's nameReference transformer fails to correlate the
+    # generated (hash-suffixed) ConfigMap with the Job's
+    # volumes[].configMap.name reference below (confirmed via a minimal
+    # repro: the rewrite silently doesn't happen when the Job sets an
+    # explicit namespace but the generator doesn't), leaving the Job
+    # pointed at a ConfigMap name that only exists pre-hash and never gets
+    # deployed.
+    namespace: paperless
+    files:
+      - apply.py=workflows/apply.py
+      - pipeline-tags.json=workflows/pipeline-tags.json
+      - pipeline-intake.workflow.json=workflows/pipeline-intake.workflow.json
