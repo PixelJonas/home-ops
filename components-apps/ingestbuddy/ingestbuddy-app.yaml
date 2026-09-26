@@ -26,7 +26,7 @@ spec:
               api:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_api
-                  digest: "sha256:8544cd0471b30ada5a020f1eac33d56df20e890762393d3785d076a77b248809"   # PLACEHOLDER — ingestbuddy's release.yml has not produced a real image yet (every run so far is "cancelled"); bumped automatically once one lands
+                  digest: "sha256:e6af6b41a5586dcedddc1ddc55db2f4e490a71f454e119d9d915623c23efec88"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -94,7 +94,7 @@ spec:
               worker:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_worker
-                  digest: "sha256:2779091b770299eaf5e0e798c10ead99e0c5d9c2b20bd9c4cef0df3ed7be7ff9"   # PLACEHOLDER — see api controller's image comment above
+                  digest: "sha256:1a00fd00fa497a083e90d56a8842b6e51b42346912c4abf77513eedd4f105061"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
