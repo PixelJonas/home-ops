@@ -1,0 +1,23 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: ingestbuddy-db
+  namespace: ingestbuddy
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+  bootstrap:
+    initdb:
+      database: ingestbuddy
+      owner: ingestbuddy
+      secret:
+        name: ingestbuddy-db-app-secret
+  storage:
+    # Larger than taxbuddy's 10Gi baseline: ingestbuddy has no object
+    # storage — original document bytes live directly in
+    # ingest.bundles.original_file (bytea), per AGENTS.md. lvms-vg1
+    # supports online expansion if this needs to grow further.
+    size: 20Gi
+    storageClass: lvms-vg1
