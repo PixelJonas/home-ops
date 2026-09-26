@@ -17,6 +17,14 @@ spec:
       values: |-
         controllers:
           influxdb3:
+            # Scaled to 0 2026-09-26: temporary node-capacity relief while
+            # Altus (single-node) is thermally/resource constrained and a
+            # second node is being added. The 1.x->3.x backfill is already
+            # paused independently (see homeassistant repo
+            # migration-checkpoint.json); this just also stops the pod
+            # itself from consuming CPU/memory while idle. Scale replicas
+            # back to 1 to resume live HA writes.
+            replicas: 0
             # FRESH START 2026-09-25: three resume attempts against the
             # existing data (8Gi, 16Gi, 16Gi+--wal-files-per-snapshot=50)
             # all OOMed at the identical stuck point -- consolidating WAL
