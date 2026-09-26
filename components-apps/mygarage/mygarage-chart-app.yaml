@@ -30,8 +30,8 @@ spec:
             containers:
               mygarage:
                 image:
-                  repository: ghcr.io/homelabforge/mygarage
-                  tag: "3.7.0"
+                  repository: ghcr.io/pixeljonas/mygarage
+                  tag: sha-8aeb416
                   pullPolicy: IfNotPresent
                 securityContext:
                   allowPrivilegeEscalation: false
