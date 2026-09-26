@@ -239,8 +239,8 @@ spec:
                     cpu: "4"
                     memory: 6Gi
                   limits:
-                    cpu: "12"
-                    memory: 12Gi
+                    cpu: "6"
+                    memory: 9Gi
 
           openconcho:
             containers:
