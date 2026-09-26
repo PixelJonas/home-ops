@@ -52,6 +52,11 @@ spec:
                       secretKeyRef:
                         name: litellm-credentials
                         key: VERTEX_PROJECT_ID
+                  NVIDIA_NIM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: litellm-credentials
+                        key: NVIDIA_NIM_API_KEY
 
         persistence:
           config:
