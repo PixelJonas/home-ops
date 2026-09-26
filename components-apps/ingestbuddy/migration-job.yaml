@@ -1,0 +1,76 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingestbuddy-db-migrate
+  namespace: ingestbuddy
+  annotations:
+    # Regular sync-phase resource at wave 105 — deliberately NOT a PreSync
+    # hook: hook phase takes precedence over sync waves in ArgoCD's
+    # ordering (phase -> wave -> kind -> name), so a PreSync hook would run
+    # before the CNPG cluster (wave 100) and the db-connection secret
+    # (wave 30) are even applied on a fresh deploy and deadlock the first
+    # sync. As a wave-105 resource it runs after them and still strictly
+    # before the ingestbuddy-app Application CR (wave 111): ArgoCD waits
+    # for each wave to be healthy before proceeding, and a Job is only
+    # healthy once complete — so a failed migration fails the sync, the
+    # new app spec is never applied, and the rollout is blocked loudly.
+    # Mirrors taxbuddy/migration-job.yaml (HARD-T01) exactly.
+    argocd.argoproj.io/sync-wave: "105"
+    # Job pod templates are immutable — a bumped image digest would make
+    # every sync fail with "field is immutable". Force=true,Replace=true
+    # turns it into delete + recreate, which is also what re-runs the
+    # migration on each new build.
+    argocd.argoproj.io/sync-options: Force=true,Replace=true
+spec:
+  # Retries absorb a not-yet-ready CNPG primary (fresh deploy: the Cluster
+  # CR is healthy to ArgoCD before postgres actually accepts connections).
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  # Keep finished runs inspectable for a week; after TTL expiry selfHeal
+  # recreates the Job, which re-runs `upgrade head` as a no-op at head.
+  ttlSecondsAfterFinished: 604800
+  template:
+    spec:
+      serviceAccountName: ingestbuddy-db-migrate
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ingestbuddy-ghcr-pull-secret
+      containers:
+        - name: migrate
+          # Same image + digest as the api controller in
+          # ingestbuddy-app.yaml — ingestbuddy's release.yml bumps both in
+          # the same PR, so the migrations applied here always match the
+          # code being rolled out.
+          image: "ghcr.io/pixeljonas/ingestbuddy/pipeline_api@sha256:8544cd0471b30ada5a020f1eac33d56df20e890762393d3785d076a77b248809"   # PLACEHOLDER — ingestbuddy's release.yml has not produced a real digest yet (every release.yml run to date is "cancelled", not "success" — no image has actually been pushed); update once one exists
+          # ingest_core ships an alembic.ini + `alembic` CLI, but alembic.ini
+          # lives at packages/ingest_core/alembic.ini (repo-root-relative,
+          # alongside pyproject.toml) — it is NOT part of the installed
+          # `ingest_core` Python package, so it never lands in this image's
+          # site-packages (the Dockerfile only copies site-packages + bin
+          # from the builder stage, never the source tree). The
+          # migrations/versions/*.py modules DO land in site-packages
+          # (they're real package submodules), so alembic can still run —
+          # it just needs `script_location` set programmatically instead of
+          # via -c/alembic.ini. ingestbuddy has no `ingest_core.migrations`
+          # CLI entrypoint yet (unlike taxbuddy's `tax_core.migrations`,
+          # taxbuddy#107) to do this for us; recommend adding one
+          # (`python -m ingest_core.migrations upgrade head`) as a
+          # fast-follow in the ingestbuddy repo so this Job can shed the
+          # inline script below.
+          command: ["python3", "-c"]
+          args:
+            - |
+              import os
+              from alembic import command
+              from alembic.config import Config
+              import ingest_core.migrations as migrations_pkg
+
+              cfg = Config()
+              cfg.set_main_option("script_location", os.path.dirname(migrations_pkg.__file__))
+              command.upgrade(cfg, "head")
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ingestbuddy-db-connection
+                  key: uri
