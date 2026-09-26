@@ -5,7 +5,14 @@ metadata:
   namespace: openshift-gitops
 spec:
   resourceTrackingMethod: annotation
-  applicationSet: {}
+  applicationSet:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 512Mi
   extraConfig:
     exec.enabled: "true"
     resource.respectRBAC: "normal"
@@ -50,12 +57,30 @@ spec:
   redis:
     resources:
       limits:
-        cpu: 500m
+        cpu: 250m
         memory: 512Mi
       requests:
         cpu: 250m
         memory: 256Mi
+  sso:
+    provider: dex
+    dex:
+      openShiftOAuth: true
+      resources:
+        limits:
+          cpu: 250m
+          memory: 256Mi
+        requests:
+          cpu: 250m
+          memory: 128Mi
   server:
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 125m
+        memory: 128Mi
     route:
       annotations:
         # Needed to support longer queries to lightspeed
