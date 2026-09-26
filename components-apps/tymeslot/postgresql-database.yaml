@@ -21,3 +21,25 @@ spec:
 
   storage:
     size: 2Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  # Loosen probe timeouts so transient node contention on Altus (CPU/IO
+  # pressure from other workloads) doesn't trip the liveness probe and
+  # force a full postgres pod restart. Defaults are timeoutSeconds: 5,
+  # failureThreshold derived from livenessProbeTimeout=30s (~3 failures).
+  probes:
+    liveness:
+      periodSeconds: 10
+      timeoutSeconds: 10
+      failureThreshold: 5
+    readiness:
+      periodSeconds: 10
+      timeoutSeconds: 10
+      failureThreshold: 5
