@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:f11826ff080d81dd83396b99afeb5f132c972bd4034d8235033cd8b38e0c3983"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:a8ec9c6e401d761370867dee4ceeaee7cb80a7c80d4e4856495a464fdcc1840f"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -88,7 +88,7 @@ spec:
               doc-pipeline:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/doc_pipeline
-                  digest: "sha256:c8422df5b1abefa642d999acac3f74aebcfedaed5eb2a3bcd30295c50a199523"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:1c4b242a3220bc915981820125f217215df0474473d62f7e2a657e38fbc4df50"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -452,7 +452,7 @@ spec:
               web-ui:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/web_ui
-                  digest: "sha256:14e7a8434c54f62a736373541b2a77e27a68e70ed55bda0df1c0037364e1648d"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  digest: "sha256:be21ffdb0aae3a43b0b74e32a7c4e4df4c8af799ed79a2f749e37a57b4706246"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
