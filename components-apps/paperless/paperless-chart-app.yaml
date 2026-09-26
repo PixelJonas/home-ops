@@ -37,7 +37,12 @@ spec:
                   # -- Redis to use
                   PAPERLESS_REDIS: redis://localhost:6379
                   PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.apps.altus.janz.digital,https://paperless.janz.digital"
-                  PAPERLESS_ALLOWED_HOSTS: "paperless.apps.altus.janz.digital,paperless.janz.digital,localhost"
+                  # paperless-ng.paperless.svc.cluster.local added 2026-09-26: the
+                  # paperless-workflows-apply Job (sync-wave 150) calls the API over
+                  # this in-cluster service DNS name; without it Django's ALLOWED_HOSTS
+                  # check rejects every request with a blank 400, which was silently
+                  # keeping the job (and this app's ArgoCD health) permanently Degraded.
+                  PAPERLESS_ALLOWED_HOSTS: "paperless.apps.altus.janz.digital,paperless.janz.digital,localhost,paperless-ng.paperless.svc.cluster.local"
                   PAPERLESS_CORS_ALLOWED_HOSTS: "https://paperless.apps.altus.janz.digital,https://paperless.janz.digital"
                   PAPERLESS_URL: "https://paperless.janz.digital"
                   # -- OCR languages to install
