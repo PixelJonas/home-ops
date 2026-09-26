@@ -24,6 +24,7 @@ def _env(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> None:
             {"vin": "WV2ZZZST4SH000000", "nickname": "Multivan T7", "model": "Multivan"},
             {"vin": "WVGZZZE2ZSE000001", "nickname": "ID.4", "model": "ID.4 Pure"},
         ]),
+        "INGESTBUDDY_HANDOFF_SECRET": "handoffsecret",
     }
     base.update(overrides)
     for key, value in base.items():
