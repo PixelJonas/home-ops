@@ -1,0 +1,137 @@
+{
+  "_snapshot_note": "Read-only drift-visibility snapshot (ingestbuddy#7 / infra-ops#61). Fetched via GET /api/workflows/2/ on 2026-09-26. This file is NOT applied by the paperless-workflows-apply Job -- it exists purely so this UI-managed workflow's config is visible/diffable in git. The webhook shared-secret header value has been redacted before commit; the live value lives only in Doppler (homelab/home) and the running Workflow object, never in this repo.",
+  "id": 2,
+  "name": "Tax Agent Ingest",
+  "order": 1,
+  "enabled": true,
+  "triggers": [
+    {
+      "id": 4,
+      "sources": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "type": 2,
+      "filter_path": null,
+      "filter_filename": null,
+      "filter_mailrule": null,
+      "matching_algorithm": 0,
+      "match": "",
+      "is_insensitive": true,
+      "filter_has_tags": [],
+      "filter_has_all_tags": [],
+      "filter_has_not_tags": [
+        1741
+      ],
+      "filter_custom_field_query": null,
+      "filter_has_any_correspondents": [],
+      "filter_has_not_correspondents": [],
+      "filter_has_any_document_types": [],
+      "filter_has_not_document_types": [],
+      "filter_has_any_storage_paths": [],
+      "filter_has_not_storage_paths": [],
+      "filter_has_correspondent": null,
+      "filter_has_document_type": null,
+      "filter_has_storage_path": null,
+      "schedule_offset_days": 0,
+      "schedule_is_recurring": false,
+      "schedule_recurring_interval_days": 1,
+      "schedule_date_field": "added",
+      "schedule_date_custom_field": null
+    },
+    {
+      "id": 5,
+      "sources": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "type": 3,
+      "filter_path": null,
+      "filter_filename": null,
+      "filter_mailrule": null,
+      "matching_algorithm": 0,
+      "match": "",
+      "is_insensitive": true,
+      "filter_has_tags": [
+        1740
+      ],
+      "filter_has_all_tags": [],
+      "filter_has_not_tags": [
+        1741
+      ],
+      "filter_custom_field_query": null,
+      "filter_has_any_correspondents": [],
+      "filter_has_not_correspondents": [],
+      "filter_has_any_document_types": [],
+      "filter_has_not_document_types": [],
+      "filter_has_any_storage_paths": [],
+      "filter_has_not_storage_paths": [],
+      "filter_has_correspondent": null,
+      "filter_has_document_type": null,
+      "filter_has_storage_path": null,
+      "schedule_offset_days": 0,
+      "schedule_is_recurring": false,
+      "schedule_recurring_interval_days": 1,
+      "schedule_date_field": "added",
+      "schedule_date_custom_field": null
+    }
+  ],
+  "actions": [
+    {
+      "id": 5,
+      "type": 4,
+      "assign_title": null,
+      "assign_tags": [
+        1740
+      ],
+      "assign_correspondent": null,
+      "assign_document_type": null,
+      "assign_storage_path": null,
+      "assign_owner": null,
+      "assign_view_users": [],
+      "assign_view_groups": [],
+      "assign_change_users": [],
+      "assign_change_groups": [],
+      "assign_custom_fields": [],
+      "assign_custom_fields_values": {},
+      "remove_all_tags": false,
+      "remove_tags": [],
+      "remove_all_correspondents": false,
+      "remove_correspondents": [],
+      "remove_all_document_types": false,
+      "remove_document_types": [],
+      "remove_all_storage_paths": false,
+      "remove_storage_paths": [],
+      "remove_custom_fields": [],
+      "remove_all_custom_fields": false,
+      "remove_all_owners": false,
+      "remove_owners": [],
+      "remove_all_permissions": false,
+      "remove_view_users": [],
+      "remove_view_groups": [],
+      "remove_change_users": [],
+      "remove_change_groups": [],
+      "email": null,
+      "webhook": {
+        "id": 2,
+        "url": "http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/webhooks/paperless",
+        "use_params": false,
+        "as_json": false,
+        "params": null,
+        "body": "{\"doc_id\": {{ doc_id }}, \"doc_title\": \"{{ doc_title }}\", \"doc_url\": \"{{ doc_url }}\", \"correspondent\": \"{{ correspondent }}\", \"document_type\": \"{{ document_type }}\", \"added\": \"{{ added }}\", \"owner_username\": \"{{ owner_username }}\"}",
+        "headers": {
+          "X-TaxAgent-Signature": "<REDACTED - live value in Doppler homelab/home, see corresponding *_WEBHOOK_SECRET key>"
+        },
+        "include_document": false
+      },
+      "passwords": null,
+      "ai_suggestion_fields": null,
+      "ai_create_missing": false,
+      "ai_overwrite_existing": false
+    }
+  ]
+}

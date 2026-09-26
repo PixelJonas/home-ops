@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: paperless-workflows-apply
+  namespace: paperless
+  annotations:
+    # Regular-sync Job at wave ~150 (infra-ops#61) -- deliberately NOT an
+    # ArgoCD PostSync hook, which ignores sync waves entirely and would
+    # deadlock the very first sync (it can fire before the paperless-ng
+    # Deployment and this Job's own ExternalSecret-backed Secret exist).
+    # As a wave-150 resource it runs strictly after the paperless app
+    # (paperless-chart-app.yaml, default/unset wave) and this Job's own
+    # ExternalSecret (wave 30) are healthy.
+    argocd.argoproj.io/sync-wave: "150"
+    # Job pod templates are immutable -- Replace=true maps to `kubectl
+    # replace`, which still can't touch spec.template (or the
+    # controller-injected spec.selector), so Force=true (delete + recreate)
+    # is required too. Same pattern as
+    # components-apps/nextcloud/bootstrap/job.yaml and
+    # components-apps/taxbuddy/migration-job.yaml -- copied literally, not
+    # reinvented.
+    #
+    # Unlike those two Jobs, this one doesn't need a manual "no-op
+    # annotation bump" to force a rerun when its script/config changes:
+    # apply.py, pipeline-tags.json and pipeline-intake.workflow.json are
+    # all sourced into a kustomize configMapGenerator (see
+    # kustomization.yaml), whose name carries a content hash. Any edit to
+    # those three files changes that hash, which changes this Job's own
+    # volume.configMap.name field, which is what makes ArgoCD actually
+    # replace the Job.
+    argocd.argoproj.io/sync-options: Replace=true,Force=true
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: workflows-config
+          configMap:
+            name: paperless-workflows-apply
+      containers:
+        - name: apply
+          image: quay.io/openshift/origin-cli:5.1
+          command: ["python3", "/config/apply.py"]
+          env:
+            # In-cluster Service DNS (`oc get svc -n paperless`) -- inline
+            # per docs/adding-apps.md's Doppler-vs-inline convention,
+            # matching how every other in-cluster URL in this repo is
+            # wired (e.g. taxbuddy-app.yaml's DOCLING_URL/HONCHO_BASE_URL).
+            - name: PAPERLESS_URL
+              value: "http://paperless-ng.paperless.svc.cluster.local:8000"
+            - name: PAPERLESS_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-workflows-credentials
+                  key: api-token
+            - name: PAPERLESS_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-workflows-credentials
+                  key: webhook-secret
+          volumeMounts:
+            - name: workflows-config
+              mountPath: /config
