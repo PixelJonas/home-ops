@@ -1,0 +1,35 @@
+{
+  "_comment": "Applied by the paperless-workflows-apply Job (ingestbuddy#7 / infra-ops#61 + #56). This is NOT the raw Paperless /api/workflows/ payload shape: filter_has_all_tag_names / filter_has_not_tag_names are resolved to real tag IDs by apply.py (name -> ID, after pipeline-tags.json has been upserted) before the real API call is made. The webhook header's __PAPERLESS_WEBHOOK_SECRET__ placeholder is substituted with the live INGESTBUDDY_PAPERLESS_WEBHOOK_SECRET value from this Job's environment (ExternalSecret external-paperless-workflows-credentials) -- never commit the real secret value here. This file is consumed via a kustomize configMapGenerator (see ../kustomization.yaml), so any edit here changes the generated ConfigMap's content-hash suffix, which changes the Job's pod template, which is what makes ArgoCD's Replace=true,Force=true actually recreate and re-run the Job -- editing this file is itself the 'force a rerun' mechanism, nothing else to bump.",
+  "name": "pipeline:eingang intake",
+  "order": 3,
+  "enabled": true,
+  "triggers": [
+    {
+      "type": 2,
+      "sources": [1, 2, 3, 4],
+      "filter_has_all_tag_names": ["pipeline:eingang"],
+      "filter_has_not_tag_names": ["pipeline:verarbeitet"]
+    },
+    {
+      "type": 3,
+      "sources": [1, 2, 3, 4],
+      "filter_has_all_tag_names": ["pipeline:eingang"],
+      "filter_has_not_tag_names": ["pipeline:verarbeitet"]
+    }
+  ],
+  "actions": [
+    {
+      "type": 4,
+      "webhook": {
+        "url": "http://ingestbuddy-app-api.ingestbuddy.svc.cluster.local:8000/v1/webhooks/paperless",
+        "use_params": false,
+        "as_json": false,
+        "body": "{\"doc_id\": {{ doc_id }}, \"doc_title\": \"{{ doc_title }}\", \"doc_url\": \"{{ doc_url }}\", \"correspondent\": \"{{ correspondent }}\", \"document_type\": \"{{ document_type }}\", \"added\": \"{{ added }}\", \"owner_username\": \"{{ owner_username }}\"}",
+        "headers": {
+          "x-paperless-webhook-secret": "__PAPERLESS_WEBHOOK_SECRET__"
+        },
+        "include_document": false
+      }
+    }
+  ]
+}
