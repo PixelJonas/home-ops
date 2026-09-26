@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:bfd9832f6bed9c91a98d7f6916c30e2781866669a33ab49497ba16126f8dbdaf"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:f11826ff080d81dd83396b99afeb5f132c972bd4034d8235033cd8b38e0c3983"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -190,7 +190,7 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:844e42e81a62103fa387fa8ba5ce87922ffef814639d4472b1415c3a5b6107df"
+                  digest: "sha256:712c9fc8b8989b0bc6a8a6b7603d82cfa3cef531701cc4b4072b584a16d18628"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -286,7 +286,7 @@ spec:
               self-benchmark:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
-                  digest: "sha256:17af8b51bd65595cc83897efa8d5bac5560aa0240d4c079e03e541284effb011"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  digest: "sha256:dc056060662443a5457f854618beb42b13c67299ff78a474deb82eac819ab244"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -452,7 +452,7 @@ spec:
               web-ui:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/web_ui
-                  digest: "sha256:a738036eb9b5ad9e2cb4fd1d9639420f0523b90bbd8fae8a4c1afceaf79cf2cf"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  digest: "sha256:14e7a8434c54f62a736373541b2a77e27a68e70ed55bda0df1c0037364e1648d"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
