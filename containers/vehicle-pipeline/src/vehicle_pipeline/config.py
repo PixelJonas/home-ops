@@ -17,6 +17,7 @@ class Settings:
     mygarage_username: str
     mygarage_password: str
     vehicles: dict[str, str]
+    ingestbuddy_handoff_secret: str
     poll_interval_seconds: int = 900
 
     @classmethod
@@ -32,6 +33,7 @@ class Settings:
             mygarage_username=_require("MYGARAGE_USERNAME"),
             mygarage_password=_require("MYGARAGE_PASSWORD"),
             vehicles=_parse_vehicles(_require("MYGARAGE_VEHICLES")),
+            ingestbuddy_handoff_secret=_require("INGESTBUDDY_HANDOFF_SECRET"),
             poll_interval_seconds=_parse_interval(os.environ.get("POLL_INTERVAL", "15m")),
         )
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import json
 import logging
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -25,6 +26,21 @@ class PaperlessWebhookPayload(BaseModel):
     document_type: str
     added: str
     owner_username: str
+
+
+class IngestbuddyHandoffPayload(BaseModel):
+    """The consumer-generic hand-off envelope pushed by ingestbuddy's
+    VehicleSink (ingestbuddy packages/ingest_core/src/ingest_core/sinks/vehicle.py,
+    infra-ops#64 Q9) -- classification/extraction already ran there, this
+    consumer only turns the finished result into a review draft."""
+
+    paperless_doc_id: int
+    doc_url: str
+    vin: str | None
+    category: str
+    entity: str
+    payload: dict[str, Any]
+    confidence: str | None
 
 
 def get_settings(request: Request) -> Settings:
@@ -100,3 +116,48 @@ async def receive_paperless_webhook(
     )
     logger.info("queued document %s for processing", webhook.doc_id)
     return JSONResponse({"status": "queued"})
+
+
+@router.post("/webhooks/ingestbuddy-handoff")
+async def receive_ingestbuddy_handoff(
+    request: Request,
+    settings: Settings = Depends(get_settings),  # noqa: B008
+    review_store=Depends(get_review_store),  # noqa: B008
+) -> JSONResponse:
+    # Same constant-time shared-secret comparison as the legacy paperless
+    # webhook above -- ingestbuddy's VehicleSink can only send a static
+    # header value too (ingest_core.sinks.vehicle.SIGNATURE_HEADER).
+    provided_signature = request.headers.get("x-ingestbuddy-signature", "")
+    if not hmac.compare_digest(provided_signature, settings.ingestbuddy_handoff_secret):
+        raise HTTPException(status_code=401, detail="invalid signature")
+
+    raw_body = await request.body()
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="invalid JSON body") from exc
+
+    try:
+        handoff = IngestbuddyHandoffPayload.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=exc.errors()) from exc
+
+    # No doc_title in the fixed contract (ingest_core's envelope carries
+    # doc_url only) -- same missing-title fallback pipeline.py already uses
+    # for paperless documents with no title set.
+    item_id = review_store.create_draft(
+        paperless_doc_id=handoff.paperless_doc_id,
+        paperless_doc_title=f"Document {handoff.paperless_doc_id}",
+        paperless_doc_url=handoff.doc_url,
+        vin=handoff.vin,
+        mygarage_entity=handoff.entity,
+        extracted_category=handoff.category,
+        payload=handoff.payload,
+        confidence=handoff.confidence,
+    )
+    logger.info(
+        "created/reused review draft %s for paperless_doc_id=%s via ingestbuddy hand-off",
+        item_id,
+        handoff.paperless_doc_id,
+    )
+    return JSONResponse({"status": "ok", "review_item_id": item_id})
