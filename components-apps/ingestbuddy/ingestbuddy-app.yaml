@@ -1,0 +1,256 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingestbuddy-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: ingestbuddy
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.2.1
+    helm:
+      values: |-
+        defaultPodOptions:
+          imagePullSecrets:
+            - name: ingestbuddy-ghcr-pull-secret
+
+        controllers:
+          api:
+            replicas: 1
+            containers:
+              api:
+                image:
+                  repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_api
+                  digest: "sha256:8544cd0471b30ada5a020f1eac33d56df20e890762393d3785d076a77b248809"   # PLACEHOLDER — ingestbuddy's release.yml has not produced a real image yet (every run so far is "cancelled"); bumped automatically once one lands
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-db-connection
+                        key: uri
+                  QUEUE_URL: redis://ingestbuddy-app-valkey:6379/0
+                  # In-cluster Service DNS (confirmed via `oc get svc`) —
+                  # inline per infra-ops#61: only *.apps.altus.janz.digital
+                  # (external) URLs and real secrets go through Doppler.
+                  DOCLING_SERVE_URL: http://docling-serve-app.docling-serve.svc.cluster.local:5001
+                  DOCLING_SERVE_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: DOCLING_SERVE_API_KEY
+                  LITELLM_BASE_URL: http://litellm-app.litellm.svc.cluster.local:4000
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: LITELLM_API_KEY
+                  PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
+                  PAPERLESS_API_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_API_TOKEN
+                  PAPERLESS_PUBLIC_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_PUBLIC_URL
+                  QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
+                  QDRANT_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: QDRANT_API_KEY
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
+          worker:
+            replicas: 1
+            containers:
+              worker:
+                image:
+                  repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_worker
+                  digest: "sha256:2779091b770299eaf5e0e798c10ead99e0c5d9c2b20bd9c4cef0df3ed7be7ff9"   # PLACEHOLDER — see api controller's image comment above
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-db-connection
+                        key: uri
+                  QUEUE_URL: redis://ingestbuddy-app-valkey:6379/0
+                  DOCLING_SERVE_URL: http://docling-serve-app.docling-serve.svc.cluster.local:5001
+                  DOCLING_SERVE_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: DOCLING_SERVE_API_KEY
+                  LITELLM_BASE_URL: http://litellm-app.litellm.svc.cluster.local:4000
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: LITELLM_API_KEY
+                  # Sink dispatch (ingest_core.sinks / pipeline_worker.tasks,
+                  # infra-ops#66, merged to ingestbuddy main ahead of this
+                  # ticket's own Doppler-key list): the worker hard-requires
+                  # every one of these to even build its resource singleton
+                  # on the first job — process_document itself would raise
+                  # RuntimeError without them, not just the dispatch step.
+                  PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
+                  PAPERLESS_API_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_API_TOKEN
+                  PAPERLESS_PUBLIC_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_PUBLIC_URL
+                  QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
+                  QDRANT_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: QDRANT_API_KEY
+                  # PROVISIONAL — taxbuddy's own intake endpoint
+                  # (ingest_core.sinks.taxbuddy.TaxbuddySink's target,
+                  # taxbuddy#109) is not built yet; #109 is still open with
+                  # no path decided. This points at taxbuddy's real
+                  # in-cluster ingestion-api Service (confirmed via
+                  # `oc get svc -n taxbuddy`: taxbuddy-app-ingestion-api,
+                  # port 8000) plus a guessed path. Every dispatch to this
+                  # sink will fail (connection refused / 404) until #109
+                  # ships and this URL is corrected to match — that failure
+                  # is caught per-bundle by dispatch_to_sink's own
+                  # try/except and recorded as a failed SinkDispatch, not a
+                  # worker crash, so this does not block deploying the rest
+                  # of the pipeline. Update this value (and confirm the
+                  # TAXBUDDY_WEBHOOK_SECRET key in
+                  # external-ingestbuddy-credentials.yaml is what #109
+                  # actually reads) once #109 lands.
+                  TAXBUDDY_INTAKE_URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/webhooks/ingestbuddy
+                  TAXBUDDY_WEBHOOK_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: TAXBUDDY_WEBHOOK_SECRET
+                probes:
+                  # The RQ worker has no HTTP listener — exec a redis ping
+                  # against QUEUE_URL instead (pipeline_worker.healthcheck),
+                  # same shape as taxbuddy's doc-pipeline exec probe.
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - python3
+                          - -m
+                          - pipeline_worker.healthcheck
+                      initialDelaySeconds: 15
+                      periodSeconds: 15
+                      timeoutSeconds: 10
+                      failureThreshold: 6
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - python3
+                          - -m
+                          - pipeline_worker.healthcheck
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                      timeoutSeconds: 10
+
+          valkey:
+            containers:
+              valkey:
+                image:
+                  repository: valkey/valkey
+                  tag: 9.1.1
+                  pullPolicy: IfNotPresent
+                args:
+                  - valkey-server
+                  - --appendonly
+                  - "yes"
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - valkey-cli
+                          - ping
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - valkey-cli
+                          - ping
+                      initialDelaySeconds: 5
+                      periodSeconds: 5
+
+        service:
+          api:
+            controller: api
+            ports:
+              http:
+                port: 8000
+          valkey:
+            controller: valkey
+            ports:
+              redis:
+                port: 6379
+
+        persistence:
+          valkey-data:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 1Gi
+            advancedMounts:
+              valkey:
+                valkey:
+                  - path: /data
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
