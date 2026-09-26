@@ -48,10 +48,13 @@ spec:
                 resources:
                   requests:
                     cpu: 250m
-                    memory: 512Mi
+                    # Lowered from 512Mi alongside the limit trim below —
+                    # actual usage measured at 31Mi (oc adm top), and a
+                    # request must stay <= the container's own limit.
+                    memory: 256Mi
                   limits:
-                    cpu: "2"
-                    memory: 2Gi
+                    cpu: 300m
+                    memory: 256Mi
                 probes:
                   liveness:
                     enabled: true

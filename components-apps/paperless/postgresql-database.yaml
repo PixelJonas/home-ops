@@ -24,8 +24,8 @@ spec:
       cpu: 100m
       memory: 256Mi
     limits:
-      cpu: "1"
-      memory: 1Gi
+      cpu: 300m
+      memory: 384Mi
 
   # Loosen probe timeouts so transient node contention on Altus (CPU/IO
   # pressure from other workloads) doesn't trip the liveness probe and
