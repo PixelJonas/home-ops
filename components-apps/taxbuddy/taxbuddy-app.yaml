@@ -353,7 +353,7 @@ spec:
               bmf-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:07694b93e89438d4ebcc9cfcc5816e8439cc0006492ef6cbf5534820dddc9dfc"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
+                  digest: "sha256:d6ae2a13475174a58bec877877b5590ac9c2eb81ad5336f4fbddf2864d1c7066"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
@@ -403,7 +403,7 @@ spec:
               knowledge-service:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:07694b93e89438d4ebcc9cfcc5816e8439cc0006492ef6cbf5534820dddc9dfc"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
+                  digest: "sha256:d6ae2a13475174a58bec877877b5590ac9c2eb81ad5336f4fbddf2864d1c7066"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
