@@ -190,7 +190,7 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:844e42e81a62103fa387fa8ba5ce87922ffef814639d4472b1415c3a5b6107df"
+                  digest: "sha256:712c9fc8b8989b0bc6a8a6b7603d82cfa3cef531701cc4b4072b584a16d18628"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
