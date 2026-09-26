@@ -452,7 +452,7 @@ spec:
               web-ui:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/web_ui
-                  digest: "sha256:14e7a8434c54f62a736373541b2a77e27a68e70ed55bda0df1c0037364e1648d"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  digest: "sha256:be21ffdb0aae3a43b0b74e32a7c4e4df4c8af799ed79a2f749e37a57b4706246"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
