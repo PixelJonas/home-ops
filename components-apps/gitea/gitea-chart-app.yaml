@@ -18,6 +18,15 @@ spec:
         image:
           rootless: true
 
+        # Pin OpenShift mode instead of the chart's auto-detect (SCC API
+        # present in .Capabilities). On 2026-09-28 an Altus apiserver
+        # disruption made ArgoCD render once without the SCC API, so the
+        # chart emitted its non-OpenShift defaults (fsGroup/runAsUser 1000,
+        # no restricted container contexts); the new ReplicaSet was then
+        # rejected by every SCC and the app sat Degraded on the old pod.
+        openshift:
+          enabled: true
+
         gitea:
           admin:
             existingSecret: gitea-admin-secret
