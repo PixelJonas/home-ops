@@ -28,8 +28,13 @@ spec:
           name: thin-pool-1
           overprovisionRatio: 10
           sizePercent: 90
+        # Stable by-id paths: altus has two identical SATA SSDs whose kernel
+        # names swap between boots (2026-09-28 one boot had the root disk as
+        # /dev/sdb). vg-manager resolves these symlinks and matches them to the
+        # VG's PVs; every link must keep resolving to a current PV, or LVMS
+        # treats that PV as removed.
         deviceSelector:
           paths:
-            - /dev/nvme0n1
-            - /dev/nvme1n1
-            - /dev/sdb
+            - /dev/disk/by-id/nvme-WD_BLACK_SN770_2TB_230623476307 # nvme0n1, 2TB
+            - /dev/disk/by-id/nvme-CT1000P1SSD8_2030E2BAC0C0 # nvme1n1, 1TB
+            - /dev/disk/by-id/wwn-0x500a0751e60e12a0 # SATA SSD, not the root disk
