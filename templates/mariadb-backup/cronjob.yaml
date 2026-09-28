@@ -73,7 +73,11 @@ spec:
                   # is unset, producing an empty password and "Access denied ... (using password: NO)".
                   kubectl exec nextcloud-app-mariadb-0 --container mariadb -- /bin/bash -c \
                     "MYSQL_PWD=$MARIADB_ROOT_PASSWORD mariadb-dump --single-transaction --routines --triggers --all-databases -u root" \
-                    > /backup/backup.sql
+                    > /backup/backup.sql.tmp
+                  # Only replace the last good dump on success (a failed dump used to
+                  # truncate backup.sql and VolSync would back up an empty file).
+                  test -s /backup/backup.sql.tmp
+                  mv -f /backup/backup.sql.tmp /backup/backup.sql
                   echo -----------------------------------
                   ls -lah /backup
                   echo -----------------------------------
