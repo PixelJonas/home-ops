@@ -2,19 +2,58 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: volsync-backup
-  namespace: openshift-monitoring
+  # VolSync's metrics are scraped by the USER-WORKLOAD Prometheus
+  # (ServiceMonitor in volsync-system), not the platform one. A rule in
+  # openshift-monitoring is evaluated by the platform Prometheus, where
+  # volsync_* doesn't exist, so these alerts could never fire there. Living
+  # in volsync-system with evaluation scope leaf-prometheus makes the
+  # user-workload Prometheus evaluate them directly against its own data.
+  namespace: volsync-system
+  labels:
+    openshift.io/prometheus-rule-evaluation-scope: leaf-prometheus
 spec:
   groups:
     - name: volsync-backup
       rules:
+        # Fires once a schedule was missed and keeps firing only until a
+        # later sync succeeds (the plain increase(...[1d]) > 0 form kept
+        # firing for 24h after the backup had already recovered).
         - alert: VolSyncBackupMissedInterval
-          expr: increase(volsync_missed_intervals_total[1d]) > 0
+          expr: |
+            (
+              max by (obj_namespace, obj_name) (max_over_time((timestamp(increase(volsync_missed_intervals_total{role="source"}[10m]) > 0))[26h:5m]))
+              > max by (obj_namespace, obj_name) (max_over_time((timestamp(increase(volsync_sync_duration_seconds_count{role="source"}[10m]) > 0))[26h:5m]))
+            )
+            or
+            (
+              max by (obj_namespace, obj_name) (max_over_time((timestamp(increase(volsync_missed_intervals_total{role="source"}[10m]) > 0))[26h:5m]))
+              unless on (obj_namespace, obj_name)
+              max by (obj_namespace, obj_name) (max_over_time((timestamp(increase(volsync_sync_duration_seconds_count{role="source"}[10m]) > 0))[26h:5m]))
+            )
           for: 0m
           labels:
             severity: warning
           annotations:
-            summary: "VolSync backup {{ $labels.obj_name }} missed its scheduled window"
-            description: "ReplicationSource {{ $labels.obj_name }} in namespace {{ $labels.obj_namespace }} did not complete a backup sync before its next scheduled trigger — check for a stuck mover Job (e.g. a stale restic lock, see .claude/rules/kubernetes-argocd.md)."
+            summary: "VolSync backup {{ $labels.obj_namespace }}/{{ $labels.obj_name }} missed its scheduled window"
+            description: "ReplicationSource {{ $labels.obj_name }} in namespace {{ $labels.obj_namespace }} missed a scheduled sync and has not completed one since — check for a stuck mover Job (e.g. a stale restic lock, see infra-ops .claude/rules/kubernetes-argocd.md)."
+        # No successful sync for >26h. Catches what MissedInterval can't: a
+        # leftover spec.trigger.manual replaces the schedule entirely, so
+        # VolSync never counts a missed interval and out_of_sync stays 0.
+        # The offset-26h guard skips RSes (or operator metrics) younger than
+        # the window; needs user-workload Prometheus retention > 26h.
+        - alert: VolSyncBackupStale
+          expr: |
+            max by (obj_namespace, obj_name) (volsync_volume_out_of_sync{role="source"})
+            unless on (obj_namespace, obj_name)
+            max by (obj_namespace, obj_name) (max_over_time((timestamp(increase(volsync_sync_duration_seconds_count{role="source"}[10m]) > 0))[26h:5m]))
+            and on (obj_namespace, obj_name)
+            max by (obj_namespace, obj_name) (volsync_volume_out_of_sync{role="source"} offset 26h)
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VolSync backup {{ $labels.obj_namespace }}/{{ $labels.obj_name }} has not synced for over 26h"
+            description: "ReplicationSource {{ $labels.obj_name }} in namespace {{ $labels.obj_namespace }} has had no successful sync in 26h. Check for a leftover spec.trigger.manual (it silently disables the schedule — remove it and confirm status.nextSyncTime), a paused/stuck mover, or a stale restic lock."
         - alert: VolSyncBackupOutOfSync
           expr: volsync_volume_out_of_sync == 1
           for: 30m
