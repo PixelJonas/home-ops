@@ -1,0 +1,27 @@
+# xandar (second Altus worker): direct link to the Synology on its second NIC,
+# same flat storage segment and bridge layout as Altus's syno-interface.
+apiVersion: nmstate.io/v1
+kind: NodeNetworkConfigurationPolicy
+metadata:
+  name: syno-interface-xandar
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  desiredState:
+    interfaces:
+      - bridge:
+          options:
+            stp:
+              enabled: false
+          port:
+            - name: enp5s0
+        ipv4:
+          address:
+            - ip: 10.10.10.52
+              prefix-length: 24
+          enabled: true
+        name: br0
+        state: up
+        type: linux-bridge
+  nodeSelector:
+    kubernetes.io/hostname: xandar
