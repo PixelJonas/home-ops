@@ -52,6 +52,11 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: PAPERLESS_WEBHOOK_SECRET
+                  INGESTBUDDY_INTAKE_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: INGESTBUDDY_INTAKE_SECRET
                   LITELLM_BASE_URL:
                     valueFrom:
                       secretKeyRef:
