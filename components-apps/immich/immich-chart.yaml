@@ -18,6 +18,19 @@ spec:
 
         controllers:
           server:
+            pod:
+              # Prefer the worker node xandar (altus is CPU-saturated); falls
+              # back to altus if xandar is unavailable. No node-local volumes.
+              affinity: &preferXandar
+                nodeAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                    - weight: 100
+                      preference:
+                        matchExpressions:
+                          - key: kubernetes.io/hostname
+                            operator: In
+                            values:
+                              - xandar
             containers:
               server:
                 image:
@@ -40,6 +53,8 @@ spec:
                         name: immich-credentials
                         key: password
           machine-learning:
+            pod:
+              affinity: *preferXandar
             containers:
               machine-learning:
                 image:
@@ -49,6 +64,8 @@ spec:
                 env:
                   REDIS_HOSTNAME: immich-app-redis.immich.svc.cluster.local
           redis:
+            pod:
+              affinity: *preferXandar
             containers:
               redis:
                 image:
@@ -121,15 +138,26 @@ spec:
                 server:
                   - path: /data
             existingClaim: immich-app-library
+          # cache (NFS) is only used by server + machine-learning (ML model
+          # cache). database (lvms-vg1, node-local to altus) is mounted ONLY
+          # by the database controller -- a globalMount here pinned every
+          # immich pod to altus.
           cache:
             enabled: true
-            globalMounts:
-              - path: /cache
+            advancedMounts:
+              server:
+                server:
+                  - path: /cache
+              machine-learning:
+                machine-learning:
+                  - path: /cache
             existingClaim: immich-app-cache
           database:
             enabled: true
-            globalMounts:
-              - path: /var/lib/postgresql/data
+            advancedMounts:
+              database:
+                database:
+                  - path: /var/lib/postgresql/data
             accessMode: ReadWriteOnce
             storageClass: lvms-vg1
             size: 20Gi
