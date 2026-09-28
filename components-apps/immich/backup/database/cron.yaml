@@ -1,3 +1,11 @@
+# Suspended 2026-09-28: immich-app-database is scaled to 0 (see immich-chart.yaml
+# comment) while Altus is resource-constrained ahead of a second node -- with no
+# database pod to exec into, this job was failing every night and dragging the
+# immich ArgoCD Application into Degraded. Un-suspend when replicas go back to 1.
+- op: add
+  path: /spec/suspend
+  value: true
+
 - op: replace
   path: /spec/jobTemplate/spec/template/spec/volumes/0/persistentVolumeClaim/claimName
   value: database-syno-db-backup
