@@ -1,0 +1,26 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: taxbuddy-hermes-app
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-data
+
+# lvms-vg1 supports CSI snapshots (VolumeSnapshotClass lvms-vg1), so back
+# up from a point-in-time snapshot instead of mounting the live RWO PVC
+# (same fleet convention as tymeslot/actual-budget data-backup).
+- op: add
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: lvms-vg1
+
+# /opt/data is owned by the hermes user (uid/gid 10000) with mode 0700, so
+# the mover must run as that uid to read it. The mover ServiceAccount
+# (volsync-src-data-backup) is granted anyuid in ../../anyuid-rolebinding.yaml.
+- op: add
+  path: /spec/restic/moverSecurityContext
+  value:
+    runAsUser: 10000
+    runAsGroup: 10000
+    fsGroup: 10000

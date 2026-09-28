@@ -6,3 +6,5 @@ resources:
   - ./database
   - ./media
   - ./export
+  - ./gpt-database
+  - ./gpt-prompts
