@@ -18,12 +18,6 @@ spec:
 
         controllers:
           server:
-            # Scaled to 0 2026-09-26: temporary node-capacity relief while
-            # Altus (single-node) is thermally/resource constrained and a
-            # second node is being added -- not needed for day-to-day UX
-            # for a few days. Scale replicas back to 1 to resume; data on
-            # existingClaim PVCs is untouched.
-            replicas: 0
             containers:
               server:
                 image:
@@ -46,7 +40,6 @@ spec:
                         name: immich-credentials
                         key: password
           machine-learning:
-            replicas: 0
             containers:
               machine-learning:
                 image:
@@ -56,7 +49,6 @@ spec:
                 env:
                   REDIS_HOSTNAME: immich-app-redis.immich.svc.cluster.local
           redis:
-            replicas: 0
             containers:
               redis:
                 image:
@@ -64,7 +56,6 @@ spec:
                   tag: 9.2
                   pullPolicy: IfNotPresent
           database:
-            replicas: 0
             containers:
               database:
                 image:
