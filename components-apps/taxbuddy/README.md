@@ -178,6 +178,7 @@ each new digest together — no separate regex/manifest wiring was needed.
 |-----|---------|
 | `TAXBUDDY_POSTGRES_PASSWORD` | CNPG `taxbuddy-db` password; templated into `taxbuddy-db-connection` `uri` |
 | `TAXBUDDY_PAPERLESS_URL` / `TAXBUDDY_PAPERLESS_TOKEN` / `TAXBUDDY_PAPERLESS_WEBHOOK_SECRET` | Paperless ingest |
+| `TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET` | ingestion-api `INGESTBUDDY_INTAKE_SECRET` for `POST /intake/ingestbuddy` (taxbuddy#109); shared with ingestbuddy's `TAXBUDDY_WEBHOOK_SECRET` |
 | `TAXBUDDY_LITELLM_BASE_URL` / `TAXBUDDY_DOCPIPELINE_LITELLM_KEY` / `TAXBUDDY_LLMCLIENT_LITELLM_KEY` | LLM proxy |
 | `TAXBUDDY_DOCLING_SERVE_API_KEY` | docling-serve |
 | `TAXBUDDY_DOCPIPELINE_HONCHO_API_KEY` | Honcho memory |
