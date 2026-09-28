@@ -37,6 +37,12 @@ spec:
                   repository: ghcr.io/immich-app/immich-server
                   tag: v3.2.2
                   pullPolicy: IfNotPresent
+                # Sized from 7d usage (2026-09-29); requests only so the
+                # scheduler accounts for immich's load, no limits.
+                resources:
+                  requests:
+                    cpu: 250m
+                    memory: 1536Mi
                 env:
                   DB_DATABASE_NAME: immich
                   IMMICH_IGNORE_MOUNT_CHECK_ERRORS: true
@@ -61,6 +67,12 @@ spec:
                   repository: ghcr.io/immich-app/immich-machine-learning
                   tag: v3.1.0
                   pullPolicy: IfNotPresent
+                # Sized from 7d usage (2026-09-29); requests only so the
+                # scheduler accounts for immich's load, no limits.
+                resources:
+                  requests:
+                    cpu: 250m
+                    memory: 1Gi
                 env:
                   REDIS_HOSTNAME: immich-app-redis.immich.svc.cluster.local
           redis:
@@ -72,6 +84,12 @@ spec:
                   repository: ghcr.io/valkey-io/valkey
                   tag: 9.2
                   pullPolicy: IfNotPresent
+                # Sized from 7d usage (2026-09-29); requests only so the
+                # scheduler accounts for immich's load, no limits.
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 64Mi
           database:
             containers:
               database:
@@ -79,6 +97,12 @@ spec:
                   repository: ghcr.io/immich-app/postgres
                   tag: 17-vectorchord0.3.0-pgvectors0.3.0
                   pullPolicy: IfNotPresent
+                # Sized from 7d usage (2026-09-29); requests only so the
+                # scheduler accounts for immich's load, no limits.
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 384Mi
                 env:
                   POSTGRES_DB: immich
                   POSTGRES_INITDB_ARGS: '--data-checksums'
