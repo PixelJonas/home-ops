@@ -27,12 +27,12 @@ spec:
     spec:
       domain:
         cpu:
-          cores: 8
+          cores: 6
         resources:
           requests:
-            memory: 32Gi
+            memory: 18Gi
           limits:
-            memory: 32Gi
+            memory: 18Gi
         devices:
           rng: {}
           disks:
