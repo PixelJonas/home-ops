@@ -3,6 +3,12 @@ kind: GitopsService
 metadata:
   name: cluster
 spec:
+  # Run the default openshift-gitops instance (and console plugin) on the
+  # worker xandar to take ~2.6 cores / 4.5Gi of requests off altus. The
+  # operator propagates this to the ArgoCD CR's nodePlacement. Hard pin: if
+  # xandar is down, remove this and `oc apply` to bring ArgoCD back on altus.
+  nodeSelector:
+    kubernetes.io/hostname: xandar
   consolePlugin:
     backend:
       resources:
