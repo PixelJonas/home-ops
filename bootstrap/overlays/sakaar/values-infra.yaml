@@ -60,30 +60,6 @@ applications:
     source:
       path: components-infra/claude-admin/base
 
-  hermes-infra-agent:
-    annotations:
-      argocd.argoproj.io/sync-wave: "11"
-    source:
-      path: components-infra/hermes-infra-agent/base
-
-  hermes-upgrade-agent:
-    annotations:
-      argocd.argoproj.io/sync-wave: "11"
-    source:
-      path: components-infra/hermes-upgrade-agent/base
-
-  hermes-argocd-agent:
-    annotations:
-      argocd.argoproj.io/sync-wave: "11"
-    source:
-      path: components-infra/hermes-argocd-agent/base
-
-  hermes-volsync-agent:
-    annotations:
-      argocd.argoproj.io/sync-wave: "11"
-    source:
-      path: components-infra/hermes-volsync-agent/base
-
   openshift-monitoring:
     annotations:
       argocd.argoproj.io/sync-wave: "1"
