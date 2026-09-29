@@ -1,5 +1,5 @@
-# 8 vCPU / 32 GiB, measured against altus's live headroom (~15 free cores,
-# ~56 GiB free RAM at time of writing) rather than a guess. Three NICs on
+# 6 vCPU / 18 GiB, right-sized from 14.6 days of measured guest usage (peak
+# 12.8 GiB / 7.4 vCPU; see infra-ops #151/#153); was 8 vCPU / 32 GiB. Three NICs on
 # purpose: "default" (masquerade, pod network) carries the VM's internet
 # egress; "br0" (multus, bridged to the host's br0) is the NAS-only link and
 # carries no default route, so it can't be used for egress by accident;
