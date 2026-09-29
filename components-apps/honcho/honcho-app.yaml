@@ -234,9 +234,12 @@ spec:
                       initialDelaySeconds: 15
                       periodSeconds: 10
                       timeoutSeconds: 5
+                # Request sized to real usage (14d avg ~0.05, p99 ~0.74, bursts to
+                # ~5 cores while embedding); the 6-core limit still allows bursts.
+                # A 4-core request reserved a quarter of altus for an idle pod.
                 resources:
                   requests:
-                    cpu: "4"
+                    cpu: 500m
                     memory: 6Gi
                   limits:
                     cpu: "6"
