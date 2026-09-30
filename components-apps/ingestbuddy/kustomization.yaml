@@ -12,7 +12,6 @@ resources:
   - migration-job.yaml
   - postgresql-database.yaml
   - ingestbuddy-app.yaml
-  - backfill-job.yaml
   - backup
   # networkpolicy.yaml intentionally NOT included, matching
   # components-apps/taxbuddy/kustomization.yaml — see tax-agent's ADR-007:
