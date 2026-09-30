@@ -17,7 +17,18 @@ spec:
       values: |-
         controllers:
           influxdb3:
-            replicas: 0
+            # Moved altus -> xandar 2026-09-30 and resumed (replicas back
+            # to 1) after the 2026-09-26 pause. Storage is now static local
+            # PVs on xandar's NVMe (StorageClass local-xandar, see
+            # local-storage.yaml) instead of lvms-vg1, which is pinned to
+            # altus. No data migration: the 1.x -> 3.x backfill re-runs
+            # from source, same as the 2026-09-22 NAS -> Altus move; the
+            # old lvms data was still covered by the VolSync restic backup
+            # (last sync 2026-09-30T05:03Z) when the PVCs were dropped.
+            replicas: 1
+            pod:
+              nodeSelector:
+                kubernetes.io/hostname: xandar
             containers:
               influxdb3:
                 image:
@@ -26,7 +37,7 @@ spec:
                   pullPolicy: IfNotPresent
                 args:
                   - serve
-                  - --node-id=altus
+                  - --node-id=xandar
                   - --object-store=file
                   - --data-dir=/var/lib/influxdb3/data
                   - --plugin-dir=/var/lib/influxdb3/plugins
@@ -95,14 +106,14 @@ spec:
           data:
             enabled: true
             accessMode: ReadWriteOnce
-            storageClass: lvms-vg1
+            storageClass: local-xandar
             size: 100Gi
             globalMounts:
               - path: /var/lib/influxdb3/data
           plugins:
             enabled: true
             accessMode: ReadWriteOnce
-            storageClass: lvms-vg1
+            storageClass: local-xandar
             size: 1Gi
             globalMounts:
               - path: /var/lib/influxdb3/plugins
