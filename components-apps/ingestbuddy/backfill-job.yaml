@@ -31,7 +31,7 @@ metadata:
     # ingestbuddy-app.yaml (and delete the old completed Job first if the
     # digest changed).
 spec:
-  suspend: true
+  suspend: false
   # No retries: a failed bootstrap/enqueue should be looked at, not
   # repeated. `enqueue` is safe to re-run by hand (done docs are filtered,
   # queued docs are deduped).
