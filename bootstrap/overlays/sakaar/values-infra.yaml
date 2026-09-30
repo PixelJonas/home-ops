@@ -147,6 +147,14 @@ applications:
     source:
       path: components-infra/gha-runner-scale-set-ingestbuddy/base
 
+  gha-runner-scale-set-private-ops:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: arc-runners
+    source:
+      path: components-infra/gha-runner-scale-set-private-ops/base
+
   tailscale-operator:
     annotations:
       argocd.argoproj.io/sync-wave: "3"

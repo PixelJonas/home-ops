@@ -29,7 +29,7 @@ RecordBuddy (M0.5 milestone) needs two CI runner targets:
   `gha-runners-github-secret` ExternalSecret (Doppler keys
   `GHA_RUNNERS_APP_ID` / `GHA_RUNNERS_INSTALLATION_ID` /
   `GHA_RUNNERS_PRIVATE_KEY`, ClusterSecretStore `doppler-cluster`) — the same
-  secret palbuddy / tax-agent / devland use.
+  secret palbuddy / tax-agent / devland / private-ops use.
 - A privileged `ClusterRoleBinding`
   (`arc-runner-set-recordbuddy-privileged` → SA
   `arc-runner-set-recordbuddy-gha-rs-no-permission`) grants the runner pods
