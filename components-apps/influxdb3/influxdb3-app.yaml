@@ -17,61 +17,13 @@ spec:
       values: |-
         controllers:
           influxdb3:
-            # Capacity relief ended 2026-09-30: the 2026-09-26 scale-to-0
-            # pause was for node-capacity relief while Altus was single-node;
-            # second node xandar is now online, so the workload scales back
-            # to 1 and live HA writes resume.
-            replicas: 1
-            # FRESH START 2026-09-25: three resume attempts against the
-            # existing data (8Gi, 16Gi, 16Gi+--wal-files-per-snapshot=50)
-            # all OOMed at the identical stuck point -- consolidating WAL
-            # files 90104-90973 into SnapshotSequenceNumber(138). Isolated
-            # debug testing (clone of the real PVC via VolumeSnapshot,
-            # separate from production) confirmed this reproduces
-            # identically even at 16Gi with a sudden >10x memory spike
-            # (not gradual), and confirmed the root cause: a WAL file's
-            # snapshot batch boundary is fixed AT WRITE TIME (per
-            # influxdb3_wal source), not computed at replay time -- so
-            # --wal-files-per-snapshot only affects future writes, never
-            # this already-poisoned historical batch. Upstream issue
-            # influxdata/influxdb#25991 confirms persist-time sort/dedupe
-            # memory scales with buffered row volume, and #26422 confirms
-            # InfluxData's own stance is that persist has no memory bound
-            # by design -- there's no flag that fixes an existing bad
-            # batch, only avoiding creating one in the first place.
-            # Decision (Jonas, 2026-09-25): wipe influxdb3-app-data and
-            # influxdb3-app-plugins PVCs entirely and start completely
-            # fresh with --wal-files-per-snapshot=50 already in place from
-            # the very first WAL file, so no batch will ever grow past 50
-            # files again. Data recovery plan (both from sources
-            # independent of this poisoned instance): (1) HA's own
-            # recorder DB backfills the live-write gap since the
-            # 2026-09-18 cutover (homeassistant repo,
-            # scripts/backfill_gap_from_recorder.py), (2) the still-intact
-            # 1.x addon (never decommissioned, Task 6 of the 2026-09-14
-            # migration plan) backfills full history via the throttled
-            # wrapper (homeassistant repo,
-            # scripts/run_migrate_influxdb_1x_to_3x_throttled.sh). See
-            # docs/superpowers/plans/2026-09-25-influxdb3-safe-backfill-
-            # restart.md (homeassistant repo) Task 3 report for full
-            # detail. A pre-wipe VolumeSnapshot
-            # (influxdb3-app-data-debug-snap) is kept as a safety net
-            # until this fresh approach is verified.
+            replicas: 0
             containers:
               influxdb3:
                 image:
                   repository: docker.io/library/influxdb
                   tag: 3.11.4-core
                   pullPolicy: IfNotPresent
-                # Fresh instance moving from the Synology NAS (2026-09-22,
-                # after InfluxDB 3 Core's memory growth OOM-crash-looped the
-                # whole NAS during the HA 1.x->3.x backfill). Data is NOT
-                # migrated -- the backfill script is simply re-run against
-                # this instance once it's up (see homeassistant repo,
-                # scripts/migrate_influxdb_1x_to_3x.py). node-id changed
-                # from synology-nas to altus to reflect the new home; admin
-                # token and ha_metrics_* databases are recreated out-of-band
-                # after first boot, same one-shot pattern used originally.
                 args:
                   - serve
                   - --node-id=altus
@@ -79,34 +31,9 @@ spec:
                   - --data-dir=/var/lib/influxdb3/data
                   - --plugin-dir=/var/lib/influxdb3/plugins
                   - --query-file-limit=10000
-                  # Added 2026-09-25 alongside the resource retune below and
-                  # the throttled backfill wrapper (see homeassistant repo,
-                  # scripts/run_migrate_influxdb_1x_to_3x_throttled.sh) --
-                  # none of these three fixes is sufficient alone. Without
-                  # --checkpoint-interval, every OOM-restart re-replayed the
-                  # WAL from scratch, so each crash made the next restart's
-                  # replay bigger, not smaller (confirmed: 1203 WAL files,
-                  # 62 restarts, never converging). --wal-replay-concurrency-limit
-                  # caps memory used during that replay specifically.
-                  # --force-snapshot-mem-size forces a proactive snapshot
-                  # well before the container's memory limit, instead of
-                  # only the default ~50%-of-limit threshold.
-                  # checkpoint-interval lowered 15m -> 5m 2026-09-25:
-                  # the idle-OOM resume attempt died at 13m35s, just
-                  # under the old 15m interval, so it never lived long
-                  # enough to reach a checkpoint even once. 5m gives it
-                  # a real chance to checkpoint before the next restart
-                  # if it survives the startup catalog-load cost below.
                   - --checkpoint-interval=5m
                   - --wal-replay-concurrency-limit=4
                   - --force-snapshot-mem-size=40%
-                  # Added 2026-09-25 for RESUME ATTEMPT 3: verified via
-                  # `serve --help-all` on this exact image (default 600,
-                  # aliased --wal-snapshot-size). Attempt 2 OOMed
-                  # consolidating ~869 WAL files into one snapshot --
-                  # forcing snapshots every 50 files instead trades more
-                  # frequent, smaller flushes for a much smaller peak
-                  # buffered-row memory footprint per snapshot.
                   - --wal-files-per-snapshot=50
                 env:
                   TZ: Europe/Berlin
@@ -114,129 +41,10 @@ spec:
                   requests:
                     cpu: 500m
                     memory: 4Gi
-                  # The NAS instance was hard-capped at 2Gi (mem_limit) as a
-                  # defensive measure after an OOM there took the whole box
-                  # down via swap-thrashing -- that risk doesn't apply the
-                  # same way on Altus (a pod OOM-kill just restarts the pod,
-                  # node has 92Gi allocatable), so this is set generously
-                  # for backfill headroom rather than defensively.
-                  #
-                  # Raised 4Gi -> 8Gi 2026-09-22: confirmed OOMKilled
-                  # (exit code 137) during the InfluxDB 1.x->3.x backfill
-                  # (homeassistant repo) -- WAL replay on restart had grown
-                  # to 900+ files from the backfill's own sustained write
-                  # volume, and replaying that backlog on every crash-loop
-                  # restart exceeded 4Gi before the pod could become ready,
-                  # a self-reinforcing OOM/restart/replay-again cycle.
-                  #
-                  # Raised 8Gi -> 16Gi 2026-09-22 (same day, ~4h later):
-                  # OOMKilled again under sustained backfill+live write
-                  # load even at 8Gi, this time cycling rapidly (9
-                  # restarts within minutes) rather than the original
-                  # slow WAL-replay-driven loop -- startup got much
-                  # faster by this point (loading from a snapshot
-                  # checkpoint, not replaying hundreds of individual WAL
-                  # files), so this looks like steady-state memory
-                  # pressure from write throughput, not a startup-time
-                  # replay cost. Node has 92Gi allocatable; the backfill
-                  # is temporary, so generous headroom now avoids a third
-                  # round of this rather than tuning to the minimum that
-                  # happens to work.
-                  #
-                  # Raised 16Gi -> 20Gi, cpu 2 -> 3 2026-09-23: OOMKilled
-                  # twice more at 16Gi with a sharply shrinking interval
-                  # between crashes (~14h, then ~9h, then only ~2.4h),
-                  # and the second of those two crashed again within its
-                  # own ~10min startup window before finishing WAL
-                  # replay -- a genuine crash loop with live HA writes
-                  # fully down, not the periodic self-resolving pressure
-                  # seen at 14:53 and 18:24. Deliberately modest bump
-                  # (not another doubling) because the Altus node itself
-                  # is running near its own memory ceiling (83-92% across
-                  # all workloads during this incident, shared with
-                  # honcho-vllm at 12Gi and docling-serve at 8Gi) --
-                  # ~17Gi was free on the node at the time, comfortably
-                  # covering this increase without pushing the node into
-                  # pressure. CPU bumped alongside since node CPU
-                  # headroom is ample (6+ of 15.5 cores free) and a
-                  # faster WAL replay reduces the window during which
-                  # replay-driven memory pressure can compound.
-                  #
-                  # TEMPORARY: raised 20Gi -> 32Gi 2026-09-24. 20Gi was not
-                  # enough: every restart replays 1203 WAL files (with
-                  # ~2M parquet files on disk) and OOMs at the same
-                  # point persisting snapshot 115, never converging (62
-                  # restarts). Node had ~37Gi free (54Gi of 92Gi used)
-                  # after the cluster restart; influxdb3 requests only
-                  # 512Mi so it is the first OOM victim under node
-                  # pressure. Scale back down once the WAL is
-                  # checkpointed and the backfill has finished.
-                  # RETUNED 2026-09-25, replacing the "TEMPORARY 32Gi" line
-                  # above: confirmed via `oc describe node altus` +
-                  # `oc adm top node` that even with influxdb3 fully paused,
-                  # the node only has ~22Gi of real free memory (CPU
-                  # requests already 88%, memory requests 76%) -- a 32Gi
-                  # Burstable limit was never actually safe here regardless
-                  # of how InfluxDB itself behaved, since the node
-                  # structurally can't back that much burst. Paired with
-                  # the checkpoint-interval/replay-concurrency/snapshot-
-                  # threshold flags above and the throttled backfill
-                  # wrapper (chunked runs, not one sustained firehose),
-                  # this is a deliberately conservative starting point --
-                  # raise only after Task 3's watched first run shows a
-                  # clear need, not reactively under fire like the five
-                  # prior bumps (4Gi->8Gi->16Gi->20Gi->32Gi) all were.
-                  #
-                  # 8Gi -> 16Gi 2026-09-25, this time WITH a clear need:
-                  # the first resume attempt at 8Gi OOMKilled at idle
-                  # (zero write traffic) after 13m35s while building the
-                  # in-memory catalog for 113 gen1 snapshots -- root-
-                  # caused as a one-time startup cost that scales with
-                  # this backlog's 2.92M-file count (see RESUME ATTEMPT 2
-                  # comment above), not with write volume, so this bump
-                  # doesn't reopen the door to the original backfill-
-                  # write-pressure spiral. A measured step, not a
-                  # reflexive jump back to 32Gi -- node has ~22Gi real
-                  # free, comfortably covering this.
-                  #
-                  # TEMPORARY: 16Gi -> 24Gi 2026-09-30 for the post-wipe
-                  # first backfill period only. The 2026-09-25 retune to
-                  # 16Gi was sized against a then-single-node Altus with
-                  # only ~22Gi real free; with xandar now online the altus
-                  # node (~94Gi, 61% used, 59% requested) has headroom for
-                  # extra burst capacity during initial load, where the
-                  # known failure mode is a sudden >10x spike 13-18min in.
-                  # Request stays at 4Gi so scheduling is unaffected.
-                  # Revert to 16Gi once steady-state is confirmed.
                   limits:
                     cpu: "2"
                     memory: 24Gi
                 probes:
-                  # No documented HTTP health endpoint confirmed for
-                  # InfluxDB 3 Core -- plain TCP check on the serve port.
-                  #
-                  # Added startupProbe 2026-09-22: there was previously no
-                  # startup probe at all, so liveness (initialDelay 15s,
-                  # period 20s, default failureThreshold 3 = ~75s budget)
-                  # applied from boot -- confirmed via `oc get events`
-                  # ("failed liveness probe, will be restarted") that this
-                  # killed the pod mid-WAL-replay well before the ~900-file
-                  # backlog (see memory limit note above) could finish
-                  # replaying, compounding the OOM crash-loop rather than
-                  # just being caused by it. A generous ~10 minute startup
-                  # budget defers liveness/readiness until first success,
-                  # long enough for a large WAL backlog to finish replaying
-                  # even under memory/CPU pressure, while still eventually
-                  # detecting a genuinely hung container.
-                  #
-                  # Raised failureThreshold 60 -> 360 (~1h) 2026-09-24:
-                  # with the memory limit at 32Gi the replay no longer
-                  # OOMs, but persisting snapshot 115 writes one parquet
-                  # file per 10-min chunk (~2M files on disk) and takes
-                  # far longer than 10 minutes; the startup probe killed
-                  # the pod mid-persist ("failed startup probe, will be
-                  # restarted"), throwing the work away. Lower again once
-                  # the WAL is checkpointed and startup is fast.
                   startup:
                     enabled: true
                     custom: true
@@ -269,12 +77,6 @@ spec:
             ports:
               http:
                 port: 8181
-
-        # Only Home Assistant (an external host, not another in-cluster
-        # app) talks to this -- needs a real Route, unlike an in-cluster-
-        # only backend such as docling-serve. Auth stays on (admin token
-        # required for every read/write), same trust boundary as the old
-        # LAN-only NAS exposure.
         ingress:
           influxdb3:
             enabled: true
@@ -294,16 +96,6 @@ spec:
             enabled: true
             accessMode: ReadWriteOnce
             storageClass: lvms-vg1
-            # Raised 20Gi -> 100Gi 2026-09-23: PVC hit 100% full ("No space
-            # left on device" on every WAL/parquet write), blocking both
-            # live HA writes and the backfill for 25+ min with no self-
-            # recovery possible (unlike the transient DNS/OOM issues seen
-            # earlier). Root cause: ha_metrics_categorical/hourly have
-            # infinite retention and InfluxDB 3 Core has no compactor (see
-            # homeassistant repo ADR-0001), so the backfill's historical
-            # write volume accumulates without bound. lvms-vg1 had 369Gi
-            # free on the node at the time; sized generously since this
-            # will keep growing for the life of the backfill and beyond.
             size: 100Gi
             globalMounts:
               - path: /var/lib/influxdb3/data
