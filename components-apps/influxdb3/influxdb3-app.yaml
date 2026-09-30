@@ -29,6 +29,12 @@ spec:
             pod:
               nodeSelector:
                 kubernetes.io/hostname: xandar
+              securityContext:
+                # Local PVs get a recursive chown on every pod start
+                # otherwise (VolumePermissionChangeInProgress took ~1min
+                # on a nearly-empty data dir at the 2026-10-01 xandar
+                # reboot -- that only grows as the 100Gi dataset fills).
+                fsGroupChangePolicy: OnRootMismatch
             containers:
               influxdb3:
                 image:
