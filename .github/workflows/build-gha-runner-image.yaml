@@ -26,7 +26,10 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_TOKEN gets permission_denied: write_package for packages
+          # owned by the user account but not linked to this repo; GHCR_TOKEN
+          # (classic PAT, write:packages) covers those.
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Compute tags
         id: meta
