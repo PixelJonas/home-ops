@@ -17,14 +17,11 @@ spec:
       values: |-
         controllers:
           influxdb3:
-            # Scaled to 0 2026-09-26: temporary node-capacity relief while
-            # Altus (single-node) is thermally/resource constrained and a
-            # second node is being added. The 1.x->3.x backfill is already
-            # paused independently (see homeassistant repo
-            # migration-checkpoint.json); this just also stops the pod
-            # itself from consuming CPU/memory while idle. Scale replicas
-            # back to 1 to resume live HA writes.
-            replicas: 0
+            # Capacity relief ended 2026-09-30: the 2026-09-26 scale-to-0
+            # pause was for node-capacity relief while Altus was single-node;
+            # second node xandar is now online, so the workload scales back
+            # to 1 and live HA writes resume.
+            replicas: 1
             # FRESH START 2026-09-25: three resume attempts against the
             # existing data (8Gi, 16Gi, 16Gi+--wal-files-per-snapshot=50)
             # all OOMed at the identical stuck point -- consolidating WAL
@@ -201,9 +198,19 @@ spec:
                   # write-pressure spiral. A measured step, not a
                   # reflexive jump back to 32Gi -- node has ~22Gi real
                   # free, comfortably covering this.
+                  #
+                  # TEMPORARY: 16Gi -> 24Gi 2026-09-30 for the post-wipe
+                  # first backfill period only. The 2026-09-25 retune to
+                  # 16Gi was sized against a then-single-node Altus with
+                  # only ~22Gi real free; with xandar now online the altus
+                  # node (~94Gi, 61% used, 59% requested) has headroom for
+                  # extra burst capacity during initial load, where the
+                  # known failure mode is a sudden >10x spike 13-18min in.
+                  # Request stays at 4Gi so scheduling is unaffected.
+                  # Revert to 16Gi once steady-state is confirmed.
                   limits:
                     cpu: "2"
-                    memory: 16Gi
+                    memory: 24Gi
                 probes:
                   # No documented HTTP health endpoint confirmed for
                   # InfluxDB 3 Core -- plain TCP check on the serve port.
