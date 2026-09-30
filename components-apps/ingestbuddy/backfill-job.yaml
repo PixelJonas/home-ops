@@ -1,0 +1,87 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingestbuddy-backfill
+  namespace: ingestbuddy
+  annotations:
+    # ingestbuddy#8 archive backfill (D4): an operator-gated one-off. This Job
+    # only *enqueues* (bootstrap the QDrant collection + alias, then enqueue
+    # backfill jobs onto jobs:backfill); the ingestbuddy worker does the
+    # actual processing, at lower priority than live intake.
+    #
+    # Committed with `suspend: true`. To run it, flip `suspend` to false in a
+    # PR; flip it back (or delete this file) once the run's enqueue is done.
+    #
+    # Last wave, after the ingestbuddy-app Application (111), so nothing else
+    # in this app waits on the Job's health (a suspended Job reports
+    # Suspended, a running one Progressing).
+    argocd.argoproj.io/sync-wave: "120"
+    # Deliberately NO Force/Replace sync option and NO
+    # ttlSecondsAfterFinished (unlike migration-job.yaml): either one lets
+    # ArgoCD delete + recreate the Job (on a spec change, or on selfHeal
+    # after the TTL reaps it), and a recreated unsuspended Job would run
+    # `enqueue --limit N` again, which enqueues N *more* documents (the
+    # limit counts new docs after the done-filter). A run must only ever
+    # happen on an explicit suspend=false commit.
+    #
+    # The image digest is pinned by hand and is NOT bumped by ingestbuddy's
+    # release.yml (bump_home_ops.py): the pod template is immutable, so a
+    # bump would either break sync or, with Replace, re-run the enqueue.
+    # Before unsuspending, set it to the worker digest in
+    # ingestbuddy-app.yaml (and delete the old completed Job first if the
+    # digest changed).
+spec:
+  suspend: true
+  # No retries: a failed bootstrap/enqueue should be looked at, not
+  # repeated. `enqueue` is safe to re-run by hand (done docs are filtered,
+  # queued docs are deduped).
+  backoffLimit: 0
+  # bootstrap + paging through all paperless documents takes well under a
+  # minute; this is only a hang guard.
+  activeDeadlineSeconds: 1800
+  template:
+    spec:
+      serviceAccountName: ingestbuddy-app
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ingestbuddy-ghcr-pull-secret
+      containers:
+        - name: backfill
+          # Same image as the worker controller in ingestbuddy-app.yaml.
+          image: "ghcr.io/pixeljonas/ingestbuddy/pipeline_worker@sha256:2bd5f59967fd8092b564b6537caaeebad8698e6d6c7c68d418a066b0bea75d06"
+          command: ["/bin/sh", "-c"]
+          args:
+            # Canary (#8): 20 documents. Raise/drop --limit for the full run.
+            - >-
+              python3 -m pipeline_worker.backfill bootstrap &&
+              python3 -m pipeline_worker.backfill enqueue --limit 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          env:
+            - name: TZ
+              value: Europe/Berlin
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ingestbuddy-db-connection
+                  key: uri
+            - name: QUEUE_URL
+              value: redis://ingestbuddy-app-valkey:6379/0
+            - name: PAPERLESS_API_URL
+              value: http://paperless-ng.paperless.svc.cluster.local:8000
+            - name: PAPERLESS_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ingestbuddy-credentials
+                  key: PAPERLESS_API_TOKEN
+            - name: QDRANT_URL
+              value: http://qdrant-app.qdrant.svc.cluster.local:6333
+            - name: QDRANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ingestbuddy-credentials
+                  key: QDRANT_API_KEY
