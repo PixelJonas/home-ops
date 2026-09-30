@@ -6,7 +6,7 @@ USER root
 # apt packages intentionally unpinned; versions move with the base image.
 # hadolint ignore=DL3008
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends podman podman-docker netavark aardvark-dns iptables build-essential python3-dev python3-pipx nodejs npm \
+    && apt-get install -y --no-install-recommends podman podman-docker netavark aardvark-dns iptables build-essential python3-dev pipx nodejs npm \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /etc/containers \
     && printf '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' > /etc/containers/storage.conf
