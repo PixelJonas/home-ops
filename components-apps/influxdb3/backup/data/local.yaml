@@ -1,15 +1,16 @@
+# copyMethod: Direct (not Snapshot) since 2026-09-30: the data PVC moved to
+# a static local PV on xandar (StorageClass local-xandar), which has no
+# VolumeSnapshot support. cacheStorageClassName follows it so the mover pod
+# (which mounts both source and cache PVCs) can schedule on xandar.
 - op: replace
   path: /spec/sourcePVC
   value: influxdb3-app-data
 - op: replace
   path: /spec/restic/repository
   value: restic-config-data
-- op: add
-  path: /spec/restic/copyMethod
-  value: Snapshot
-- op: add
-  path: /spec/restic/volumeSnapshotClassName
-  value: lvms-vg1
+- op: replace
+  path: /spec/restic/cacheStorageClassName
+  value: local-xandar
 - op: add
   path: /spec/restic/cacheCapacity
   value: 10Gi
