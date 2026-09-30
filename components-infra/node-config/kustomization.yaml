@@ -5,3 +5,4 @@ resources:
   - set-max-pods.yaml
   - increased-reservation.yaml
   - master-pool-labels.yaml
+  - tuned-no-turbo.yaml
