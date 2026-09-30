@@ -139,23 +139,18 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: QDRANT_API_KEY
-                  # PROVISIONAL — taxbuddy's own intake endpoint
-                  # (ingest_core.sinks.taxbuddy.TaxbuddySink's target,
-                  # taxbuddy#109) is not built yet; #109 is still open with
-                  # no path decided. This points at taxbuddy's real
-                  # in-cluster ingestion-api Service (confirmed via
-                  # `oc get svc -n taxbuddy`: taxbuddy-app-ingestion-api,
-                  # port 8000) plus a guessed path. Every dispatch to this
-                  # sink will fail (connection refused / 404) until #109
-                  # ships and this URL is corrected to match — that failure
-                  # is caught per-bundle by dispatch_to_sink's own
-                  # try/except and recorded as a failed SinkDispatch, not a
-                  # worker crash, so this does not block deploying the rest
-                  # of the pipeline. Update this value (and confirm the
-                  # TAXBUDDY_WEBHOOK_SECRET key in
-                  # external-ingestbuddy-credentials.yaml is what #109
-                  # actually reads) once #109 lands.
-                  TAXBUDDY_INTAKE_URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/webhooks/ingestbuddy
+                  # taxbuddy's ingestion-api POST /intake/ingestbuddy
+                  # (taxbuddy#109, shipped in taxbuddy#148). Auth is the
+                  # shared ingestbuddy push-transport header
+                  # X-Ingestbuddy-Signature carrying TAXBUDDY_WEBHOOK_SECRET
+                  # (Doppler TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET — the same
+                  # key taxbuddy's INGESTBUDDY_INTAKE_SECRET reads). Known
+                  # remaining gap: TaxbuddySink's envelope is not yet the
+                  # #139 IngestBundle taxbuddy validates, so deliveries 422
+                  # until ingestbuddy grows tax-domain extraction; failures
+                  # are recorded per-bundle as failed SinkDispatches, not
+                  # worker crashes.
+                  TAXBUDDY_INTAKE_URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/intake/ingestbuddy
                   TAXBUDDY_WEBHOOK_SECRET:
                     valueFrom:
                       secretKeyRef:
