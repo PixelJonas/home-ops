@@ -102,6 +102,14 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: HONCHO_API_KEY
+                  # Bearer token for the taxbuddy lookup-mcp server,
+                  # interpolated as ${LOOKUP_MCP_TOKEN} in config.yaml's
+                  # mcp_servers headers (taxbuddy#154).
+                  LOOKUP_MCP_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: LOOKUP_MCP_TOKEN
               dashboard:
                 # `hermes gateway run` does not start the web dashboard —
                 # confirmed live (2026-07-29) via `hermes dashboard
@@ -157,6 +165,14 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: HONCHO_API_KEY
+                  # Bearer token for the taxbuddy lookup-mcp server,
+                  # interpolated as ${LOOKUP_MCP_TOKEN} in config.yaml's
+                  # mcp_servers headers (taxbuddy#154).
+                  LOOKUP_MCP_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: LOOKUP_MCP_TOKEN
 
         persistence:
           hermes-data:
