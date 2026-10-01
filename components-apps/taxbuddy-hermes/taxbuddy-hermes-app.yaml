@@ -18,6 +18,20 @@ spec:
         controllers:
           hermes:
             replicas: 1
+            pod:
+              # Live finding (2026-10-01): hermes lazy-installs optional
+              # deps (e.g. honcho-ai for memory.provider: honcho) with uv,
+              # a static musl binary. With the default ndots:5, "pypi.org"
+              # is first tried with search suffixes, and
+              # pypi.org.altus.janz.digital answers NOERROR/NODATA — glibc
+              # moves on, musl stops ("Name has no usable address"). ndots:1
+              # makes external names resolve as absolute first; in-cluster
+              # names like litellm-app.litellm.svc still fall back to the
+              # search list (verified with a throwaway pod).
+              dnsConfig:
+                options:
+                  - name: ndots
+                    value: "1"
             initContainers:
               # Live finding (2026-07-28, Task B verification): mounting
               # the ConfigMap's config.yaml directly onto
