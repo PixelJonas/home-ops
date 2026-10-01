@@ -45,7 +45,7 @@ spec:
           # same PR, so the migrations applied here always come from the
           # code being rolled out. Requires an image built from a taxbuddy
           # commit containing `python -m tax_core.migrations` (#107).
-          image: "ghcr.io/pixeljonas/taxbuddy/ingestion_api@sha256:101bcc9b6ba64ae7f34badee93ff3b92bad9d402ab6d82697a2eb540ad848289"
+          image: "ghcr.io/pixeljonas/taxbuddy/ingestion_api@sha256:08e80412b95c44c9962f4883a90cecead506bd631ac86ed5ba0dc20014075ea8"
           command: ["python", "-m", "tax_core.migrations", "upgrade", "head"]
           env:
             - name: DATABASE_URL
