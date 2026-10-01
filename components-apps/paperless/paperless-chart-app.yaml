@@ -45,6 +45,11 @@ spec:
                   PAPERLESS_ALLOWED_HOSTS: "paperless.apps.altus.janz.digital,paperless.janz.digital,localhost,paperless-ng.paperless.svc.cluster.local"
                   PAPERLESS_CORS_ALLOWED_HOSTS: "https://paperless.apps.altus.janz.digital,https://paperless.janz.digital"
                   PAPERLESS_URL: "https://paperless.janz.digital"
+                  # Trust the edge's X-Forwarded-Proto (Cloudflare tunnel -> svc over
+                  # plain http, and the OpenShift edge route) so Django builds absolute
+                  # URLs (DRF pagination next/previous) as https. Only applies when the
+                  # header is present; internal svc callers without it stay on http.
+                  PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
                   # -- OCR languages to install
                   PAPERLESS_OCR_LANGUAGE: deu
                   PAPERLESS_OCR_LANGUAGES: deu
