@@ -45,6 +45,13 @@ spec:
                       secretKeyRef:
                         name: qdrant-credentials
                         key: QDRANT_API_KEY
+                  # Read-only key for read consumers (taxbuddy lookup-mcp,
+                  # taxbuddy#154): grants search/query only, rejects upserts.
+                  QDRANT__SERVICE__READ_ONLY_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: qdrant-credentials
+                        key: QDRANT_READ_ONLY_API_KEY
                 resources:
                   requests:
                     cpu: 250m
