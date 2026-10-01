@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:0d51159a33db55a372630d37f91bdd76f7c3323b3b2eee2c7276005486b41f53"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:2d45351b844a2f12fc1dc689f4b464901dd7ae27f606ebf36e9425ef2d491077"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -195,7 +195,7 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:37ea9d7e431ac10d40ae25b6243b7d018a733bd70c72b926380073a0d20b41d5"
+                  digest: "sha256:0deca7ee0427d65998df8ed9f3271fcd3d8fc8d58aa5b3189fccd51d7eb9c73d"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -291,7 +291,7 @@ spec:
               self-benchmark:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
-                  digest: "sha256:e402ef66fb46ee778497a0b4c6192784f01761db06114bfcb661ce3632e5de3b"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  digest: "sha256:54b7760241112324dfc17fdaee4312478ab1077f87ecf3c03925f231c284abc2"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -358,7 +358,7 @@ spec:
               bmf-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:b228cc38f95ad3aee79ba91434476c98ea388daa136842a05e0dab8a7379eaee"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
+                  digest: "sha256:8634022574d0e5eb71301ec73fad4986465d4e0fbef39cd2d32815db09d72f31"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
@@ -408,7 +408,7 @@ spec:
               knowledge-service:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:b228cc38f95ad3aee79ba91434476c98ea388daa136842a05e0dab8a7379eaee"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
+                  digest: "sha256:8634022574d0e5eb71301ec73fad4986465d4e0fbef39cd2d32815db09d72f31"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -460,7 +460,7 @@ spec:
               lookup-mcp:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/lookup_mcp
-                  digest: "sha256:125f1b7f24580b73468a1ccac0747f291ce23825c4dfbae9b2f9dabd762d3d38"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
+                  digest: "sha256:d7923714b72c8820f7431b4f660afd83ea4e97b42422e6ffe2e175e32eed807c"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -525,7 +525,7 @@ spec:
               web-ui:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/web_ui
-                  digest: "sha256:6e60e227a5a4619b4eea080e11a69ba7f1ac642b9431a5e3388f103e297fe34f"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  digest: "sha256:b0674068512c4a50cbdd693d670b38f6b2cd2dc4fac949ef978fe7a79eee2c8a"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -612,7 +612,7 @@ spec:
               sync-worker:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/sync_worker
-                  digest: "sha256:625daa28977032ca3f9b06f8a329ac486d73adec15de0f3a7550357456be0ea8"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
+                  digest: "sha256:8ae6eb10c7fc1b0c905ef28050c11be8073cc0500d006441113ebcf0aeef3ec9"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
