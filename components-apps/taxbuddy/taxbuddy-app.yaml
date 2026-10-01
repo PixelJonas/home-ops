@@ -451,6 +451,74 @@ spec:
                       initialDelaySeconds: 5
                       periodSeconds: 10
 
+          lookup-mcp:
+            # Read-only Paperless + Qdrant lookup tools for Hermes over MCP
+            # (streamable HTTP at /mcp, bearer-token auth; taxbuddy#154,
+            # ADR-0024). Wired into taxbuddy-hermes' config.yaml.
+            replicas: 1
+            containers:
+              lookup-mcp:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/lookup_mcp
+                  digest: "sha256:125f1b7f24580b73468a1ccac0747f291ce23825c4dfbae9b2f9dabd762d3d38"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_TOKEN
+                  QDRANT_URL: http://qdrant-app.qdrant.svc:6333
+                  QDRANT_COLLECTION: ingestbuddy_documents
+                  QDRANT_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: QDRANT_READ_ONLY_API_KEY
+                  # Same embedding model ingestbuddy indexes with (bge-m3,
+                  # 1024-dim) via a dedicated bge-m3-only LiteLLM key.
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LOOKUP_MCP_LITELLM_KEY
+                  LOOKUP_EMBEDDING_MODEL: bge-m3
+                  LOOKUP_MCP_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LOOKUP_MCP_TOKEN
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
           web-ui:
             replicas: 1
             containers:
@@ -587,6 +655,11 @@ spec:
                 port: 8000
           knowledge-service:
             controller: knowledge-service
+            ports:
+              http:
+                port: 8000
+          lookup-mcp:
+            controller: lookup-mcp
             ports:
               http:
                 port: 8000

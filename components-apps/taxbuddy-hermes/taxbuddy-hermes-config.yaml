@@ -59,6 +59,19 @@ data:
         name: litellm
         api: http://litellm-app.litellm.svc:4000/v1
         key_env: LITELLM_API_KEY
+    # Read-only document lookup (taxbuddy#154, ADR-0024): Paperless
+    # search/get + Qdrant semantic search over ingestbuddy's chunks.
+    # Tools surface as mcp__taxbuddy_lookup__<tool>.
+    mcp_servers:
+      taxbuddy-lookup:
+        url: http://taxbuddy-app-lookup-mcp.taxbuddy.svc:8000/mcp
+        headers:
+          Authorization: "Bearer ${LOOKUP_MCP_TOKEN}"
+        timeout: 60
+        connect_timeout: 30
+        tools:
+          resources: false
+          prompts: false
   # Live finding (Task 6 verification, 2026-07-30): Honcho config is NOT
   # part of config.yaml's schema — it's a separate file read from
   # $HERMES_HOME/honcho.json, confirmed by reading
