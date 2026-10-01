@@ -142,6 +142,21 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: DASHBOARD_PASSWORD
+                  # Dashboard chats run the agent in THIS process, so it
+                  # needs the same provider/memory keys as the gateway.
+                  # Without them config.yaml's `key_env: LITELLM_API_KEY`
+                  # resolves empty and Hermes sends its `no-key-required`
+                  # placeholder -> LiteLLM 401 "Virtual Key expected".
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: LITELLM_API_KEY
+                  HONCHO_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: HONCHO_API_KEY
 
         persistence:
           hermes-data:
