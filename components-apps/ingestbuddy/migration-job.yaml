@@ -41,7 +41,7 @@ spec:
           # ingestbuddy-app.yaml — ingestbuddy's release.yml bumps both in
           # the same PR, so the migrations applied here always match the
           # code being rolled out.
-          image: "ghcr.io/pixeljonas/ingestbuddy/pipeline_api@sha256:247321924d9c12e1c8e4f1c5aeabc0950f1956245eb3a1f8e3b7a663362c46d4"
+          image: "ghcr.io/pixeljonas/ingestbuddy/pipeline_api@sha256:547386fbca3f48a66094882494ace4dce810f5fe2718f6616aca7d923c7b21d9"
           # ingest_core ships an alembic.ini + `alembic` CLI, but alembic.ini
           # lives at packages/ingest_core/alembic.ini (repo-root-relative,
           # alongside pyproject.toml) — it is NOT part of the installed
