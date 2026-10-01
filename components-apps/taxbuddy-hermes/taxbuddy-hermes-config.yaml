@@ -23,7 +23,26 @@ data:
   # doesn't fire behind LiteLLM (K3's server-side default is high anyway).
   # The taxbuddy-hermes LiteLLM virtual key's model allowlist must include
   # both models — managed via LiteLLM's /key/update API, not GitOps.
+  #
+  # Schema v44 (2026-10-01, image v2026.9.14): the file must carry an
+  # explicit `_config_version`. Without it the image's boot-time
+  # docker_config_migrate.py treats it as v0 (< support floor 12) and logs
+  # "can no longer be auto-migrated" on every boot, since the init
+  # container reseeds this unversioned file each time. The v44 shape below
+  # is exactly what hermes' own migrate_config() produces from the old
+  # config: `custom_providers` list -> `providers` map (still referenced as
+  # `custom:litellm`). Its other v12->v44 steps (plugins opt-in,
+  # verify_on_stop: false) match the already-effective defaults, so they're
+  # omitted. Bump `_config_version` when bumping the image tag.
+  #
+  # `memory.provider: honcho` is what actually activates the Honcho plugin
+  # (agent/agent_init.py); honcho.json alone only configures it. Without it
+  # Honcho memory was never active (taxbuddy workspace had 0 sessions as of
+  # 2026-10-01). The plugin lazy-installs honcho-ai into
+  # $HERMES_LAZY_INSTALL_TARGET (/opt/data/lazy-packages, on the PVC) on
+  # first use — see the dnsConfig note in taxbuddy-hermes-app.yaml.
   config.yaml: |
+    _config_version: 44
     model:
       default: kimi-k3
       provider: custom:litellm
@@ -33,9 +52,12 @@ data:
     agent:
       reasoning_overrides:
         kimi-k3: high
-    custom_providers:
-      - name: litellm
-        base_url: http://litellm-app.litellm.svc:4000/v1
+    memory:
+      provider: honcho
+    providers:
+      litellm:
+        name: litellm
+        api: http://litellm-app.litellm.svc:4000/v1
         key_env: LITELLM_API_KEY
   # Live finding (Task 6 verification, 2026-07-30): Honcho config is NOT
   # part of config.yaml's schema — it's a separate file read from
