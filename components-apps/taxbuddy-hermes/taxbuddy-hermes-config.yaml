@@ -14,10 +14,25 @@ data:
   # secret value inlined in config.yaml) for the API key. Webhook platform
   # is opt-in via the WEBHOOK_ENABLED env var (default off), so it is
   # simply left unset here rather than toggled in config.yaml.
+  #
+  # Default model is kimi-k3 at high reasoning effort, falling back to
+  # claude-sonnet-5 (top-level `fallback_model`, same provider/model entry
+  # format, per hermes_cli/config.py's _validate_fallback_model). Effort is
+  # pinned via `agent.reasoning_overrides` rather than relying on hermes'
+  # Kimi detection, which keys off api.kimi.com/moonshot hostnames and so
+  # doesn't fire behind LiteLLM (K3's server-side default is high anyway).
+  # The taxbuddy-hermes LiteLLM virtual key's model allowlist must include
+  # both models — managed via LiteLLM's /key/update API, not GitOps.
   config.yaml: |
     model:
-      default: claude-sonnet-5
+      default: kimi-k3
       provider: custom:litellm
+    fallback_model:
+      provider: custom:litellm
+      model: claude-sonnet-5
+    agent:
+      reasoning_overrides:
+        kimi-k3: high
     custom_providers:
       - name: litellm
         base_url: http://litellm-app.litellm.svc:4000/v1
