@@ -45,16 +45,30 @@ spec:
                       secretKeyRef:
                         name: qdrant-credentials
                         key: QDRANT_API_KEY
+                  # Read-only key for read consumers (taxbuddy lookup-mcp,
+                  # taxbuddy#154): grants search/query only, rejects upserts.
+                  QDRANT__SERVICE__READ_ONLY_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: qdrant-credentials
+                        key: QDRANT_READ_ONLY_API_KEY
                 resources:
                   requests:
                     cpu: 250m
                     # Lowered from 512Mi alongside the limit trim below —
                     # actual usage measured at 31Mi (oc adm top), and a
                     # request must stay <= the container's own limit.
+                    # Kept at 256Mi (steady state); the limit gives the
+                    # ingestbuddy#8 backfill burst headroom.
                     memory: 256Mi
                   limits:
                     cpu: 300m
-                    memory: 256Mi
+                    # Raised 256Mi -> 512Mi for the ingestbuddy#8 full archive
+                    # backfill (~1,688 paperless docs). Canary: 20 docs ->
+                    # 126 points in `ingestbuddy_documents`, 122Mi peak pod
+                    # memory (alongside cosmere_knowledge's ~23.9k points);
+                    # full run projects ~10.6k additional points.
+                    memory: 512Mi
                 probes:
                   liveness:
                     enabled: true
