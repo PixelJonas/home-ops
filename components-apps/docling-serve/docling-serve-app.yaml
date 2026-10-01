@@ -29,6 +29,15 @@ spec:
                   pullPolicy: IfNotPresent
                 env:
                   DOCLING_SERVE_ENABLE_UI: "false"
+                  # The image's HF cache ($HOME/.cache/huggingface) is owned
+                  # by the build user and not group-writable, so under
+                  # OpenShift's arbitrary UID the HybridChunker can't
+                  # download its tokenizer (BAAI/bge-m3): docling-jobkit
+                  # logs a PermissionError and returns success with zero
+                  # chunks (ingestbuddy#8 canary). Point the HF cache at the
+                  # writable docling-cache PVC instead. Docling's own models
+                  # stay baked in via DOCLING_SERVE_ARTIFACTS_PATH.
+                  HF_HOME: /.cache/huggingface
                   DOCLING_SERVE_API_KEY:
                     valueFrom:
                       secretKeyRef:
