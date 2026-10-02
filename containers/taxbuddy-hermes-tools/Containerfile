@@ -57,9 +57,20 @@ RUN curl -fsSL -o /usr/local/bin/kubectl \
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
-RUN curl -fsSL -o /tmp/hermes.tar.gz \
-      "https://github.com/NousResearch/hermes-agent/archive/345cd2b057a452236de401d3534b8502a7465e8d.tar.gz" \
-    && mkdir -p /opt/hermes \
+# The tarball fetch authenticates with a BuildKit secret when available:
+# unauthenticated api/codeload downloads from shared GitHub Actions egress
+# IPs get rate-limited (HTTP 429, hit on the first CI build). The secret
+# never lands in a layer.
+RUN --mount=type=secret,id=github_token,required=false \
+    mkdir -p /opt/hermes \
+    && if [ -s /run/secrets/github_token ]; then \
+         curl -fsSL -H "Authorization: Bearer $(cat /run/secrets/github_token)" \
+           -o /tmp/hermes.tar.gz \
+           "https://api.github.com/repos/NousResearch/hermes-agent/tarball/345cd2b057a452236de401d3534b8502a7465e8d"; \
+       else \
+         curl -fsSL -o /tmp/hermes.tar.gz \
+           "https://api.github.com/repos/NousResearch/hermes-agent/tarball/345cd2b057a452236de401d3534b8502a7465e8d"; \
+       fi \
     && tar -xzf /tmp/hermes.tar.gz -C /opt/hermes --strip-components=1 \
     && rm -f /tmp/hermes.tar.gz
 WORKDIR /opt/hermes
