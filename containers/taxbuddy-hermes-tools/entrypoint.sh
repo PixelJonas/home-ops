@@ -25,6 +25,12 @@ if [ ! -f /opt/data/tools/ssh/ssh_host_ed25519_key ]; then
     ssh-keygen -t ed25519 -f /opt/data/tools/ssh/ssh_host_ed25519_key -N ""
 fi
 
+# Copy authorized_keys off the ConfigMap mount: OpenShift injects an fsGroup
+# onto volumes, making the ConfigMap dir group-writable, which sshd's
+# StrictModes rejects ("bad ownership or modes"). The copy lives on the PVC,
+# owned by uid 10000 (this script's uid), mode 0600.
+install -m 0600 /opt/tools-ssh/authorized_keys /opt/data/tools/ssh/authorized_keys
+
 # tini as pid 1 reaps the orphaned background processes (sshd login
 # children would otherwise linger as zombies — herdr server does not reap).
 /usr/sbin/sshd -D -e -f /opt/tools/sshd_config &
