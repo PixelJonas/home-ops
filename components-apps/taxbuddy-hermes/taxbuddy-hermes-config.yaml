@@ -66,6 +66,11 @@ data:
     plugins:
       enabled:
         - moshi-hooks
+        # herdr's agent-state integration (installed post-deploy via
+        # `herdr integration install hermes` in the tools sidecar) — lets the
+        # pod's herdr server detect/lifecycle-track Hermes sessions in its
+        # panes. Same reseed reasoning as moshi-hooks above.
+        - herdr-agent-state
     providers:
       litellm:
         name: litellm
