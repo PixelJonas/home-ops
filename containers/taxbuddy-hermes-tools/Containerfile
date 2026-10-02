@@ -28,12 +28,47 @@ RUN curl -fsSL -o /tmp/moshi-hook.tar.gz \
     && chmod +x /usr/local/bin/moshi-hook \
     && rm -f /tmp/moshi-hook.tar.gz /tmp/moshi-checksums.txt
 
+# uv static binary; sha256 pinned from the 0.12.22 release.
+RUN curl -fsSL -o /tmp/uv.tar.gz \
+      https://github.com/astral-sh/uv/releases/download/0.12.22/uv-x86_64-unknown-linux-gnu.tar.gz \
+    && echo "b9980552309f09c15172b8be828555e375097f16deb459795ce7bfd200380f0b  /tmp/uv.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/uv.tar.gz -C /tmp --strip-components=1 \
+      uv-x86_64-unknown-linux-gnu/uv \
+    && mv /tmp/uv /usr/local/bin/uv \
+    && chmod +x /usr/local/bin/uv \
+    && rm -f /tmp/uv.tar.gz
+
 # kubectl; verified against the published .sha256.
 RUN curl -fsSL -o /usr/local/bin/kubectl \
       https://dl.k8s.io/release/v1.34.1/bin/linux/amd64/kubectl \
     && curl -fsSL https://dl.k8s.io/release/v1.34.1/bin/linux/amd64/kubectl.sha256 \
       | awk '{print $1 "  /usr/local/bin/kubectl"}' | sha256sum -c - \
     && chmod +x /usr/local/bin/kubectl
+
+# hermes-agent pinned to match the nousresearch/hermes-agent:v2026.9.14 image
+# (banner "Hermes Agent v0.21.3 (2026.9.14)"). PyPI's hermes-agent is a
+# different, older package, and upstream deliberately blocks wheel/sdist
+# builds ("distributed via the shell installer, Docker image, or Nix") — the
+# supported non-Docker path is an editable `uv sync` of a source checkout,
+# which is what the upstream image itself does (/opt/hermes + .venv). Pinned
+# to the v2026.9.14 release commit; version asserted from installed metadata.
+# PYTHONDONTWRITEBYTECODE mirrors upstream: /opt/hermes stays root-owned and
+# the container runs as uid 10000, so .pyc writes would fail anyway.
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+RUN curl -fsSL -o /tmp/hermes.tar.gz \
+      "https://github.com/NousResearch/hermes-agent/archive/345cd2b057a452236de401d3534b8502a7465e8d.tar.gz" \
+    && mkdir -p /opt/hermes \
+    && tar -xzf /tmp/hermes.tar.gz -C /opt/hermes --strip-components=1 \
+    && rm -f /tmp/hermes.tar.gz
+WORKDIR /opt/hermes
+RUN uv sync --locked --no-dev \
+    && ln -s /opt/hermes/.venv/bin/hermes /usr/local/bin/hermes \
+    && /opt/hermes/.venv/bin/python -c \
+      "import importlib.metadata, sys; v = importlib.metadata.version('hermes-agent'); sys.exit(f'expected hermes-agent 0.21.3, got {v}') if v != '0.21.3' else None" \
+    && chmod -R a+rX /opt/hermes /opt/uv-python
+WORKDIR /
 
 COPY entrypoint.sh /opt/tools/entrypoint.sh
 COPY sshd_config /opt/tools/sshd_config

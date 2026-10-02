@@ -36,9 +36,11 @@ spec:
               # pull secret comes from external-taxbuddy-hermes-ghcr-pull.yaml.
               imagePullSecrets:
                 - name: taxbuddy-hermes-ghcr-pull-secret
-              # The tools sidecar's herdr panes open the Hermes TUI via
-              # `kubectl exec` into the hermes container (RBAC:
-              # tools-exec-rbac.yaml).
+              # The tools sidecar keeps kubectl + this token for ad-hoc
+              # admin panes (kubectl exec into the hermes container for
+              # debugging; RBAC: tools-exec-rbac.yaml). The Hermes TUI
+              # itself runs natively in the tools container — see the
+              # tools container comment below.
               automountServiceAccountToken: true
             initContainers:
               # Live finding (2026-07-28, Task B verification): mounting
@@ -218,10 +220,14 @@ spec:
               # `moshi-hook serve`. This turns the pod into its own
               # Moshi-paired host and a herdr "machine" reachable from
               # knowhere over the pod network (ClusterIP service `herdr`
-              # below, no route). herdr panes open the Hermes TUI via
-              # `kubectl exec` into the hermes container
-              # (/usr/local/bin/hermes-tui), so moshi-hook's verified-pane
-              # approval bridge has a local herdr pane to drive.
+              # below, no route). The image also ships hermes-agent itself:
+              # herdr panes run the Hermes TUI as a NATIVE pane process
+              # (/usr/local/bin/hermes-tui) sharing HERMES_HOME over the
+              # PVC — a kubectl-exec'd TUI is invisible to herdr's
+              # process-based agent detection (live finding 2026-10-02),
+              # and the pane env natively carries HERDR_* for the
+              # herdr-agent-state plugin. moshi-hook's verified-pane
+              # approval bridge gets a local herdr pane to drive.
               # Runs as uid 10000 to match the hermes process: the
               # moshi-hook socket is 0600 owner-only, and /opt/data is
               # 0700 hermes:hermes.
