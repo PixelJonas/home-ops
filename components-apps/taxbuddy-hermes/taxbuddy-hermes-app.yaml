@@ -36,6 +36,10 @@ spec:
               # pull secret comes from external-taxbuddy-hermes-ghcr-pull.yaml.
               imagePullSecrets:
                 - name: taxbuddy-hermes-ghcr-pull-secret
+              # The tools sidecar's herdr panes open the Hermes TUI via
+              # `kubectl exec` into the hermes container (RBAC:
+              # tools-exec-rbac.yaml).
+              automountServiceAccountToken: true
             initContainers:
               # Live finding (2026-07-28, Task B verification): mounting
               # the ConfigMap's config.yaml directly onto
