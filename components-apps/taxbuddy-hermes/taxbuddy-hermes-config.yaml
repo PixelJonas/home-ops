@@ -41,6 +41,15 @@ data:
   # 2026-10-01). The plugin lazy-installs honcho-ai into
   # $HERMES_LAZY_INSTALL_TARGET (/opt/data/lazy-packages, on the PVC) on
   # first use — see the dnsConfig note in taxbuddy-hermes-app.yaml.
+  #
+  # `plugins.enabled: [moshi-hooks]` must live HERE (not just in the PVC
+  # copy) because the init-config container reseeds config.yaml from this
+  # ConfigMap on every pod start, which would otherwise wipe the entry that
+  # `moshi-hook install --target hermes` writes. The plugin files
+  # ($HERMES_HOME/plugins/moshi-hooks/) persist on the PVC; they are written
+  # once by running `moshi-hook install --target hermes` in the tools
+  # sidecar after deploy (GitOps can't run it for us because the plugin
+  # embeds the absolute helper path /opt/tools-bin/moshi-hook).
   config.yaml: |
     _config_version: 44
     model:
@@ -54,6 +63,9 @@ data:
         kimi-k3: high
     memory:
       provider: honcho
+    plugins:
+      enabled:
+        - moshi-hooks
     providers:
       litellm:
         name: litellm
