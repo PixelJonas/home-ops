@@ -654,6 +654,62 @@ spec:
                     cpu: 500m
                     memory: 512Mi
 
+          # Daily transaction/receipt matching pass (taxbuddy repo
+          # services/matching_engine, P2-T05 / #166). One-shot `--once`
+          # CronJob — the image's default CMD is the uvicorn FastAPI
+          # server, so the command override runs the CLI instead. 05:30
+          # Berlin, after sync-worker (05:15) has refreshed the
+          # tax.transactions mirror it reads. The engine needs only
+          # DATABASE_URL; PAPERLESS_* enables link writeback for
+          # auto-confirmed matches (degrades gracefully without it) — no
+          # Actual Budget env. Manual re-trigger:
+          #   oc create job --from=cronjob/taxbuddy-app-matching-engine \
+          #     taxbuddy-matching-manual-$(date +%s) -n taxbuddy
+          # Digest: same convention as the other controllers — taxbuddy's
+          # release.yml regex-matches `repository:` + `digest:` for
+          # matching_engine in this file and opens an auto-merging bump
+          # PR against home-ops on every taxbuddy main build.
+          matching-engine:
+            type: cronjob
+            cronjob:
+              schedule: "30 5 * * *"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 3
+              backoffLimit: 1
+            containers:
+              matching-engine:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/matching_engine
+                  digest: "sha256:1b23f23a78a2c30eda6faecbf27f7ac727497ab77ebe69e8ca3a7ae2cc8ca46f"
+                  pullPolicy: IfNotPresent
+                command: ["python", "-m", "matching_engine.main", "--once"]
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_TOKEN
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+
         service:
           ingestion-api:
             controller: ingestion-api
