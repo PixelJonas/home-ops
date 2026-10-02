@@ -2,8 +2,9 @@ FROM debian:bookworm-slim
 
 # apt packages intentionally unpinned; versions move with the base image.
 # hadolint ignore=DL3008
+# git is required for moshi-hook's Diff viewer feature (doctor check).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssh-server curl ca-certificates tini \
+    && apt-get install -y --no-install-recommends openssh-server curl ca-certificates tini git \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -u 10000 -d /opt/data/tools/home -s /bin/bash -M tools \
     && usermod -p '*' tools
