@@ -35,8 +35,10 @@ jobs:
       - name: Build and push
         env:
           SHA_SHORT: ${{ steps.meta.outputs.sha_short }}
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           docker build -f containers/taxbuddy-hermes-tools/Containerfile \
+            --secret id=github_token,env=GH_TOKEN \
             -t "ghcr.io/pixeljonas/taxbuddy-hermes-tools:sha-${SHA_SHORT}" \
             -t ghcr.io/pixeljonas/taxbuddy-hermes-tools:latest \
             containers/taxbuddy-hermes-tools
