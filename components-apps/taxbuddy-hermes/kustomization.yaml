@@ -6,7 +6,10 @@ resources:
 
   - namespace.yaml
   - anyuid-rolebinding.yaml
+  - tools-exec-rbac.yaml
+  - tools-ssh-config.yaml
   - external-taxbuddy-hermes-credentials.yaml
+  - external-taxbuddy-hermes-ghcr-pull.yaml
   - taxbuddy-hermes-config.yaml
   - taxbuddy-hermes-app.yaml
   # networkpolicy.yaml intentionally NOT included, matching taxbuddy's own

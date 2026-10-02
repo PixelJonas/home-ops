@@ -32,6 +32,10 @@ spec:
                 options:
                   - name: ndots
                     value: "1"
+              # ghcr.io/pixeljonas/taxbuddy-hermes-tools is private; the
+              # pull secret comes from external-taxbuddy-hermes-ghcr-pull.yaml.
+              imagePullSecrets:
+                - name: taxbuddy-hermes-ghcr-pull-secret
             initContainers:
               # Live finding (2026-07-28, Task B verification): mounting
               # the ConfigMap's config.yaml directly onto
@@ -65,6 +69,30 @@ spec:
                     cp /opt/hermes-config-seed/config.yaml /opt/data/config.yaml &&
                     cp /opt/hermes-config-seed/honcho.json /opt/data/honcho.json &&
                     cp /opt/hermes-config-seed/SOUL.md /opt/data/SOUL.md
+              # Publishes the static moshi-hook binary onto a shared
+              # emptyDir so the moshi-hooks plugin running INSIDE the hermes
+              # (and dashboard) container can exec it at the same absolute
+              # path the plugin embedded at install time
+              # (/opt/tools-bin/moshi-hook). The binary is fully static
+              # (pure Go), so it runs fine on the hermes image's musl.
+              # Also prepares shared-dir ownership the uid-10000 tools
+              # container can't set itself: /run/moshi must be writable by
+              # 10000 (moshi-hook socket is created there), /run/sshd must
+              # exist root-owned (sshd privilege-separation dir). Runs as
+              # root (anyuid SCC), same as init-config.
+              tools-bin-init:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy-hermes-tools
+                  tag: latest
+                  pullPolicy: Always
+                command:
+                  - /bin/sh
+                  - -c
+                args:
+                  - >-
+                    cp /usr/local/bin/moshi-hook /opt/tools-bin/moshi-hook &&
+                    chown 10000:10000 /run/moshi &&
+                    mkdir -p /run/sshd
             containers:
               hermes:
                 image:
@@ -110,6 +138,12 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LOOKUP_MCP_TOKEN
+                  # Points the moshi-hooks plugin's helper subprocess at the
+                  # moshi-hook daemon's socket (shared emptyDir; the daemon
+                  # itself runs in the tools sidecar). Verified upstream:
+                  # the plugin execs its helper with the inherited process
+                  # env, and the helper honors MOSHI_SOCKET_PATH.
+                  MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
               dashboard:
                 # `hermes gateway run` does not start the web dashboard —
                 # confirmed live (2026-07-29) via `hermes dashboard
@@ -173,6 +207,44 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LOOKUP_MCP_TOKEN
+                  # Same as on the hermes container: dashboard-spawned chat
+                  # sessions load the moshi-hooks plugin too.
+                  MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
+              # Tools sidecar: sshd (2222, key-only) + `herdr server` +
+              # `moshi-hook serve`. This turns the pod into its own
+              # Moshi-paired host and a herdr "machine" reachable from
+              # knowhere over the pod network (ClusterIP service `herdr`
+              # below, no route). herdr panes open the Hermes TUI via
+              # `kubectl exec` into the hermes container
+              # (/usr/local/bin/hermes-tui), so moshi-hook's verified-pane
+              # approval bridge has a local herdr pane to drive.
+              # Runs as uid 10000 to match the hermes process: the
+              # moshi-hook socket is 0600 owner-only, and /opt/data is
+              # 0700 hermes:hermes.
+              tools:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy-hermes-tools
+                  tag: latest
+                  pullPolicy: Always
+                command:
+                  - /opt/tools/entrypoint.sh
+                securityContext:
+                  runAsUser: 10000
+                  runAsGroup: 10000
+                env:
+                  TZ: Europe/Berlin
+                  # HOME, moshi state and ssh host keys all live on the
+                  # PVC so herdr session state and the Moshi pairing
+                  # survive pod restarts.
+                  HOME: /opt/data/tools/home
+                  # Mounted at the same absolute path as in the hermes
+                  # container on purpose: Chat View opens the
+                  # plugin-reported $HERMES_HOME/state.db from THIS
+                  # container's filesystem.
+                  HERMES_HOME: /opt/data
+                  MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
+                  MOSHI_STATE_DIR: /opt/data/tools/moshi-state
+                  MOSHI_CONFIG_DIR: /opt/data/tools/moshi-config
 
         persistence:
           hermes-data:
@@ -188,6 +260,8 @@ spec:
                   - path: /opt/data
                 dashboard:
                   - path: /opt/data
+                tools:
+                  - path: /opt/data
           hermes-config:
             enabled: true
             type: configMap
@@ -197,6 +271,62 @@ spec:
                 init-config:
                   - path: /opt/hermes-config-seed
                     readOnly: true
+          # moshi-hook daemon socket, shared between the tools sidecar
+          # (runs the daemon) and the hermes/dashboard containers (the
+          # moshi-hooks plugin's helper connects here). emptyDir — a
+          # socket does not belong on the PVC.
+          moshi-socket:
+            enabled: true
+            type: emptyDir
+            advancedMounts:
+              hermes:
+                tools-bin-init:
+                  - path: /run/moshi
+                hermes:
+                  - path: /run/moshi
+                dashboard:
+                  - path: /run/moshi
+                tools:
+                  - path: /run/moshi
+          # sshd's privilege-separation directory — must exist and be
+          # root-owned, so it's a dedicated emptyDir (the tools container
+          # runs as uid 10000 and couldn't create it under /run itself).
+          sshd-run:
+            enabled: true
+            type: emptyDir
+            advancedMounts:
+              hermes:
+                tools-bin-init:
+                  - path: /run/sshd
+                tools:
+                  - path: /run/sshd
+          # Static moshi-hook binary, populated by the tools-bin-init
+          # init container; read-only for consumers.
+          tools-bin:
+            enabled: true
+            type: emptyDir
+            advancedMounts:
+              hermes:
+                tools-bin-init:
+                  - path: /opt/tools-bin
+                hermes:
+                  - path: /opt/tools-bin
+                    readOnly: true
+                dashboard:
+                  - path: /opt/tools-bin
+                    readOnly: true
+                tools:
+                  - path: /opt/tools-bin
+                    readOnly: true
+          tools-ssh:
+            enabled: true
+            type: configMap
+            name: taxbuddy-hermes-tools-ssh
+            advancedMounts:
+              hermes:
+                tools:
+                  - path: /opt/tools-ssh
+                    readOnly: true
 
         service:
           dashboard:
@@ -204,6 +334,15 @@ spec:
             ports:
               http:
                 port: 9119
+          # ClusterIP only, on purpose — knowhere's primary NIC sits on
+          # the pod network (components-infra/knowhere VM, `pod: {}`
+          # interface), so `herdr machine add` reaches this service
+          # directly and sshd is never exposed outside OpenShift.
+          herdr:
+            controller: hermes
+            ports:
+              ssh:
+                port: 2222
 
         ingress:
           dashboard:
