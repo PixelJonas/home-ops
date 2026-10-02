@@ -34,6 +34,13 @@ install -m 0600 /opt/tools-ssh/authorized_keys /opt/data/tools/ssh/authorized_ke
 # tini as pid 1 reaps the orphaned background processes (sshd login
 # children would otherwise linger as zombies — herdr server does not reap).
 /usr/sbin/sshd -D -e -f /opt/tools/sshd_config &
-moshi-hook serve &
+
+# Run the daemon from the SHARED binary copy (populated by the pod's
+# tools-bin-init container), not /usr/local/bin: the moshi-hooks plugin in
+# the hermes container embeds HELPER=/opt/tools-bin/moshi-hook at install
+# time, and the daemon's staleness check compares the installed plugin
+# against what ITS OWN binary path would generate — running serve from the
+# shared path keeps the two in agreement ("__init__.py differs" warning).
+/opt/tools-bin/moshi-hook serve &
 
 exec tini -- herdr server
