@@ -1,0 +1,44 @@
+FROM debian:bookworm-slim
+
+# apt packages intentionally unpinned; versions move with the base image.
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssh-server curl ca-certificates tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -u 10000 -d /opt/data/tools/home -s /bin/bash -M tools \
+    && usermod -p '*' tools
+
+# herdr static binary; sha256 pinned from the v0.9.3 release.
+# hadolint ignore=DL4006
+RUN curl -fsSL -o /usr/local/bin/herdr \
+      https://github.com/herdrdev/herdr/releases/download/v0.9.3/herdr-linux-x86_64 \
+    && echo "18a8dc65f1c2fa485884344356dea1cfd911c6f06cf46fa78e193f4087f4dba7  /usr/local/bin/herdr" | sha256sum -c - \
+    && chmod +x /usr/local/bin/herdr
+
+# moshi-hook release tarball; verified against the release's checksums.txt.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN curl -fsSL -o /tmp/moshi-hook.tar.gz \
+      https://cdn.getmoshi.app/hook/v0.4.12/moshi-hook_Linux_x86_64.tar.gz \
+    && curl -fsSL -o /tmp/moshi-checksums.txt \
+      https://cdn.getmoshi.app/hook/v0.4.12/checksums.txt \
+    && grep 'moshi-hook_Linux_x86_64.tar.gz$' /tmp/moshi-checksums.txt \
+      | awk '{print $1 "  /tmp/moshi-hook.tar.gz"}' | sha256sum -c - \
+    && tar -xzf /tmp/moshi-hook.tar.gz -C /tmp moshi-hook \
+    && mv /tmp/moshi-hook /usr/local/bin/moshi-hook \
+    && chmod +x /usr/local/bin/moshi-hook \
+    && rm -f /tmp/moshi-hook.tar.gz /tmp/moshi-checksums.txt
+
+# kubectl; verified against the published .sha256.
+RUN curl -fsSL -o /usr/local/bin/kubectl \
+      https://dl.k8s.io/release/v1.34.1/bin/linux/amd64/kubectl \
+    && curl -fsSL https://dl.k8s.io/release/v1.34.1/bin/linux/amd64/kubectl.sha256 \
+      | awk '{print $1 "  /usr/local/bin/kubectl"}' | sha256sum -c - \
+    && chmod +x /usr/local/bin/kubectl
+
+COPY entrypoint.sh /opt/tools/entrypoint.sh
+COPY sshd_config /opt/tools/sshd_config
+COPY hermes-tui.sh /usr/local/bin/hermes-tui
+RUN chmod +x /opt/tools/entrypoint.sh /usr/local/bin/hermes-tui
+
+# No USER directive: the deployment sets runAsUser: 10000 (OpenShift anyuid SCC).
+ENTRYPOINT ["/opt/tools/entrypoint.sh"]
