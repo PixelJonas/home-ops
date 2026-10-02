@@ -291,7 +291,7 @@ spec:
               self-benchmark:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
-                  digest: "sha256:bc9193fda44aa644e48b7ba459d72ca0eca33129d9889029b14878a9134c20a9"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  digest: "sha256:e6bc4477668c18704506cda11363876456be733203451d09d9ee7c73cff6a1a1"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
