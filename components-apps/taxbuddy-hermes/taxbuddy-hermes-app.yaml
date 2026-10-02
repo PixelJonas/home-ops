@@ -255,6 +255,28 @@ spec:
                   MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
                   MOSHI_STATE_DIR: /opt/data/tools/moshi-state
                   MOSHI_CONFIG_DIR: /opt/data/tools/moshi-config
+                  # The native TUI in this container runs the agent in THIS
+                  # process, so it needs the same provider/memory keys as the
+                  # gateway and dashboard — without them config.yaml's
+                  # `key_env: LITELLM_API_KEY` resolves empty and Hermes
+                  # sends its `no-key-required` placeholder -> LiteLLM 401
+                  # "Virtual Key expected" (live finding 2026-10-02, same
+                  # failure mode as the dashboard container above).
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: LITELLM_API_KEY
+                  HONCHO_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: HONCHO_API_KEY
+                  LOOKUP_MCP_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: LOOKUP_MCP_TOKEN
 
         persistence:
           hermes-data:
