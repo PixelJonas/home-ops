@@ -1,0 +1,17 @@
+Port 2222
+AddressFamily any
+ListenAddress 0.0.0.0
+HostKey /opt/data/tools/ssh/ssh_host_ed25519_key
+PidFile /run/moshi/sshd.pid
+PasswordAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile /opt/tools-ssh/authorized_keys
+UsePAM no
+PermitRootLogin no
+AllowUsers tools
+PermitTTY yes
+AllowTcpForwarding local
+X11Forwarding no
+PrintMotd no
+AcceptEnv TERM
+StrictModes yes
