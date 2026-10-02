@@ -43,4 +43,14 @@ install -m 0600 /opt/tools-ssh/authorized_keys /opt/data/tools/ssh/authorized_ke
 # shared path keeps the two in agreement ("__init__.py differs" warning).
 /opt/tools-bin/moshi-hook serve &
 
-exec tini -- herdr server
+# herdr server runs as a BACKGROUND process, not as tini's direct child:
+# `herdr machine add` (and `herdr update --handoff`) replace the server via
+# live handoff, which stops the old server process. If the server were pid
+# 1's only child, tini would exit with it and kill the whole container —
+# taking the freshly handoff'd server down too and failing the client's
+# post-handoff readiness probe ("remote server is not ready for saved
+# machines"). With `sleep infinity` as tini's child the container survives
+# the handoff and the new server is reparented to (and reaped by) tini.
+herdr server &
+
+exec tini -- sleep infinity
