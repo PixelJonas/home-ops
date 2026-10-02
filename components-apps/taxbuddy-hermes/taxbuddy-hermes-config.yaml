@@ -97,6 +97,9 @@ data:
   # Honcho's app-template deployment has three controllers (honcho,
   # deriver, openconcho), which gets it the <release>-<controller>
   # service-naming form.
+  # timeout: honcho's dialectic endpoint takes 30-170s under load
+  # (66k-91k token contexts, per server-side PERFORMANCE logs) — the
+  # plugin's 30s default HTTP timeout caused "cannot connect to honcho".
   honcho.json: |
     {
       "workspace": "taxbuddy",
@@ -104,7 +107,8 @@ data:
       "aiPeer": "taxbuddy-hermes",
       "baseUrl": "http://honcho-app-honcho.honcho.svc:8000",
       "environment": "production",
-      "enabled": true
+      "enabled": true,
+      "timeout": 180
     }
   # Live finding (Task 6 verification, 2026-07-30): the tax-advisor persona
   # is NOT a system_prompt config key — it's a separate plain-text file,
