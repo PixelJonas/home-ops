@@ -38,10 +38,11 @@ roleRef:
   kind: Role
   name: taxbuddy-hermes-tools-exec
 subjects:
-  # Same ServiceAccount the taxbuddy-hermes-app pod runs under: the tools
-  # sidecar's herdr panes open the Hermes TUI via `kubectl exec` into the
-  # sibling hermes container (mirrors taxbuddy's
-  # agent-runtime-hermes-exec-rbac.yaml pattern, but self-namespace).
+  # Same ServiceAccount the taxbuddy-hermes-app pod runs under. Used by the
+  # tools sidecar's kubectl for ad-hoc admin/debug exec into the hermes
+  # container (mirrors taxbuddy's agent-runtime-hermes-exec-rbac.yaml
+  # pattern, but self-namespace). The Hermes TUI itself runs natively in
+  # the sidecar and does not depend on this grant.
   - kind: ServiceAccount
     name: taxbuddy-hermes-app
     namespace: taxbuddy-hermes
