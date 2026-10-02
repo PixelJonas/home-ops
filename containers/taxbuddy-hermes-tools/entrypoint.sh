@@ -53,4 +53,17 @@ install -m 0600 /opt/tools-ssh/authorized_keys /opt/data/tools/ssh/authorized_ke
 # the handoff and the new server is reparented to (and reaped by) tini.
 herdr server &
 
+# Saved-machine clients only accept a server that was itself started via
+# live handoff (`--handoff-import`); a directly-spawned server is flagged
+# "may not survive SSH connection loss" and `herdr machine status` reports
+# it as stopped/incompatible after every pod restart. Hand the fresh
+# server off to itself once the API socket is up so the long-running
+# server is always the handoff-import'd kind. Failure is non-fatal: the
+# directly-spawned server still serves local panes and SSH attach.
+for _ in $(seq 1 40); do
+    [ -S "$HOME/.config/herdr/herdr.sock" ] && break
+    sleep 0.5
+done
+herdr server live-handoff --import-exe /usr/local/bin/herdr || true
+
 exec tini -- sleep infinity
