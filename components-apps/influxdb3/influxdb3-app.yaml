@@ -47,7 +47,7 @@ spec:
                   - --object-store=file
                   - --data-dir=/var/lib/influxdb3/data
                   - --plugin-dir=/var/lib/influxdb3/plugins
-                  - --query-file-limit=10000
+                  - --query-file-limit=50000
                   - --checkpoint-interval=5m
                   - --wal-replay-concurrency-limit=4
                   - --force-snapshot-mem-size=40%
