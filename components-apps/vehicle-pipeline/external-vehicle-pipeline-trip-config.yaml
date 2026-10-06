@@ -1,0 +1,31 @@
+# Trip detector (controller `detector` in vehicle-pipeline-app.yaml): Home
+# Assistant access plus the phone/vehicle signal config. Re-uses the
+# EXISTING Doppler keys of mygarage's trip-enricher
+# (components-apps/mygarage/external-trip-enricher-config.yaml) so both run
+# side by side from one source of truth; nothing new in Doppler.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vehicle-pipeline-trip-config
+  namespace: vehicle-pipeline
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: vehicle-pipeline-trip-config
+  data:
+    - secretKey: HA_URL
+      remoteRef:
+        key: MYGARAGE_HA_URL
+    - secretKey: HA_TOKEN
+      remoteRef:
+        key: MYGARAGE_HA_TOKEN
+    - secretKey: TRIP_VEHICLES
+      remoteRef:
+        key: MYGARAGE_TRIP_ENRICHER_VEHICLES
+    - secretKey: TRIP_PHONES
+      remoteRef:
+        key: MYGARAGE_TRIP_ENRICHER_PHONES

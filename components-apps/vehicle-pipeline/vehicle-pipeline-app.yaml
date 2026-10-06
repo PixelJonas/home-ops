@@ -93,6 +93,82 @@ spec:
                       httpGet: {path: /healthz, port: 8000}
                       initialDelaySeconds: 5
                       periodSeconds: 10
+          # Vollkostenrechnung trip detector: same image, own entrypoint and
+          # env contract (vehicle_pipeline/trips/settings.py -- needs no
+          # Paperless/LiteLLM/MyGarage vars). Captures odometer readings and
+          # phone drive spans from Home Assistant into the `trips` schema of
+          # the same database and recomputes the trips projection every 60 s.
+          detector:
+            replicas: 1
+            strategy: Recreate
+            containers:
+              app:
+                image:
+                  repository: ghcr.io/pixeljonas/vehicle-pipeline
+                  tag: latest
+                  pullPolicy: Always
+                command: ["python", "-m", "vehicle_pipeline.trips.detector"]
+                env:
+                  TZ: Europe/Berlin
+                  TRIP_POLL_INTERVAL: "60"
+                  HEARTBEAT_FILE: /tmp/vehicle-pipeline-detector-heartbeat
+                  # Vehicle slug (= vehicle_pipeline.vehicles.id) -> HA
+                  # odometer entity of the VW EU Data Act feed. Not in the
+                  # trip-enricher vehicle secret, and entity IDs are not
+                  # secrets; a per-vehicle `odometer_entity` key in that
+                  # secret would also work and is overridden by this map.
+                  TRIP_ODOMETER_ENTITIES: >-
+                    {"multivan": "sensor.dieselboi_mileage",
+                    "id4": "sensor.electricboi_mileage"}
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: vehicle-pipeline-db-app-secret
+                        key: uri
+                  # Vehicle registry (VIN -> slug), the same one the app
+                  # upserts into vehicle_pipeline.vehicles.
+                  VEHICLES:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_VEHICLES}
+                  HA_URL:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-trip-config, key: HA_URL}
+                  HA_TOKEN:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-trip-config, key: HA_TOKEN}
+                  TRIP_VEHICLES:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-trip-config, key: TRIP_VEHICLES}
+                  TRIP_PHONES:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-trip-config, key: TRIP_PHONES}
+                # Heartbeat-file liveness, mirrored from mygarage's
+                # trip-enricher (components-apps/mygarage/mygarage-chart-app.yaml).
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - /bin/sh
+                          - -c
+                          - test "$(( $(date +%s) - $(stat -c %Y /tmp/vehicle-pipeline-detector-heartbeat) ))" -lt 300
+                      initialDelaySeconds: 30
+                      periodSeconds: 30
+                      timeoutSeconds: 5
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - test
+                          - -f
+                          - /tmp/vehicle-pipeline-detector-heartbeat
+                      initialDelaySeconds: 15
+                      periodSeconds: 15
+                      timeoutSeconds: 5
         # No public Ingress/Route at all -- Paperless is itself deployed
         # in-cluster (components-apps/paperless, same as taxbuddy, whose
         # live "Tax Agent Ingest" workflow calls its webhook at
