@@ -11,7 +11,8 @@ from fastapi import FastAPI
 from psycopg_pool import ConnectionPool
 
 from vehicle_pipeline.config import Settings
-from vehicle_pipeline.db import PostgresIngestEventStore, PostgresWatermarkStore, init_schema
+from vehicle_pipeline.cost_store import PostgresCostStore
+from vehicle_pipeline.db import PostgresIngestEventStore, PostgresWatermarkStore, init_schema, upsert_vehicles
 from vehicle_pipeline.extract import LiteLLMExtractor
 from vehicle_pipeline.mygarage_client import MyGarageClient
 from vehicle_pipeline.paperless_client import PaperlessClient
@@ -32,10 +33,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings.from_env()
     pool = ConnectionPool(settings.database_url, min_size=1, max_size=5, open=True)
     init_schema(pool)
+    upsert_vehicles(pool, settings.vehicle_configs)
 
     paperless = PaperlessClient(settings.paperless_url, settings.paperless_token)
     llm = LiteLLMExtractor(settings.litellm_base_url, settings.litellm_api_key)
-    mygarage = MyGarageClient(settings.mygarage_url, settings.mygarage_username, settings.mygarage_password)
+    # MyGarage is only the sink with COST_SINK=mygarage (the default is the
+    # local vehicle_pipeline.costs table); its credentials are optional
+    # otherwise, so only build the client when they are present.
+    mygarage = (
+        MyGarageClient(settings.mygarage_url, settings.mygarage_username, settings.mygarage_password)
+        if settings.mygarage_url and settings.mygarage_username and settings.mygarage_password
+        else None
+    )
 
     app.state.settings = settings
     app.state.ingest_store = PostgresIngestEventStore(pool)
@@ -43,6 +52,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.paperless = paperless
     app.state.llm = llm
     app.state.mygarage = mygarage
+    app.state.cost_store = PostgresCostStore(pool)
+    app.state.cost_sink = settings.cost_sink
+    logger.info("cost sink: %s (%d vehicle(s) configured)", settings.cost_sink, len(settings.vehicle_configs))
 
     poll_task = asyncio.create_task(
         reconciliation_loop(
@@ -53,6 +65,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             review_store=app.state.review_store,
             vehicles=settings.vehicles,
             watermark_store=PostgresWatermarkStore(pool),
+            sink=settings.cost_sink,
         )
     )
 
@@ -62,7 +75,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         poll_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await poll_task
-        for closer in (paperless.aclose, llm.aclose, mygarage.aclose):
+        closers = [paperless.aclose, llm.aclose] + ([mygarage.aclose] if mygarage else [])
+        for closer in closers:
             try:
                 await closer()
             except Exception:
