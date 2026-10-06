@@ -77,7 +77,7 @@ def test_schema_init_is_idempotent(pool: ConnectionPool) -> None:
             pool,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'trips' AND table_type = 'BASE TABLE'",
         )
-        == 9
+        == 12
     )
     assert _count(pool, "SELECT count(*) FROM information_schema.views WHERE table_schema = 'trips'") == 1
     assert _count(pool, "SELECT count(*) FROM information_schema.views WHERE table_schema = 'vehicle_pipeline'") == 2
