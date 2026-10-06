@@ -6,6 +6,63 @@ from typing import Any
 from vehicle_pipeline.extract import ExtractionResult
 
 
+COST_ENTITY = "cost"
+"""review_items.mygarage_entity value for drafts in the flat local-cost
+shape (map_to_cost). Every other value is a legacy MyGarage entity type."""
+
+COST_CATEGORIES = (
+    "fuel", "charging", "service", "insurance", "tax",
+    "financing", "def", "parking", "toll", "other",
+)
+"""Mirrors the vehicle_pipeline.cost_category enum in db.py."""
+
+EXTRACTION_TO_COST_CATEGORY: dict[str, str] = {
+    "kfz_steuer": "tax",
+    "haftpflicht": "insurance",
+    "kasko": "insurance",
+    "hu_au": "service",
+    "reifenwechsel": "service",
+    "autowaesche": "service",
+    "oel_betriebsstoffe": "service",
+    "ersatzteile": "service",
+    "finanzierung_zinsen": "financing",
+    "kraftstoff": "fuel",
+    "adblue": "def",
+    "garantie": "other",
+    "not_cost_relevant": "other",
+    "other": "other",
+}
+
+
+@dataclass(frozen=True)
+class CostDraft:
+    entity: str
+    payload: dict[str, Any]
+
+
+def map_to_cost(extraction: ExtractionResult, vin: str) -> CostDraft:
+    """Flat local-cost draft: one scalar field per editable cost column
+    (rendered 1:1 by review_edit.html) plus a non-editable ``extra`` dict.
+    Fuel is always ``fuel`` here -- the reviewer switches it to
+    ``charging`` for an EV receipt (the extractor has no such category)."""
+    category = EXTRACTION_TO_COST_CATEGORY.get(extraction.category, "other")
+    odometer = int(extraction.odometer_km) if extraction.odometer_km is not None else None
+    return CostDraft(COST_ENTITY, {
+        "vin": vin,
+        "category": category,
+        "date": extraction.date,
+        "amount_gross": extraction.amount,
+        "amount_net": None,
+        "vat_rate": None,
+        "vendor": extraction.vendor,
+        "odometer_km": odometer,
+        "quantity_liters": None,
+        "quantity_kwh": None,
+        "notes": extraction.notes,
+        "extra": {"extracted_category": extraction.category},
+    })
+
+
 @dataclass(frozen=True)
 class MyGarageDraft:
     entity: str

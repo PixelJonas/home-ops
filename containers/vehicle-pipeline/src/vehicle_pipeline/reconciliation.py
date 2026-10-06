@@ -27,6 +27,7 @@ async def run_reconciliation_pass(
     vehicles: dict[str, str],
     watermark_store: WatermarkStore,
     now: datetime | None = None,
+    sink: str = "local",
 ) -> int:
     now = now or datetime.now(UTC)
 
@@ -60,7 +61,7 @@ async def run_reconciliation_pass(
         modified = doc.get("modified", "")
         event_id = f"paperless-reconciliation:{doc_id}:{modified}"
         if ingest_store.record_event(event_id=event_id, source="paperless-reconciliation", payload=doc):
-            await process_document(doc_id, paperless, llm, review_store, vehicles)
+            await process_document(doc_id, paperless, llm, review_store, vehicles, sink=sink)
             enqueued += 1
 
     watermark_store.set(now.isoformat())
@@ -76,6 +77,7 @@ async def reconciliation_loop(
     review_store: Any,
     vehicles: dict[str, str],
     watermark_store: WatermarkStore,
+    sink: str = "local",
 ) -> None:
     while True:
         try:
@@ -86,6 +88,7 @@ async def reconciliation_loop(
                 review_store=review_store,
                 vehicles=vehicles,
                 watermark_store=watermark_store,
+                sink=sink,
             )
             if enqueued:
                 logger.info("reconciliation enqueued %d document(s)", enqueued)

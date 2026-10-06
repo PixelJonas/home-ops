@@ -104,8 +104,45 @@ def test_handoff_valid_signature_creates_draft(fake_review_store: Any, test_sett
     )
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok", "review_item_id": 1}
+    draft = fake_review_store.drafts[0]
+    # Local sink (default): the MyGarage-shaped envelope is flattened on receipt.
+    assert draft["mygarage_entity"] == "cost"
+    assert draft["extracted_category"] == "fuel"
+    assert draft["origin"] == "ingestbuddy"
+    assert draft["payload"]["category"] == "fuel"
+    assert draft["payload"]["amount_gross"] == "42.10"
+    assert draft["payload"]["vin"] == _handoff_payload()["vin"]
+    app.dependency_overrides.clear()
+
+
+def test_handoff_mygarage_shaped_envelope_is_converted(fake_review_store: Any, test_settings: Any) -> None:
+    client = _handoff_client(fake_review_store, test_settings)
+    body = _handoff_payload(
+        category="finanzierung_zinsen", entity="documents",
+        payload={"title": "Bank", "document_type": "finanzierung_zinsen", "description": "Zinsen"},
+    )
+    resp = client.post(
+        "/webhooks/ingestbuddy-handoff", content=json.dumps(body),
+        headers={"X-Ingestbuddy-Signature": "handoffsecret"},
+    )
+    assert resp.status_code == 200
+    payload = fake_review_store.drafts[0]["payload"]
+    assert payload["category"] == "financing"
+    assert payload["notes"] == "Zinsen"
+    app.dependency_overrides.clear()
+
+
+def test_handoff_mygarage_sink_keeps_envelope_unchanged(fake_review_store: Any, test_settings: Any) -> None:
+    from dataclasses import replace
+
+    client = _handoff_client(fake_review_store, replace(test_settings, cost_sink="mygarage"))
+    resp = client.post(
+        "/webhooks/ingestbuddy-handoff", content=json.dumps(_handoff_payload()),
+        headers={"X-Ingestbuddy-Signature": "handoffsecret"},
+    )
+    assert resp.status_code == 200
     assert fake_review_store.drafts[0]["mygarage_entity"] == "id4"
-    assert fake_review_store.drafts[0]["extracted_category"] == "fuel"
+    assert fake_review_store.drafts[0]["payload"] == {"amount": "42.10", "date": "2026-09-26"}
     app.dependency_overrides.clear()
 
 

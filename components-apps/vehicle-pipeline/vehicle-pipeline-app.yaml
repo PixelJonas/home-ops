@@ -30,6 +30,11 @@ spec:
                   pullPolicy: Always
                 env:
                   TZ: Europe/Berlin
+                  # Approved review items land in the local
+                  # vehicle_pipeline.costs table (Vollkostenrechnung P1).
+                  # "mygarage" restores the old write-through path; the
+                  # MYGARAGE_* vars below are only required for that.
+                  COST_SINK: local
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:

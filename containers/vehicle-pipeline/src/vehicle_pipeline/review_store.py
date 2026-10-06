@@ -21,6 +21,8 @@ class ReviewItem:
     confidence: str | None
     status: str
     mygarage_record_id: str | None
+    sink_record_id: str | None = None
+    origin: str | None = None
 
 
 class ReviewQueueStore:
@@ -38,6 +40,7 @@ class ReviewQueueStore:
         extracted_category: str,
         payload: dict[str, Any],
         confidence: str | None,
+        origin: str | None = None,
     ) -> int:
         """Idempotent create: if a `pending` row already exists for this
         paperless_doc_id, return its id instead of inserting a duplicate.
@@ -68,8 +71,8 @@ class ReviewQueueStore:
                 """
                 INSERT INTO vehicle_pipeline.review_items
                     (paperless_doc_id, paperless_doc_title, paperless_doc_url, vin,
-                     mygarage_entity, extracted_category, payload, confidence)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                     mygarage_entity, extracted_category, payload, confidence, origin)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -81,6 +84,7 @@ class ReviewQueueStore:
                     extracted_category,
                     Jsonb(payload),
                     confidence,
+                    origin,
                 ),
             )
             row = cur.fetchone()
@@ -106,10 +110,10 @@ class ReviewQueueStore:
             cur.execute(
                 """
                 UPDATE vehicle_pipeline.review_items
-                SET status = 'approved', mygarage_record_id = %s, reviewed_at = now()
+                SET status = 'approved', mygarage_record_id = %s, sink_record_id = %s, reviewed_at = now()
                 WHERE id = %s
                 """,
-                (mygarage_record_id, item_id),
+                (mygarage_record_id, mygarage_record_id, item_id),
             )
 
     def mark_rejected(self, item_id: int) -> None:
@@ -129,7 +133,7 @@ class ReviewQueueStore:
                 f"""
                 SELECT id, paperless_doc_id, paperless_doc_title, paperless_doc_url, vin,
                        mygarage_entity, extracted_category, payload, confidence, status,
-                       mygarage_record_id
+                       mygarage_record_id, sink_record_id, origin
                 FROM vehicle_pipeline.review_items
                 {where_clause}
                 """,

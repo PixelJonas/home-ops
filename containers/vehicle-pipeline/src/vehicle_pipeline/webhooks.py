@@ -11,6 +11,7 @@ from pydantic import BaseModel, ValidationError
 
 from vehicle_pipeline.config import Settings
 from vehicle_pipeline.db import IngestEventStore
+from vehicle_pipeline.legacy_payload import to_cost_payload
 from vehicle_pipeline.pipeline import process_document
 
 logger = logging.getLogger("vehicle_pipeline.webhooks")
@@ -64,7 +65,7 @@ def get_llm(request: Request):  # type: ignore[no-untyped-def]
 
 
 async def _process_document_background(
-    doc_id: int, paperless, llm, review_store, vehicles: dict[str, str]  # type: ignore[no-untyped-def]
+    doc_id: int, paperless, llm, review_store, vehicles: dict[str, str], sink: str = "local"  # type: ignore[no-untyped-def]
 ) -> None:
     """BackgroundTasks wrapper around process_document.
 
@@ -75,7 +76,7 @@ async def _process_document_background(
     delivery for the rest.
     """
     try:
-        await process_document(doc_id, paperless, llm, review_store, vehicles)
+        await process_document(doc_id, paperless, llm, review_store, vehicles, sink=sink)
     except Exception:
         logger.exception("background processing failed for doc_id=%s", doc_id)
 
@@ -112,7 +113,13 @@ async def receive_paperless_webhook(
         return JSONResponse({"status": "duplicate"})
 
     background_tasks.add_task(
-        _process_document_background, webhook.doc_id, paperless, llm, review_store, settings.vehicles
+        _process_document_background,
+        webhook.doc_id,
+        paperless,
+        llm,
+        review_store,
+        settings.vehicles,
+        settings.cost_sink,
     )
     logger.info("queued document %s for processing", webhook.doc_id)
     return JSONResponse({"status": "queued"})
@@ -142,6 +149,16 @@ async def receive_ingestbuddy_handoff(
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=exc.errors()) from exc
 
+    # ingestbuddy's taxonomy is a verbatim port of map_to_mygarage, so the
+    # envelope is MyGarage-shaped. With the local sink, flatten it once here
+    # so every pending draft has the cost shape the review UI expects.
+    entity, draft_payload = handoff.entity, handoff.payload
+    if settings.cost_sink != "mygarage":
+        draft_payload = to_cost_payload(
+            entity, draft_payload, vin=handoff.vin, extracted_category=handoff.category
+        )
+        entity = "cost"
+
     # No doc_title in the fixed contract (ingest_core's envelope carries
     # doc_url only) -- same missing-title fallback pipeline.py already uses
     # for paperless documents with no title set.
@@ -150,10 +167,11 @@ async def receive_ingestbuddy_handoff(
         paperless_doc_title=f"Document {handoff.paperless_doc_id}",
         paperless_doc_url=handoff.doc_url,
         vin=handoff.vin,
-        mygarage_entity=handoff.entity,
+        mygarage_entity=entity,
         extracted_category=handoff.category,
-        payload=handoff.payload,
+        payload=draft_payload,
         confidence=handoff.confidence,
+        origin="ingestbuddy",
     )
     logger.info(
         "created/reused review draft %s for paperless_doc_id=%s via ingestbuddy hand-off",
