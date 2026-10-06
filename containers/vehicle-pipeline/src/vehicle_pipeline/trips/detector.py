@@ -6,6 +6,7 @@ Every TRIP_POLL_INTERVAL seconds (default 60):
 2. phone signal entities -> trips.drive_spans (per person),
 3. tracker breadcrumbs for closed spans -> trips.trip_positions,
 4. recompute the trips projection over the trailing TRIP_RECOMPUTE_DAYS,
+   plus all imported in-car trip memories (trips.import_vw) in full,
 5. with TRIP_NOTIFY_ENABLED: send business/private notifications for newly
    closed trips (trips.notify); answers arrive on a websocket thread.
 
@@ -28,6 +29,7 @@ from zoneinfo import ZoneInfo
 from psycopg_pool import ConnectionPool
 
 from vehicle_pipeline.trips.ha import HAClient, HistorySource
+from vehicle_pipeline.trips.imports import earliest_start
 from vehicle_pipeline.trips.notify import ActionListener, Notifier
 from vehicle_pipeline.trips.projection import project
 from vehicle_pipeline.trips.schema import init_trips_schema
@@ -101,7 +103,11 @@ def run_cycle(
         beat()
 
     window_start = now - timedelta(days=settings.recompute_days)
-    spans, readings, positions, existing = store.load_projection_inputs(window_start, now)
+    # Imported trip memories (VW export) are recomputed in full every cycle.
+    imports = store.load_import_inputs()
+    spans, readings, positions, existing = store.load_projection_inputs(
+        window_start, now, existing_since=earliest_start(imports)
+    )
     result = project(
         vehicles=[v.slug for v in settings.vehicles],
         spans=spans,
@@ -110,6 +116,7 @@ def run_cycle(
         existing=existing,
         now=now,
         window_start=window_start,
+        imports=imports,
     )
     store.apply_projection(result)
     stats.update(
