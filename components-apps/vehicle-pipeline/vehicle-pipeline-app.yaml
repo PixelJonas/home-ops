@@ -35,6 +35,16 @@ spec:
                   # "mygarage" restores the old write-through path; the
                   # MYGARAGE_* vars below are only required for that.
                   COST_SINK: local
+                  # Paperless tags (generic labels) per vehicle slug that
+                  # mark a document for ingest: the plain vehicle tags plus
+                  # the -auto tags of the old Paperless workflow. Tags not
+                  # present in Paperless are ignored. Documents that already
+                  # have a review item or cost are never re-ingested; older
+                  # documents are picked up by the backfill CLI
+                  # (python -m vehicle_pipeline.backfill, see app README).
+                  VEHICLE_TAGS: >-
+                    {"multivan": ["Fahrzeug:Multivan", "Fahrzeug:Multivan-auto"],
+                    "id4": ["Fahrzeug:ID4", "Fahrzeug:ID4-auto"]}
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
