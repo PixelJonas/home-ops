@@ -121,15 +121,72 @@ CREATE TABLE IF NOT EXISTS trips.notify_state (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Imported in-car trip memories (trips.vw_export / trips.imports): raw,
+-- append-only. One row per export file set; one row per distinct exported
+-- row (row_hash, so re-importing the same or a newer overlapping export
+-- adds nothing twice) linked to every export that contained it. The VIN is
+-- never stored (mapped to vehicle_id on import).
+CREATE TABLE IF NOT EXISTS trips.import_exports (
+    id BIGSERIAL PRIMARY KEY,
+    source TEXT NOT NULL CHECK (source IN ('vw_export')),
+    vehicle_id TEXT NOT NULL,
+    export_created_at TIMESTAMPTZ NOT NULL,
+    export_odometer_km NUMERIC,
+    engine TEXT,
+    imported_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (source, vehicle_id, export_created_at)
+);
+
+CREATE TABLE IF NOT EXISTS trips.imported_trips (
+    id BIGSERIAL PRIMARY KEY,
+    source TEXT NOT NULL CHECK (source IN ('vw_export')),
+    vehicle_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('short_term', 'refuel_segment', 'long_term')),
+    ended_at TIMESTAMPTZ NOT NULL,
+    km NUMERIC NOT NULL,
+    driving_time INTERVAL,
+    avg_speed_kmh NUMERIC,
+    avg_consumption NUMERIC,
+    consumption_unit TEXT,
+    total_consumption NUMERIC,
+    total_consumption_unit TEXT,
+    raw JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- the export this row was first seen in
+    export_created_at TIMESTAMPTZ NOT NULL,
+    export_odometer_km NUMERIC,
+    row_hash TEXT NOT NULL UNIQUE,
+    imported_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS imported_trips_vehicle_kind_idx
+    ON trips.imported_trips (vehicle_id, kind, ended_at);
+
+CREATE TABLE IF NOT EXISTS trips.imported_trip_exports (
+    imported_trip_id BIGINT NOT NULL REFERENCES trips.imported_trips (id),
+    export_id BIGINT NOT NULL REFERENCES trips.import_exports (id),
+    PRIMARY KEY (imported_trip_id, export_id)
+);
+
 -- The read side: the trips projection with the effective (latest per
 -- field) annotation applied. A JSON null annotation clears the field.
 -- Driver/vehicle overrides replace the detected values here; the detected
--- ones stay visible as detected_*.
+-- ones stay visible as detected_*. An imported trip inherits the
+-- annotations of the detector trips it superseded (evidence.supersedes);
+-- its own annotations win over inherited ones.
 CREATE OR REPLACE VIEW trips.trips_effective AS
-WITH latest AS (
-    SELECT DISTINCT ON (trip_key, field) trip_key, field, value, actor, via, created_at
-    FROM trips.trip_annotations
-    ORDER BY trip_key, field, created_at DESC, id DESC
+WITH ann_keys AS (
+    SELECT trip_key, trip_key AS ann_key, 0 AS prio FROM trips.trips
+    UNION ALL
+    SELECT t.trip_key, s.key, 1
+    FROM trips.trips t
+    CROSS JOIN LATERAL jsonb_array_elements_text(
+        CASE WHEN jsonb_typeof(t.evidence -> 'supersedes') = 'array' THEN t.evidence -> 'supersedes' ELSE '[]'::jsonb END
+    ) AS s(key)
+),
+latest AS (
+    SELECT DISTINCT ON (k.trip_key, a.field) k.trip_key, a.field, a.value, a.actor, a.via, a.created_at
+    FROM ann_keys k
+    JOIN trips.trip_annotations a ON a.trip_key = k.ann_key
+    ORDER BY k.trip_key, a.field, k.prio, a.created_at DESC, a.id DESC
 )
 SELECT
     t.trip_key,

@@ -25,19 +25,30 @@ Model (per vehicle):
   group become synthetic trips (source odometer_gap, driver unknown), so
   kilometres are never lost.
 
-Trip keys are stable: ``span:<lowest member span id>`` and
-``gap:<vehicle>:<lower reading id>``.
+* Imported in-car trip memories (trips.imports, VW export) are projected
+  in full every cycle, independent of the window. Detector trips of a
+  vehicle fully inside an import's coverage are superseded: left out of
+  the projection (removed, logged ``superseded:<vw key>``) and listed in
+  the covering imported trip's ``evidence.supersedes`` so their annotations
+  carry over (trips_effective). Leaving them out rather than keeping them
+  with a status keeps every consumer (vollkosten views, UI, notifications)
+  free of double-counted km without each having to filter; the raw spans
+  stay, so they reappear if the import goes away.
+
+Trip keys are stable: ``span:<lowest member span id>``,
+``gap:<vehicle>:<lower reading id>`` and ``vw:<vehicle>:<ended_at UTC>``.
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from vehicle_pipeline.trips.imports import SOURCE_VW, ImportInputs, covered, project_imports, supersede_target
 from vehicle_pipeline.trips.models import (
     SOURCE_GAP,
     SOURCE_PHONE,
@@ -100,7 +111,13 @@ def project(
     existing: Mapping[str, Trip],
     now: datetime,
     window_start: datetime,
+    imports: ImportInputs | None = None,
 ) -> ProjectionResult:
+    """``existing`` must hold every stored trip starting at/after
+    window_start, every ``vw_export`` trip, and -- so superseded old
+    detector trips get removed -- the stored trips back to the earliest
+    import coverage start. Stored trips outside the window are only ever
+    removed when superseded."""
     stats: dict[str, int] = defaultdict(int)
     by_vehicle = _clean_readings(readings, vehicles)
     merged = _merge_person_spans(spans, now)
@@ -121,8 +138,15 @@ def project(
             desired.extend(t for t in trips if t.started_at >= window_start)
         desired.extend(t for t in _gap_trips(vehicle, vreadings, covered) if t.started_at >= window_start)
 
+    desired, superseded = _apply_imports(desired, imports, existing, window_start, stats)
+
     desired.sort(key=lambda t: (t.started_at, t.trip_key))
-    upserts, removals, log = _diff(desired, existing)
+
+    def removable(key: str) -> bool:
+        old = existing[key]
+        return old.started_at >= window_start or old.source == SOURCE_VW or key in superseded
+
+    upserts, removals, log = _diff(desired, existing, removable=removable, superseded=superseded)
     for t in desired:
         stats[f"status:{t.status}"] += 1
     return ProjectionResult(trips=desired, upserts=upserts, removals=removals, log=log, stats=dict(stats))
@@ -442,10 +466,78 @@ def _gap_trips(vehicle: str, readings: list[Reading], covered: set[int]) -> list
     return trips
 
 
+# ----------------------------------------------------------------- imports
+
+
+def _apply_imports(
+    detected: list[Trip],
+    imports: ImportInputs | None,
+    existing: Mapping[str, Trip],
+    window_start: datetime,
+    stats: dict[str, int],
+) -> tuple[list[Trip], dict[str, str]]:
+    """Add the imported trips; drop detector trips they supersede. Returns
+    (desired, superseded detector key -> covering imported key)."""
+    if imports is None or not imports.exports:
+        return detected, {}
+    imp = project_imports(imports)
+    for k, v in imp.stats.items():
+        stats[k] += v
+    vw_by_vehicle: dict[str, list[Trip]] = defaultdict(list)
+    for t in imp.trips:
+        vw_by_vehicle[t.vehicle_id or ""].append(t)
+
+    superseded: dict[str, str] = {}
+
+    def check(t: Trip) -> bool:
+        intervals = imp.coverage.get(t.vehicle_id or "")
+        vw = vw_by_vehicle.get(t.vehicle_id or "")
+        if t.vehicle_id is None or not intervals or not vw or not covered(intervals, t):
+            return False
+        superseded[t.trip_key] = supersede_target(vw, t)
+        return True
+
+    kept = [t for t in detected if not check(t)]
+    # Detector trips straddling a coverage edge stay (their km may partly
+    # double-count the import's); counted so the cycle log shows them.
+    stats["import_edge_overlap"] += sum(
+        1
+        for t in kept
+        if t.vehicle_id in imp.coverage
+        and any(t.started_at < e and (t.ended_at or t.started_at) > s for s, e in imp.coverage[t.vehicle_id])
+    )
+    # Stored detector trips older than the window are not recomputed; drop
+    # the superseded ones too.
+    for key, t in existing.items():
+        if t.source != SOURCE_VW and t.started_at < window_start and key not in superseded:
+            check(t)
+    stats["superseded"] += len(superseded)
+
+    by_target: dict[str, set[str]] = defaultdict(set)
+    for key, target in superseded.items():
+        by_target[target].add(key)
+    vw_trips = []
+    for t in imp.trips:
+        # Cumulative: once superseded, a detector trip that has since left
+        # the window (and the table) keeps handing its annotations over.
+        old = existing.get(t.trip_key)
+        keys = set(by_target.get(t.trip_key, set()))
+        if old is not None:
+            keys |= set((old.evidence or {}).get("supersedes") or [])
+        vw_trips.append(replace(t, evidence={**t.evidence, "supersedes": sorted(keys)}))
+    return kept + vw_trips, superseded
+
+
 # -------------------------------------------------------------------- diff
 
 
-def _diff(desired: list[Trip], existing: Mapping[str, Trip]) -> tuple[list[Trip], list[str], list[LogEntry]]:
+def _diff(
+    desired: list[Trip],
+    existing: Mapping[str, Trip],
+    *,
+    removable: Callable[[str], bool] = lambda _k: True,
+    superseded: Mapping[str, str] | None = None,
+) -> tuple[list[Trip], list[str], list[LogEntry]]:
     upserts: list[Trip] = []
     log: list[LogEntry] = []
     seen: set[str] = set()
@@ -458,6 +550,10 @@ def _diff(desired: list[Trip], existing: Mapping[str, Trip]) -> tuple[list[Trip]
             continue
         changed = [f for f in Trip.CORE_FIELDS if getattr(old, f) != getattr(t, f)]
         if not changed:
+            # Imported trips carry the supersede mapping (read by
+            # trips_effective) in evidence: keep it current, unlogged.
+            if t.source == SOURCE_VW and old.evidence != t.evidence:
+                upserts.append(t)
             continue
         upserts.append(t)
         if old.status == STATUS_PENDING and t.status != STATUS_PENDING:
@@ -465,6 +561,9 @@ def _diff(desired: list[Trip], existing: Mapping[str, Trip]) -> tuple[list[Trip]
         else:
             reason = "changed:" + ",".join(changed)
         log.append(LogEntry(t.trip_key, old.as_json(), t.as_json(), reason))
-    removals = sorted(k for k in existing if k not in seen)
-    log.extend(LogEntry(k, existing[k].as_json(), None, "removed") for k in removals)
+    removals = sorted(k for k in existing if k not in seen and removable(k))
+    sup = superseded or {}
+    log.extend(
+        LogEntry(k, existing[k].as_json(), None, f"superseded:{sup[k]}" if k in sup else "removed") for k in removals
+    )
     return upserts, removals, log
