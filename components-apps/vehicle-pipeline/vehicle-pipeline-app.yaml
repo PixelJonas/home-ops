@@ -111,6 +111,19 @@ spec:
                 env:
                   TZ: Europe/Berlin
                   TRIP_POLL_INTERVAL: "60"
+                  # Business/private notification per closed trip (ADR 0003
+                  # in containers/trip-enricher/docs/adr). Recipients: the
+                  # person(s) with "notify": true in TRIP_PHONES (secret).
+                  # Trips that ended before the first notify-enabled start
+                  # are never notified (cutoff persisted in
+                  # trips.notify_state).
+                  TRIP_NOTIFY_ENABLED: "true"
+                  TRIP_NOTIFY_MAX_PER_CYCLE: "5"
+                  # Deep link base for the notification (the trips page);
+                  # optional -- without it the notification has no link.
+                  PUBLIC_BASE_URL:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-notify-config, key: PUBLIC_BASE_URL, optional: true}
                   HEARTBEAT_FILE: /tmp/vehicle-pipeline-detector-heartbeat
                   # Vehicle slug (= vehicle_pipeline.vehicles.id) -> HA
                   # odometer entity of the VW EU Data Act feed. Not in the

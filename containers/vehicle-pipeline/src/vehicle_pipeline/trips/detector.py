@@ -5,7 +5,9 @@ Every TRIP_POLL_INTERVAL seconds (default 60):
 1. odometer entities -> trips.odometer_readings (idempotent),
 2. phone signal entities -> trips.drive_spans (per person),
 3. tracker breadcrumbs for closed spans -> trips.trip_positions,
-4. recompute the trips projection over the trailing TRIP_RECOMPUTE_DAYS.
+4. recompute the trips projection over the trailing TRIP_RECOMPUTE_DAYS,
+5. with TRIP_NOTIFY_ENABLED: send business/private notifications for newly
+   closed trips (trips.notify); answers arrive on a websocket thread.
 
 Each entity has a cursor (trips.cursors); a cycle fetches
 [cursor - CURSOR_OVERLAP, now]. With no cursor yet it backfills
@@ -21,10 +23,12 @@ import time
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from psycopg_pool import ConnectionPool
 
 from vehicle_pipeline.trips.ha import HAClient, HistorySource
+from vehicle_pipeline.trips.notify import ActionListener, Notifier
 from vehicle_pipeline.trips.projection import project
 from vehicle_pipeline.trips.schema import init_trips_schema
 from vehicle_pipeline.trips.settings import TripSettings
@@ -35,6 +39,7 @@ from vehicle_pipeline.trips.signals import (
 )
 from vehicle_pipeline.trips.store import TripStore
 from vehicle_pipeline.trips.util import touch_heartbeat
+from vehicle_pipeline.vollkosten import report_tz
 
 logger = logging.getLogger("vehicle_pipeline.trips.detector")
 
@@ -117,6 +122,29 @@ def run_cycle(
     return stats
 
 
+def build_notifier(settings: TripSettings, store: TripStore, ha: HAClient) -> Notifier | None:
+    if not settings.notify_enabled:
+        logger.info("trip notifications disabled (TRIP_NOTIFY_ENABLED unset/false)")
+        return None
+    targets = settings.notify_targets()
+    if not targets:
+        logger.warning(
+            "TRIP_NOTIFY_ENABLED is set but no person in TRIP_PHONES has \"notify\": true; notifications disabled"
+        )
+        return None
+    return Notifier(
+        store=store,
+        ha=ha,
+        targets=targets,
+        vehicle_names={v.slug: v.name for v in settings.vehicles},
+        tz=ZoneInfo(report_tz()),
+        since=settings.notify_since,
+        max_per_cycle=settings.notify_max_per_cycle,
+        min_age=timedelta(minutes=settings.notify_min_age_minutes),
+        public_base_url=settings.public_base_url,
+    )
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     settings = TripSettings.from_env()
@@ -140,11 +168,17 @@ def main() -> None:
         touch_heartbeat(settings.heartbeat_file)
 
     beat()
-    pool = ConnectionPool(settings.database_url, min_size=1, max_size=2, open=True)
+    pool = ConnectionPool(settings.database_url, min_size=1, max_size=3, open=True)
     ha = HAClient(settings.ha_url, settings.ha_token)
+    listener: ActionListener | None = None
     try:
         init_trips_schema(pool)
         store = TripStore(pool)
+        notifier = build_notifier(settings, store, ha)
+        if notifier is not None:
+            notifier.start(datetime.now(UTC))
+            listener = ActionListener(settings.ha_url, settings.ha_token, store)
+            listener.start()
         while not stop["flag"]:
             beat()
             started = time.monotonic()
@@ -154,10 +188,20 @@ def main() -> None:
             except Exception:
                 logger.exception("cycle failed")
             beat()
+            if notifier is not None:
+                try:
+                    nstats = notifier.run_once(datetime.now(UTC))
+                    if any(nstats.values()):
+                        logger.info("notifications: %s", nstats)
+                except Exception:
+                    logger.exception("notification pass failed")
+                beat()
             deadline = time.monotonic() + settings.poll_interval_seconds
             while not stop["flag"] and time.monotonic() < deadline:
                 time.sleep(1)
     finally:
+        if listener is not None:
+            listener.stop()
         ha.close()
         pool.close()
 

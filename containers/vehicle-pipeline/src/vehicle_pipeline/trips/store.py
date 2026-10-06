@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from psycopg.types.json import Jsonb
@@ -22,6 +24,58 @@ from vehicle_pipeline.trips.models import (
 )
 from vehicle_pipeline.trips.signals import CLOSE_AFTER
 from vehicle_pipeline.trips.util import parse_ts
+
+ANNOTATION_FIELDS = ("business", "purpose", "driver", "vehicle")
+ANNOTATION_VIAS = ("notify", "ui", "api", "import")
+TRIP_STATUSES = ("ok", "odometer_split", "odometer_pending", "odometer_stale")
+
+
+class AnnotationError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class EffectiveTrip:
+    """A row of trips.trips_effective: the projection with the latest
+    annotation per field applied."""
+
+    trip_key: str
+    vehicle_id: str | None
+    driver: str | None
+    started_at: datetime
+    ended_at: datetime | None
+    km: Decimal | None
+    gps_km: Decimal | None
+    status: str
+    source: str
+    business: bool | None
+    business_via: str | None
+    purpose: str | None
+    detected_vehicle_id: str | None
+    detected_driver: str | None
+
+
+_EFFECTIVE_COLS = (
+    "trip_key, vehicle_id, driver, started_at, ended_at, km, gps_km, status, source, business, business_via, "
+    "purpose, detected_vehicle_id, detected_driver"
+)
+
+
+def validate_annotation(field: str, value: Any) -> None:
+    """None clears a field (stored as JSON null, so the clear is itself on
+    the append-only record)."""
+    if field not in ANNOTATION_FIELDS:
+        raise AnnotationError(f"unknown annotation field {field!r}")
+    if value is None:
+        return
+    if field == "business":
+        if not isinstance(value, bool):
+            raise AnnotationError("business must be true, false or null")
+    elif not isinstance(value, str) or not value.strip():
+        raise AnnotationError(f"{field} must be a non-empty string or null")
+    elif len(value) > 500:
+        raise AnnotationError(f"{field} is too long")
+
 
 # How far before the projection window raw spans/positions are loaded, so
 # a cluster straddling the window start is still seen whole.
@@ -281,6 +335,129 @@ class TripStore:
                         entry.reason,
                     ),
                 )
+
+
+    # -------------------------------------------------------- annotations
+
+    def annotate(self, trip_keys: str | Sequence[str], *, via: str, actor: str | None = None, **values: Any) -> int:
+        """The single write path for trip annotations (business/private
+        flag, purpose, driver/vehicle override), used by the notification
+        handler and the UI alike. Appends one row per trip and field in one
+        transaction; the latest row per (trip, field) wins
+        (trips.trips_effective). ``annotate(key, business=True,
+        via="notify", actor="ha")``. Returns the number of rows written."""
+        keys = [trip_keys] if isinstance(trip_keys, str) else list(dict.fromkeys(trip_keys))
+        if via not in ANNOTATION_VIAS:
+            raise AnnotationError(f"unknown via {via!r}")
+        if not values:
+            raise AnnotationError("nothing to annotate")
+        for field, value in values.items():
+            if isinstance(value, str):
+                values[field] = value.strip() or None
+            validate_annotation(field, values[field])
+        if not keys:
+            return 0
+        written = 0
+        with self._pool.connection() as conn, conn.transaction(), conn.cursor() as cur:
+            for key in keys:
+                for field, value in values.items():
+                    cur.execute(
+                        "INSERT INTO trips.trip_annotations (trip_key, field, value, actor, via) "
+                        "VALUES (%s, %s, %s, %s, %s)",
+                        (key, field, Jsonb(value), actor, via),
+                    )
+                    written += 1
+        return written
+
+    def list_effective(
+        self,
+        *,
+        vehicle: str | None = None,
+        month_start: datetime | None = None,
+        month_end: datetime | None = None,
+        unflagged_only: bool = False,
+        status: str | None = None,
+        limit: int = 500,
+    ) -> list[EffectiveTrip]:
+        where = ["TRUE"]
+        params: list[Any] = []
+        if vehicle:
+            where.append("vehicle_id = %s")
+            params.append(vehicle)
+        if month_start is not None:
+            where.append("started_at >= %s")
+            params.append(month_start)
+        if month_end is not None:
+            where.append("started_at < %s")
+            params.append(month_end)
+        if unflagged_only:
+            where.append("business IS NULL")
+        if status:
+            where.append("status = %s")
+            params.append(status)
+        params.append(limit)
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {_EFFECTIVE_COLS} FROM trips.trips_effective WHERE {' AND '.join(where)} "
+                "ORDER BY started_at DESC, trip_key LIMIT %s",
+                params,
+            )
+            return [EffectiveTrip(*r) for r in cur.fetchall()]
+
+    def get_effective(self, trip_key: str) -> EffectiveTrip | None:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(f"SELECT {_EFFECTIVE_COLS} FROM trips.trips_effective WHERE trip_key = %s", (trip_key,))
+            row = cur.fetchone()
+            return EffectiveTrip(*row) if row else None
+
+    def vehicle_ids(self) -> list[str]:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT vehicle_id FROM trips.trips_effective WHERE vehicle_id IS NOT NULL ORDER BY 1")
+            return [r[0] for r in cur.fetchall()]
+
+    # ------------------------------------------------------ notifications
+
+    def ensure_notify_cutoff(self, now: datetime) -> datetime:
+        """The persisted notification cutoff, written as ``now`` on the first
+        call ever (first notify-enabled start) and never moved after."""
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO trips.notify_state (id, cutoff) VALUES (1, %s) ON CONFLICT (id) DO NOTHING", (now,)
+            )
+            cur.execute("SELECT cutoff FROM trips.notify_state WHERE id = 1")
+            return cur.fetchone()[0]  # type: ignore[index]
+
+    def notify_candidates(self, cutoff: datetime, limit: int = 200) -> list[EffectiveTrip]:
+        """Closed trips that ended after the cutoff and were never notified.
+        The final eligibility filter (age, flag, rate limit) is
+        trips.notify.eligible."""
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT {_EFFECTIVE_COLS} FROM trips.trips_effective e
+                WHERE e.ended_at IS NOT NULL AND e.ended_at > %s
+                  AND NOT EXISTS (SELECT 1 FROM trips.notifications_sent n WHERE n.trip_key = e.trip_key)
+                ORDER BY e.ended_at, e.trip_key LIMIT %s
+                """,
+                (cutoff, limit),
+            )
+            return [EffectiveTrip(*r) for r in cur.fetchall()]
+
+    def mark_notified(self, trip_key: str, notify_id: str, target: str) -> None:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO trips.notifications_sent (trip_key, notify_id, target) VALUES (%s, %s, %s)
+                ON CONFLICT (trip_key) DO UPDATE SET notify_id = EXCLUDED.notify_id, target = EXCLUDED.target
+                """,
+                (trip_key, notify_id, target),
+            )
+
+    def trip_key_for_notify_id(self, notify_id: str) -> str | None:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT trip_key FROM trips.notifications_sent WHERE notify_id = %s", (notify_id,))
+            row = cur.fetchone()
+            return row[0] if row else None
 
 
 def merge_span_evidence(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
