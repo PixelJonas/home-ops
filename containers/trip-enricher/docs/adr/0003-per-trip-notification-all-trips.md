@@ -2,7 +2,7 @@
 
 **Status**: accepted (2026-10-06) — supersedes [ADR 0001](0001-weekly-review-trip-classification.md)
 
-The Vollkostenrechnung moved from trip-enricher/MyGarage into `vehicle-pipeline` (`containers/vehicle-pipeline`, package `vehicle_pipeline.trips`). Its trip data and classification flow differ from what ADR 0001 decided, by the owner's decision of 2026-10-06.
+The Vollkostenrechnung moved from trip-enricher/MyGarage into `vehicle-pipeline` (source: `https://git.janz.digital/jonas/vehicle-pipeline`, formerly `containers/vehicle-pipeline` in this repo; package `vehicle_pipeline.trips`). Its trip data and classification flow differ from what ADR 0001 decided, by the owner's decision of 2026-10-06.
 
 ## Decision
 
