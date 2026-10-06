@@ -7,6 +7,9 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime
+
+from vehicle_pipeline.trips.util import parse_ts
 
 from vehicle_pipeline.config import _derive_slug, parse_vehicle_configs
 
@@ -31,6 +34,23 @@ class PhoneConfig:
     # one car has CarPlay). Without it, a CarPlay-only span has no vehicle
     # and is resolved by the projection from the odometers.
     carplay_vehicle: str | None = None
+    # Optional: this person receives the business/private trip
+    # notifications (for every trip of every vehicle). notify_service
+    # overrides the default target derived from the tracker
+    # (device_tracker.<device> -> notify.mobile_app_<device>).
+    notify: bool = False
+    notify_service: str | None = None
+
+    def notify_target(self) -> str | None:
+        """HA notify service name (without the ``notify.`` domain), or None
+        if this person is not a notification target."""
+        if not self.notify:
+            return None
+        if self.notify_service:
+            return self.notify_service.removeprefix("notify.")
+        if self.tracker and self.tracker.startswith("device_tracker."):
+            return "mobile_app_" + self.tracker.removeprefix("device_tracker.")
+        return None
 
     def entities(self) -> list[str]:
         return [e for e in (self.tracker, self.ssid, self.audio, self.activity) if e]
@@ -50,6 +70,15 @@ class TripSettings:
     heartbeat_file: str = "/tmp/vehicle-pipeline-detector-heartbeat"
     recompute_days: int = 45
     backfill_days: int = 30
+    # Business/private notifications (trips.notify).
+    notify_enabled: bool = False
+    notify_since: datetime | None = None
+    notify_max_per_cycle: int = 5
+    notify_min_age_minutes: int = 10
+    public_base_url: str | None = None
+
+    def notify_targets(self) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(t for p in self.phones if (t := p.notify_target())))
 
     @classmethod
     def from_env(cls) -> TripSettings:
@@ -70,6 +99,11 @@ class TripSettings:
             heartbeat_file=os.environ.get("HEARTBEAT_FILE", "/tmp/vehicle-pipeline-detector-heartbeat"),
             recompute_days=int(os.environ.get("TRIP_RECOMPUTE_DAYS", "45")),
             backfill_days=int(os.environ.get("TRIP_BACKFILL_DAYS", "30")),
+            notify_enabled=_flag(os.environ.get("TRIP_NOTIFY_ENABLED")),
+            notify_since=_since(os.environ.get("TRIP_NOTIFY_SINCE")),
+            notify_max_per_cycle=int(os.environ.get("TRIP_NOTIFY_MAX_PER_CYCLE", "5")),
+            notify_min_age_minutes=int(os.environ.get("TRIP_NOTIFY_MIN_AGE_MINUTES", "10")),
+            public_base_url=(os.environ.get("PUBLIC_BASE_URL") or "").strip().rstrip("/") or None,
         )
 
 
@@ -134,7 +168,10 @@ def parse_trip_vehicles(
 def parse_phones(raw: str) -> tuple[PhoneConfig, ...]:
     """Parse the trip-enricher phone config (Doppler
     MYGARAGE_TRIP_ENRICHER_PHONES); same shapes/aliases as
-    trip_enricher.normalize_phones, plus optional ``carplay_vehicle``."""
+    trip_enricher.normalize_phones, plus optional ``carplay_vehicle``,
+    ``notify`` (bool: this person gets the business/private notifications)
+    and ``notify_service`` (HA notify service, default derived from the
+    tracker). trip-enricher ignores the extra keys."""
     data = json.loads(raw)
     if isinstance(data, dict):
         entries = list(data.items())
@@ -154,9 +191,26 @@ def parse_phones(raw: str) -> tuple[PhoneConfig, ...]:
                 audio=_pick(cfg, "audio", "audio_sensor"),
                 activity=_pick(cfg, "activity", "activity_sensor"),
                 carplay_vehicle=_pick(cfg, "carplay_vehicle"),
+                notify=_flag(cfg.get("notify")),
+                notify_service=_pick(cfg, "notify_service"),
             )
         )
     return tuple(phones)
+
+
+def _flag(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _since(raw: str | None) -> datetime | None:
+    if not raw or not raw.strip():
+        return None
+    ts = parse_ts(raw.strip())
+    if ts is None:
+        raise RuntimeError("TRIP_NOTIFY_SINCE must be an ISO timestamp")
+    return ts
 
 
 def _pick(d: dict, *keys: str) -> str | None:

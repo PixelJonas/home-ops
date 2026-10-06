@@ -7,7 +7,8 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from vehicle_pipeline.config import VehicleConfig
-from vehicle_pipeline.trips.schema import SCHEMA_LOCK_KEY
+from vehicle_pipeline.trips.schema import SCHEMA_LOCK_KEY, TRIPS_DDL
+from vehicle_pipeline.vollkosten import vollkosten_ddl
 
 _SCHEMA_DDL = """
 CREATE SCHEMA IF NOT EXISTS vehicle_pipeline;
@@ -105,6 +106,12 @@ def init_schema(pool: ConnectionPool) -> None:
         with conn.transaction(), conn.cursor() as cur:
             cur.execute("SELECT pg_advisory_xact_lock(%s)", (SCHEMA_LOCK_KEY,))
             cur.execute(_SCHEMA_DDL)
+            # The app reads/annotates trips (trips UI) and serves the
+            # Vollkostenrechnung views, which join costs with
+            # trips.trips_effective -- so it creates the trips schema too
+            # (idempotent, same DDL the detector runs) before the views.
+            cur.execute(TRIPS_DDL)
+            cur.execute(vollkosten_ddl())
 
 
 def upsert_vehicles(pool: ConnectionPool, vehicles: Iterable[VehicleConfig]) -> None:
