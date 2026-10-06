@@ -52,6 +52,12 @@ class HAClient:
 
         return parse_history_payload(with_retry(call, "ha history"))
 
+    def call_service(self, domain: str, service: str, data: dict[str, Any]) -> None:
+        """POST /api/services/<domain>/<service>. Single attempt: callers
+        (the notifier) retry on their next cycle."""
+        r = self._client.post(f"{self._base}/api/services/{domain}/{service}", json=data)
+        r.raise_for_status()
+
 
 def parse_history_payload(payload: Any) -> History:
     """HA returns one list of state dicts per entity; key them by entity_id."""

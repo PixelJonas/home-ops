@@ -19,6 +19,8 @@ from vehicle_pipeline.paperless_client import PaperlessClient
 from vehicle_pipeline.reconciliation import reconciliation_loop
 from vehicle_pipeline.review_store import ReviewQueueStore
 from vehicle_pipeline.review_ui import router as review_ui_router
+from vehicle_pipeline.trips.store import TripStore
+from vehicle_pipeline.trips_ui import router as trips_ui_router
 from vehicle_pipeline.webhooks import router as webhooks_router
 
 logging.basicConfig(
@@ -47,6 +49,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
 
     app.state.settings = settings
+    app.state.pool = pool
+    app.state.trip_store = TripStore(pool)
     app.state.ingest_store = PostgresIngestEventStore(pool)
     app.state.review_store = ReviewQueueStore(pool)
     app.state.paperless = paperless
@@ -87,6 +91,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="vehicle-pipeline", lifespan=lifespan)
 app.include_router(webhooks_router)
 app.include_router(review_ui_router)
+app.include_router(trips_ui_router)
 
 
 @app.get("/healthz")

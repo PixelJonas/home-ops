@@ -73,8 +73,14 @@ def test_schema_init_is_idempotent(pool: ConnectionPool) -> None:
     init_trips_schema(pool)
     init_schema(pool)
     assert (
-        _count(pool, "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'trips'") == 8
+        _count(
+            pool,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'trips' AND table_type = 'BASE TABLE'",
+        )
+        == 9
     )
+    assert _count(pool, "SELECT count(*) FROM information_schema.views WHERE table_schema = 'trips'") == 1
+    assert _count(pool, "SELECT count(*) FROM information_schema.views WHERE table_schema = 'vehicle_pipeline'") == 2
 
 
 def test_concurrent_schema_init_from_app_and_detectors(fresh_db: str) -> None:

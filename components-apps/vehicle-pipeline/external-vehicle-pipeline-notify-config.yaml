@@ -1,0 +1,22 @@
+# Public base URL of the vehicle-pipeline UI (Caddy + Authelia in front of
+# the tailnet Service), used by the trip detector for the deep link in the
+# business/private notification. Kept out of git like every other
+# site-specific URL; the detector's env reference is optional, so a
+# missing key only drops the link.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vehicle-pipeline-notify-config
+  namespace: vehicle-pipeline
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: vehicle-pipeline-notify-config
+  data:
+    - secretKey: PUBLIC_BASE_URL
+      remoteRef:
+        key: VEHICLE_PIPELINE_PUBLIC_BASE_URL

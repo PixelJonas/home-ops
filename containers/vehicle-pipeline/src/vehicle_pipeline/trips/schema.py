@@ -100,12 +100,63 @@ CREATE TABLE IF NOT EXISTS trips.cursors (
     last_ts TIMESTAMPTZ NOT NULL
 );
 
--- Used by the (later) notification phase; created now so it never needs a
--- migration of its own.
+-- Business/private notifications (trips.notify). notify_id is the short,
+-- action-ID-safe handle used in TRIP_BIZ_<id>/TRIP_PRIV_<id>; trip keys
+-- contain ':' and are not guaranteed short.
 CREATE TABLE IF NOT EXISTS trips.notifications_sent (
     trip_key TEXT PRIMARY KEY,
     sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE trips.notifications_sent ADD COLUMN IF NOT EXISTS notify_id TEXT;
+ALTER TABLE trips.notifications_sent ADD COLUMN IF NOT EXISTS target TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_sent_notify_id_idx
+    ON trips.notifications_sent (notify_id);
+
+-- Notification cutoff: trips that ended before it are never notified. The
+-- row is written once, on the first notify-enabled detector start, so the
+-- backfilled history never triggers a burst of notifications.
+CREATE TABLE IF NOT EXISTS trips.notify_state (
+    id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    cutoff TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The read side: the trips projection with the effective (latest per
+-- field) annotation applied. A JSON null annotation clears the field.
+-- Driver/vehicle overrides replace the detected values here; the detected
+-- ones stay visible as detected_*.
+CREATE OR REPLACE VIEW trips.trips_effective AS
+WITH latest AS (
+    SELECT DISTINCT ON (trip_key, field) trip_key, field, value, actor, via, created_at
+    FROM trips.trip_annotations
+    ORDER BY trip_key, field, created_at DESC, id DESC
+)
+SELECT
+    t.trip_key,
+    COALESCE(v.value #>> '{}', t.vehicle_id) AS vehicle_id,
+    COALESCE(d.value #>> '{}', t.driver) AS driver,
+    t.started_at,
+    t.ended_at,
+    t.odo_start,
+    t.odo_end,
+    t.km,
+    t.gps_km,
+    t.status,
+    t.source,
+    CASE WHEN jsonb_typeof(b.value) = 'boolean' THEN b.value::boolean END AS business,
+    b.via AS business_via,
+    b.actor AS business_actor,
+    b.created_at AS business_at,
+    p.value #>> '{}' AS purpose,
+    t.vehicle_id AS detected_vehicle_id,
+    t.driver AS detected_driver,
+    t.evidence,
+    t.updated_at
+FROM trips.trips t
+LEFT JOIN latest b ON b.trip_key = t.trip_key AND b.field = 'business'
+LEFT JOIN latest p ON p.trip_key = t.trip_key AND p.field = 'purpose'
+LEFT JOIN latest d ON d.trip_key = t.trip_key AND d.field = 'driver'
+LEFT JOIN latest v ON v.trip_key = t.trip_key AND v.field = 'vehicle';
 """
 
 
