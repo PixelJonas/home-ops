@@ -123,7 +123,7 @@ spec:
                   # optional -- without it the notification has no link.
                   PUBLIC_BASE_URL:
                     valueFrom:
-                      secretKeyRef: {name: vehicle-pipeline-notify-config, key: PUBLIC_BASE_URL, optional: true}
+                      secretKeyRef: {name: vehicle-pipeline-notify-config, key: PUBLIC_BASE_URL}
                   HEARTBEAT_FILE: /tmp/vehicle-pipeline-detector-heartbeat
                   # Vehicle slug (= vehicle_pipeline.vehicles.id) -> HA
                   # odometer entity of the VW EU Data Act feed. Not in the
