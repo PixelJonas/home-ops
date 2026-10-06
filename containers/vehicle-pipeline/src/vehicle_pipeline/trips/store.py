@@ -11,6 +11,17 @@ from typing import Any
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
+from vehicle_pipeline.trips.imports import (
+    END_SLACK,
+    SOURCE_VW,
+    AnchorCheck,
+    ImportedRow,
+    ImportExport,
+    ImportInputs,
+    RefuelCheck,
+    anchor_points,
+    refuel_crosscheck,
+)
 from vehicle_pipeline.trips.models import (
     DETECTOR_VERSION,
     SOURCE_PHONE,
@@ -24,6 +35,7 @@ from vehicle_pipeline.trips.models import (
 )
 from vehicle_pipeline.trips.signals import CLOSE_AFTER
 from vehicle_pipeline.trips.util import parse_ts
+from vehicle_pipeline.trips.vw_export import KIND_REFUEL, KIND_SHORT_TERM, ParsedExport, row_hash
 
 ANNOTATION_FIELDS = ("business", "purpose", "driver", "vehicle")
 ANNOTATION_VIAS = ("notify", "ui", "api", "import")
@@ -259,9 +271,13 @@ class TripStore:
     # --------------------------------------------------------- projection
 
     def load_projection_inputs(
-        self, window_start: datetime, now: datetime
+        self, window_start: datetime, now: datetime, existing_since: datetime | None = None
     ) -> tuple[list[Span], list[Reading], list[Position], dict[str, Trip]]:
+        """``existing`` holds stored trips starting at/after
+        min(window_start, existing_since) plus every imported trip
+        (projection.project's contract)."""
         since = window_start - LOAD_MARGIN
+        existing_from = min(window_start, existing_since) if existing_since else window_start
         with self._pool.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -294,9 +310,9 @@ class TripStore:
                 """
                 SELECT trip_key, vehicle_id, driver, started_at, ended_at, odo_start, odo_end, km, gps_km,
                        status, source, evidence
-                FROM trips.trips WHERE started_at >= %s
+                FROM trips.trips WHERE started_at >= %s OR source = %s
                 """,
-                (window_start,),
+                (existing_from, SOURCE_VW),
             )
             existing = {r[0]: Trip(*r[:11], evidence=r[11] or {}) for r in cur.fetchall()}
         return spans, readings, positions, existing
@@ -336,6 +352,152 @@ class TripStore:
                     ),
                 )
 
+
+    # ------------------------------------------------------------ imports
+
+    def vehicle_for_vin(self, vin: str) -> str | None:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT id FROM vehicle_pipeline.vehicles WHERE vin = %s", (vin,))
+            row = cur.fetchone()
+            return row[0] if row else None
+
+    def known_row_hashes(self, hashes: Sequence[str]) -> set[str]:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT row_hash FROM trips.imported_trips WHERE row_hash = ANY(%s)", (list(hashes),))
+            return {r[0] for r in cur.fetchall()}
+
+    def record_import(self, vehicle_id: str, export: ParsedExport, source: str = SOURCE_VW) -> dict[str, int]:
+        """Idempotent, in one transaction: the export row, every exported
+        row (new ones inserted, known ones -- same row_hash -- kept), and
+        the export membership of all of them. Returns counts."""
+        h = export.header
+        stats = {"rows": len(export.rows), "inserted": 0, "already_known": 0, "export_new": 0}
+        with self._pool.connection() as conn, conn.transaction(), conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO trips.import_exports (source, vehicle_id, export_created_at, export_odometer_km, engine)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (source, vehicle_id, export_created_at) DO NOTHING
+                RETURNING id
+                """,
+                (source, vehicle_id, h.created_at, h.odometer_km, h.engine),
+            )
+            row = cur.fetchone()
+            if row is not None:
+                stats["export_new"] = 1
+                export_id = row[0]
+            else:
+                cur.execute(
+                    "SELECT id FROM trips.import_exports WHERE source = %s AND vehicle_id = %s AND export_created_at = %s",
+                    (source, vehicle_id, h.created_at),
+                )
+                export_id = cur.fetchone()[0]  # type: ignore[index]
+            for r in export.rows:
+                rh = row_hash(vehicle_id, r, source)
+                cur.execute(
+                    """
+                    INSERT INTO trips.imported_trips
+                        (source, vehicle_id, kind, ended_at, km, driving_time, avg_speed_kmh, avg_consumption,
+                         consumption_unit, total_consumption, total_consumption_unit, raw, export_created_at,
+                         export_odometer_km, row_hash)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (row_hash) DO NOTHING
+                    RETURNING id
+                    """,
+                    (
+                        source, vehicle_id, r.kind, r.ended_at, r.km, r.driving_time, r.avg_speed_kmh,
+                        r.avg_consumption, r.consumption_unit, r.total_consumption, r.total_consumption_unit,
+                        Jsonb(r.raw), h.created_at, h.odometer_km, rh,
+                    ),
+                )
+                got = cur.fetchone()
+                if got is not None:
+                    stats["inserted"] += 1
+                    trip_id = got[0]
+                else:
+                    stats["already_known"] += 1
+                    cur.execute("SELECT id FROM trips.imported_trips WHERE row_hash = %s", (rh,))
+                    trip_id = cur.fetchone()[0]  # type: ignore[index]
+                cur.execute(
+                    "INSERT INTO trips.imported_trip_exports (imported_trip_id, export_id) VALUES (%s, %s) "
+                    "ON CONFLICT DO NOTHING",
+                    (trip_id, export_id),
+                )
+        return stats
+
+    def _import_rows(self, cur: Any, kind: str, vehicle_id: str | None = None) -> list[ImportedRow]:
+        cur.execute(
+            """
+            SELECT t.id, t.source, t.vehicle_id, t.kind, t.ended_at, t.km, t.driving_time,
+                   array_agg(m.export_id ORDER BY m.export_id)
+            FROM trips.imported_trips t
+            JOIN trips.imported_trip_exports m ON m.imported_trip_id = t.id
+            WHERE t.kind = %s AND (%s::text IS NULL OR t.vehicle_id = %s)
+            GROUP BY t.id
+            ORDER BY t.vehicle_id, t.ended_at, t.id
+            """,
+            (kind, vehicle_id, vehicle_id),
+        )
+        return [ImportedRow(*r[:7], export_ids=tuple(r[7])) for r in cur.fetchall()]
+
+    def _import_exports(self, cur: Any, vehicle_id: str | None = None) -> list[ImportExport]:
+        cur.execute(
+            "SELECT id, source, vehicle_id, export_created_at, export_odometer_km FROM trips.import_exports "
+            "WHERE %s::text IS NULL OR vehicle_id = %s ORDER BY id",
+            (vehicle_id, vehicle_id),
+        )
+        return [ImportExport(*r) for r in cur.fetchall()]
+
+    def load_import_inputs(self) -> ImportInputs:
+        """Everything the import projection needs, regardless of age: all
+        exports, all short-term rows, and per export the first odometer
+        reading at/after its last trip end (+ whether a detector span of
+        the vehicle started in between)."""
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            exports = self._import_exports(cur)
+            if not exports:
+                return ImportInputs()
+            rows = self._import_rows(cur, KIND_SHORT_TERM)
+            checks: dict[int, AnchorCheck] = {}
+            for eid, (vehicle, last_end) in anchor_points(exports, rows).items():
+                cur.execute(
+                    """
+                    SELECT id, vehicle_id, km, data_captured_at FROM trips.odometer_readings
+                    WHERE vehicle_id = %s AND data_captured_at >= %s
+                    ORDER BY data_captured_at, km DESC LIMIT 1
+                    """,
+                    (vehicle, last_end),
+                )
+                r = cur.fetchone()
+                reading = Reading(*r) if r else None
+                between = False
+                if reading is not None:
+                    cur.execute(
+                        """
+                        SELECT EXISTS (SELECT 1 FROM trips.drive_spans
+                                       WHERE vehicle_id = %s AND started_at > %s AND started_at < %s)
+                        """,
+                        (vehicle, last_end + END_SLACK, reading.captured_at),
+                    )
+                    between = bool(cur.fetchone()[0])  # type: ignore[index]
+                checks[eid] = AnchorCheck(reading, between)
+        return ImportInputs(exports=exports, rows=rows, checks=checks)
+
+    def refuel_check(self, vehicle_id: str) -> list[RefuelCheck]:
+        """Odometer at each refuel of one vehicle (imports.refuel_crosscheck)."""
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            exports = self._import_exports(cur, vehicle_id)
+            rows = self._import_rows(cur, KIND_REFUEL, vehicle_id)
+            cur.execute(
+                """
+                SELECT trip_key, vehicle_id, driver, started_at, ended_at, odo_start, odo_end, km, gps_km,
+                       status, source, evidence
+                FROM trips.trips WHERE vehicle_id = %s AND source = %s
+                """,
+                (vehicle_id, SOURCE_VW),
+            )
+            trips = [Trip(*r[:11], evidence=r[11] or {}) for r in cur.fetchall()]
+        return refuel_crosscheck(exports, rows, trips)
 
     # -------------------------------------------------------- annotations
 
@@ -436,6 +598,8 @@ class TripStore:
                 f"""
                 SELECT {_EFFECTIVE_COLS} FROM trips.trips_effective e
                 WHERE e.ended_at IS NOT NULL AND e.ended_at > %s
+                  -- imported trips are history, never notified
+                  AND e.source <> 'vw_export'
                   AND NOT EXISTS (SELECT 1 FROM trips.notifications_sent n WHERE n.trip_key = e.trip_key)
                 ORDER BY e.ended_at, e.trip_key LIMIT %s
                 """,
