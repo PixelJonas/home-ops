@@ -68,7 +68,7 @@ async def test_process_document_creates_review_draft() -> None:
     llm = FakeExtractor(extraction)
     review_store = FakeReviewStore()
 
-    await process_document(42, paperless, llm, review_store, VEHICLES)
+    await process_document(42, paperless, llm, review_store, VEHICLES, sink="mygarage")
 
     assert len(review_store.created) == 1
     draft = review_store.created[0]
@@ -101,13 +101,30 @@ async def test_process_document_extraction_failure_still_creates_low_confidence_
     llm = FakeExtractor(ExtractionError("boom"))
     review_store = FakeReviewStore()
 
-    await process_document(44, paperless, llm, review_store, VEHICLES)
+    await process_document(44, paperless, llm, review_store, VEHICLES, sink="mygarage")
 
     assert len(review_store.created) == 1
     draft = review_store.created[0]
     assert draft["extracted_category"] == "other"
     assert draft["confidence"] == "low"
     assert draft["mygarage_entity"] == "documents"
+
+
+@pytest.mark.asyncio
+async def test_process_document_local_sink_creates_flat_cost_draft() -> None:
+    doc = {"id": 42, "title": "KFZ-Steuerbescheid 2026", "content": "...", "tags": [7]}
+    extraction = ExtractionResult(category="kfz_steuer", amount=120.5, date="2026-03-01",
+                                   vendor="Hauptzollamt", odometer_km=None, notes=None, confidence="high")
+    review_store = FakeReviewStore()
+
+    await process_document(42, FakePaperless(doc), FakeExtractor(extraction), review_store, VEHICLES)
+
+    draft = review_store.created[0]
+    assert draft["mygarage_entity"] == "cost"
+    assert draft["origin"] == "paperless"
+    assert draft["payload"]["category"] == "tax"
+    assert draft["payload"]["amount_gross"] == 120.5
+    assert draft["payload"]["vin"] == next(iter(VEHICLES))
 
 
 @pytest.mark.asyncio
