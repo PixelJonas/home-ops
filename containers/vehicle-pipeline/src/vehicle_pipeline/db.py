@@ -7,6 +7,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from vehicle_pipeline.config import VehicleConfig
+from vehicle_pipeline.trips.schema import SCHEMA_LOCK_KEY
 
 _SCHEMA_DDL = """
 CREATE SCHEMA IF NOT EXISTS vehicle_pipeline;
@@ -97,8 +98,13 @@ CREATE INDEX IF NOT EXISTS costs_vehicle_date_idx ON vehicle_pipeline.costs (veh
 
 
 def init_schema(pool: ConnectionPool) -> None:
-    with pool.connection() as conn, conn.cursor() as cur:
-        cur.execute(_SCHEMA_DDL)
+    # Serialised with the trip detector's DDL (trips.schema) via one shared
+    # advisory lock: concurrent CREATE ... IF NOT EXISTS can still fail on
+    # catalog unique constraints when two pods start at once.
+    with pool.connection() as conn:
+        with conn.transaction(), conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(%s)", (SCHEMA_LOCK_KEY,))
+            cur.execute(_SCHEMA_DDL)
 
 
 def upsert_vehicles(pool: ConnectionPool, vehicles: Iterable[VehicleConfig]) -> None:
