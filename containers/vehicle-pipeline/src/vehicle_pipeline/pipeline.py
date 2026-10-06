@@ -5,7 +5,7 @@ from typing import Any, Protocol
 
 from vehicle_pipeline.classify_vehicle import classify_vehicle
 from vehicle_pipeline.extract import ExtractionError, ExtractionResult
-from vehicle_pipeline.taxonomy import map_to_mygarage
+from vehicle_pipeline.taxonomy import map_to_cost, map_to_mygarage
 
 logger = logging.getLogger("vehicle_pipeline.pipeline")
 
@@ -30,6 +30,7 @@ async def process_document(
     llm: LLMProtocol,
     review_store: ReviewStoreProtocol,
     vehicles: dict[str, str],
+    sink: str = "local",
 ) -> None:
     doc = await paperless.get_document(doc_id)
     tag_names = list((await paperless.get_tag_names(doc.get("tags", []))).values())
@@ -46,7 +47,9 @@ async def process_document(
             confidence="low",
         )
 
-    draft = map_to_mygarage(extraction, vin or "")
+    # COST_SINK=mygarage keeps the old MyGarage-shaped drafts; the local
+    # sink uses the flat cost shape that cost_store.insert_from_review takes.
+    draft = map_to_mygarage(extraction, vin or "") if sink == "mygarage" else map_to_cost(extraction, vin or "")
 
     review_store.create_draft(
         paperless_doc_id=doc_id,
@@ -57,4 +60,5 @@ async def process_document(
         extracted_category=extraction.category,
         payload=draft.payload,
         confidence=extraction.confidence,
+        origin="paperless",
     )

@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from vehicle_pipeline.main import app
 from vehicle_pipeline.review_store import ReviewItem
-from vehicle_pipeline.review_ui import get_mygarage, get_review_store
+from vehicle_pipeline.review_ui import get_cost_sink, get_cost_store, get_mygarage, get_review_store
 
 
 class FakeReviewStore:
@@ -64,6 +64,7 @@ def _item(item_id: int = 1) -> ReviewItem:
 def test_review_list_shows_pending_items() -> None:
     store = FakeReviewStore([_item()])
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: FakeMyGarage()
     client = TestClient(app)
 
@@ -76,6 +77,7 @@ def test_review_list_shows_pending_items() -> None:
 def test_approve_commits_to_mygarage_and_marks_approved() -> None:
     store = FakeReviewStore([_item()])
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: FakeMyGarage()
     client = TestClient(app)
 
@@ -93,6 +95,7 @@ def test_approve_commits_to_mygarage_and_marks_approved() -> None:
 def test_reject_marks_rejected_without_calling_mygarage() -> None:
     store = FakeReviewStore([_item()])
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: FakeMyGarage()
     client = TestClient(app)
 
@@ -106,6 +109,7 @@ def test_reject_marks_rejected_without_calling_mygarage() -> None:
 def test_edit_unknown_item_returns_404() -> None:
     store = FakeReviewStore([_item()])
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: FakeMyGarage()
     client = TestClient(app)
 
@@ -118,6 +122,7 @@ def test_edit_unknown_item_returns_404() -> None:
 def test_approve_unknown_item_returns_404_and_never_calls_mygarage() -> None:
     store = FakeReviewStore([_item()])
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: FakeMyGarage()
     client = TestClient(app)
 
@@ -131,6 +136,7 @@ def test_approve_unknown_item_returns_404_and_never_calls_mygarage() -> None:
 def test_reject_unknown_item_returns_404() -> None:
     store = FakeReviewStore([_item()])
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: FakeMyGarage()
     client = TestClient(app)
 
@@ -144,6 +150,7 @@ def test_reject_unknown_item_returns_404() -> None:
 def test_edit_form_prefills_payload_values() -> None:
     store = FakeReviewStore([_item()])
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: FakeMyGarage()
     client = TestClient(app)
 
@@ -161,6 +168,7 @@ def test_approve_uses_edited_vin_for_mygarage_routing() -> None:
     store = FakeReviewStore([_item()])
     mygarage = FakeMyGarage()
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: mygarage
     client = TestClient(app)
 
@@ -200,6 +208,7 @@ def test_approve_uses_submitted_vin_for_vinless_documents_item() -> None:
     store = FakeReviewStore([_vinless_documents_item()])
     mygarage = FakeMyGarage()
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: mygarage
     client = TestClient(app)
 
@@ -224,6 +233,7 @@ def test_approve_does_not_mark_approved_when_mygarage_call_fails() -> None:
     as approved."""
     store = FakeReviewStore([_item()])
     app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
     app.dependency_overrides[get_mygarage] = lambda: FailingMyGarage()
     client = TestClient(app, raise_server_exceptions=False)
 
@@ -235,4 +245,183 @@ def test_approve_does_not_mark_approved_when_mygarage_call_fails() -> None:
     assert resp.status_code >= 500
     assert store.approved == []
     assert store.get(1).status == "pending"
+    app.dependency_overrides.clear()
+
+
+# --- COST_SINK=local (default) -------------------------------------------
+
+from vehicle_pipeline.cost_store import (  # noqa: E402
+    ReviewItemNotPendingError,
+    UnknownVehicleError,
+    build_cost_row,
+)
+
+KNOWN_VEHICLES = {"TESTVIN0000000001": "id4"}
+
+
+class FakeCostStore:
+    """Mirrors PostgresCostStore.insert_from_review's contract: validates,
+    resolves the vehicle (VIN or slug), and only then marks the review item
+    approved -- all-or-nothing."""
+
+    def __init__(self, review_store: FakeReviewStore) -> None:
+        self._review_store = review_store
+        self.inserted: list[tuple[int, dict[str, Any]]] = []
+
+    def insert_from_review(self, item: ReviewItem, payload: dict[str, Any]) -> int:
+        build_cost_row(payload)
+        ref = payload.get("vin") or item.vin
+        if ref not in KNOWN_VEHICLES and ref not in KNOWN_VEHICLES.values():
+            raise UnknownVehicleError(f"unknown vehicle {ref!r}")
+        if self._review_store.get(item.id).status != "pending":
+            raise ReviewItemNotPendingError("not pending")
+        cost_id = len(self.inserted) + 100
+        self.inserted.append((item.id, dict(payload)))
+        self._review_store.mark_approved(item.id, str(cost_id))
+        return cost_id
+
+
+def _cost_item(item_id: int = 5, vin: str | None = "TESTVIN0000000001") -> ReviewItem:
+    return ReviewItem(
+        id=item_id, paperless_doc_id=50, paperless_doc_title="Tankquittung",
+        paperless_doc_url="https://paperless.example.test/documents/50/",
+        vin=vin, mygarage_entity="cost", extracted_category="kraftstoff",
+        payload={"vin": vin or "", "category": "fuel", "date": "2026-09-01", "amount_gross": 65.0,
+                 "amount_net": None, "vat_rate": None, "vendor": "Tankstelle", "odometer_km": None,
+                 "quantity_liters": None, "quantity_kwh": None, "notes": None,
+                 "extra": {"extracted_category": "kraftstoff"}},
+        confidence="high", status="pending", mygarage_record_id=None,
+    )
+
+
+def _local_client(store: FakeReviewStore, mygarage: Any = None) -> tuple[TestClient, FakeCostStore]:
+    cost_store = FakeCostStore(store)
+    app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_store] = lambda: cost_store
+    app.dependency_overrides[get_cost_sink] = lambda: "local"
+    app.dependency_overrides[get_mygarage] = lambda: mygarage
+    return TestClient(app), cost_store
+
+
+def test_local_approve_inserts_cost_and_never_calls_mygarage() -> None:
+    store = FakeReviewStore([_cost_item()])
+    mygarage = FakeMyGarage()
+    client, cost_store = _local_client(store, mygarage)
+
+    resp = client.post("/review/5/approve", data={
+        "vin": "TESTVIN0000000001", "category": "fuel", "date": "2026-09-01",
+        "amount_gross": "66.5", "odometer_km": "21714", "quantity_liters": "40.2",
+    }, follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert mygarage.calls == []
+    (item_id, payload), = cost_store.inserted
+    assert item_id == 5
+    assert payload["amount_gross"] == 66.5
+    assert payload["odometer_km"] == "21714"
+    assert payload["quantity_liters"] == "40.2"
+    assert payload["extra"] == {"extracted_category": "kraftstoff"}
+    assert store.approved == [(5, "100")]
+    app.dependency_overrides.clear()
+
+
+def test_local_approve_accepts_vehicle_slug() -> None:
+    store = FakeReviewStore([_cost_item(vin=None)])
+    client, cost_store = _local_client(store)
+
+    resp = client.post("/review/5/approve", data={"vin": "id4"}, follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert cost_store.inserted[0][1]["vin"] == "id4"
+    app.dependency_overrides.clear()
+
+
+def test_local_approve_unknown_vin_returns_422_and_stays_pending() -> None:
+    store = FakeReviewStore([_cost_item()])
+    client, cost_store = _local_client(store)
+
+    resp = client.post("/review/5/approve", data={"vin": "NOSUCHVIN00000000"})
+
+    assert resp.status_code == 422
+    assert "unknown vehicle" in resp.text
+    assert cost_store.inserted == []
+    assert store.approved == []
+    assert store.updated_payloads == []
+    assert store.get(5).status == "pending"
+    app.dependency_overrides.clear()
+
+
+def test_local_approve_invalid_amount_returns_422() -> None:
+    store = FakeReviewStore([_cost_item()])
+    client, cost_store = _local_client(store)
+
+    resp = client.post("/review/5/approve", data={"amount_gross": "zwölf"})
+
+    assert resp.status_code == 422
+    assert "amount_gross" in resp.text
+    assert store.get(5).status == "pending"
+    app.dependency_overrides.clear()
+
+
+def test_local_approve_already_approved_returns_409() -> None:
+    store = FakeReviewStore([_cost_item()])
+    client, cost_store = _local_client(store)
+    store.mark_approved(5, "x")
+    store.approved.clear()
+
+    resp = client.post("/review/5/approve", data={})
+
+    assert resp.status_code == 409
+    assert cost_store.inserted == []
+    app.dependency_overrides.clear()
+
+
+def test_local_approve_converts_legacy_mygarage_item() -> None:
+    """Pending items created before the local sink are MyGarage-shaped
+    (here: tax-records). Approving them with COST_SINK=local must flatten
+    them into a cost, not send them to MyGarage."""
+    legacy = ReviewItem(**{**_item().__dict__, "vin": "TESTVIN0000000001",
+                           "payload": {**_item().payload, "vin": "TESTVIN0000000001"}})
+    store = FakeReviewStore([legacy])
+    mygarage = FakeMyGarage()
+    client, cost_store = _local_client(store, mygarage)
+
+    resp = client.post("/review/1/approve", data={"amount_gross": "125.0"}, follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert mygarage.calls == []
+    payload = cost_store.inserted[0][1]
+    assert payload["category"] == "tax"
+    assert payload["amount_gross"] == 125.0
+    assert payload["date"] == "2026-03-01"
+    assert payload["extra"]["legacy_entity"] == "tax-records"
+    app.dependency_overrides.clear()
+
+
+def test_local_edit_form_shows_cost_fields_and_category_select() -> None:
+    store = FakeReviewStore([_item()])
+    client, _ = _local_client(store)
+
+    resp = client.get("/review/1/edit")
+
+    assert resp.status_code == 200
+    assert 'name="amount_gross" value="120.5"' in resp.text
+    assert '<option value="tax" selected>' in resp.text
+    assert "Kosten buchen" in resp.text
+    assert "MyGarage" not in resp.text
+    app.dependency_overrides.clear()
+
+
+def test_mygarage_sink_refuses_local_cost_items() -> None:
+    store = FakeReviewStore([_cost_item()])
+    mygarage = FakeMyGarage()
+    app.dependency_overrides[get_review_store] = lambda: store
+    app.dependency_overrides[get_cost_sink] = lambda: "mygarage"
+    app.dependency_overrides[get_mygarage] = lambda: mygarage
+    client = TestClient(app)
+
+    resp = client.post("/review/5/approve", data={})
+
+    assert resp.status_code == 422
+    assert mygarage.calls == []
     app.dependency_overrides.clear()
