@@ -1,6 +1,6 @@
 # Weekly digest + single write-path API for business/private trip classification
 
-**Status**: accepted
+**Status**: superseded by [ADR 0003](0003-per-trip-notification-all-trips.md) (2026-10-06)
 
 trip-enricher needs to decide business/private for every trip it enriches — the data feeds Jonas's German tax filing, so getting the default and the review cadence wrong has real (if small) financial consequences either direction. Decided during wayfinder ticket infra-ops#9 (part of infra-ops#5).
 
