@@ -8,5 +8,6 @@ resources:
   - external-vehicle-pipeline-credentials.yaml
   - external-vehicle-pipeline-db.yaml
   - external-vehicle-pipeline-ghcr-pull.yaml
+  - external-vehicle-pipeline-trip-config.yaml
   - postgresql-database.yaml
   - vehicle-pipeline-app.yaml
