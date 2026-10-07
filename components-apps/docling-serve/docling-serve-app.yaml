@@ -44,17 +44,29 @@ spec:
                         name: docling-serve-credentials
                         key: DOCLING_SERVE_API_KEY
                 resources:
+                  # ingestbuddy#40: a 151-page A4 statics document (paperless
+                  # 422, text layer, accurate tables) never finished at 2
+                  # CPU / 8Gi. Over 2026-10-04 20:30Z..10-05 04:00Z the
+                  # container sat at its 2-CPU limit with 90% of CFS periods
+                  # throttled and working set at 7-8Gi (8.00Gi peak = limit);
+                  # every docling task exceeded ingestbuddy's 1500s per-task
+                  # timeout. The image sets OMP_NUM_THREADS=4 and docling's
+                  # threaded pipeline runs layout + table stages in parallel,
+                  # so 6 CPU lets one conversion run unthrottled. Idle working
+                  # set is ~4.8Gi (models loaded in both orchestrator workers).
                   requests:
-                    cpu: 500m
-                    memory: 4Gi
-                  limits:
                     cpu: 2000m
+                    memory: 6Gi
+                  limits:
+                    cpu: 6000m
                     # Bumped from 4Gi: OOMKilled on large/complex documents
                     # (e.g. an 18-page contract, a 5.4MB scanned letter)
                     # during tax-agent P1-T07's 20-document live
                     # verification — pod memory climbed to ~3.9Gi before
                     # each kill. Node has ample headroom (93Gi allocatable).
-                    memory: 8Gi
+                    # Bumped 8Gi -> 12Gi for ingestbuddy#40 (see above): the
+                    # 151-page conversion peaked at the 8Gi limit.
+                    memory: 12Gi
                 probes:
                   liveness:
                     enabled: true
@@ -65,6 +77,12 @@ spec:
                         port: 5001
                       initialDelaySeconds: 30
                       periodSeconds: 15
+                      # The 1s default timed out while a conversion pinned
+                      # the CPU limit: 4 liveness failures around
+                      # 2026-10-05T02:37Z got the container SIGKILLed (exit
+                      # 137, not OOM) mid-conversion (ingestbuddy#40).
+                      timeoutSeconds: 5
+                      failureThreshold: 6
                   readiness:
                     enabled: true
                     custom: true
@@ -74,6 +92,7 @@ spec:
                         port: 5001
                       initialDelaySeconds: 10
                       periodSeconds: 10
+                      timeoutSeconds: 5
 
         service:
           docling-serve:
