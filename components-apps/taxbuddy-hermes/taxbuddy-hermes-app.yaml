@@ -252,6 +252,22 @@ spec:
                   # plugin-reported $HERMES_HOME/state.db from THIS
                   # container's filesystem.
                   HERMES_HOME: /opt/data
+                  # The official nousresearch/hermes-agent image (hermes/dashboard
+                  # containers) bakes these in by default; this is a separate,
+                  # plain-Debian image (containers/taxbuddy-hermes-tools) that does
+                  # not, so the native TUI running here never added
+                  # /opt/data/lazy-packages to sys.path. Without it, hermes' lazy
+                  # installer fell back to installing honcho-ai into this image's
+                  # root-owned venv site-packages, which uid 10000 can't write to
+                  # ("Permission denied") — surfacing to the user as Honcho tool
+                  # calls failing with "Honcho session could not be initialized."
+                  # (live finding 2026-10-07). honcho-ai is already present at
+                  # /opt/data/lazy-packages (installed via the hermes container),
+                  # so pointing the target there picks it up without installing
+                  # anything new; disabling lazy installs here too since this
+                  # container's venv can never accept them anyway.
+                  HERMES_LAZY_INSTALL_TARGET: /opt/data/lazy-packages
+                  HERMES_DISABLE_LAZY_INSTALLS: "1"
                   MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
                   MOSHI_STATE_DIR: /opt/data/tools/moshi-state
                   MOSHI_CONFIG_DIR: /opt/data/tools/moshi-config
