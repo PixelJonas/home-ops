@@ -11,6 +11,7 @@ resources:
   - migration-sa.yaml
   - migration-job.yaml
   - postgresql-database.yaml
+  - ingestbuddy-inbox-pvc.yaml
   - ingestbuddy-app.yaml
   - backup
   # networkpolicy.yaml intentionally NOT included, matching
