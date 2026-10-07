@@ -62,6 +62,16 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: PAPERLESS_PUBLIC_URL
+                  # Verifies the x-paperless-webhook-secret header on
+                  # POST /v1/webhooks/paperless (ingestbuddy#9). Same Doppler
+                  # key (INGESTBUDDY_PAPERLESS_WEBHOOK_SECRET) the
+                  # paperless-workflows-apply Job injects into the
+                  # "pipeline:eingang intake" workflow's webhook header.
+                  PAPERLESS_WEBHOOK_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_WEBHOOK_SECRET
                   QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
                   QDRANT_API_KEY:
                     valueFrom:
