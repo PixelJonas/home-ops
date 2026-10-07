@@ -1,11 +1,11 @@
 [
   {
-    "name": "pipeline:eingang",
+    "name": "ingestbuddy:eingang",
     "color": "#0d6efd",
     "is_inbox_tag": false
   },
   {
-    "name": "pipeline:verarbeitet",
+    "name": "ingestbuddy:verarbeitet",
     "color": "#198754",
     "is_inbox_tag": false
   }
