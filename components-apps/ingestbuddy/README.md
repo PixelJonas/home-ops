@@ -15,6 +15,25 @@ Application (wave 111), registered in
 (`local.home`) only — this stack (docling-serve, litellm, qdrant, taxbuddy)
 has no Sakaar presence.
 
+## NFS scan inbox (ingestbuddy#9)
+
+Scans go to `\\statesman\configs\paperless\consume\inbox` (NAS path
+`/volume1/configs/paperless/consume/inbox`). Layout of the share:
+
+| NAS path (under `/volume1/configs/paperless/consume/`) | Consumer |
+|---|---|
+| `inbox/` | ingestbuddy `api` NFS poller (general scans) |
+| `inbox/vehicle/` | ingestbuddy `api` NFS poller, vehicle domain |
+| `legacy/` | Paperless consume dir (`/consume` via `subPath: legacy`); expected to stay empty, Paperless' folder watcher is disabled |
+
+`ingestbuddy-inbox-pvc.yaml` is a static NFS PV (`pv-ingestbuddy-inbox`,
+`nfs-custom`, Retain) pre-bound to PVC `nfs-ingestbuddy-inbox`, mounted at
+`/inbox` on the `api` controller only (`NFS_INBOX_PATH=/inbox`,
+`NFS_POLL_INTERVAL_SECONDS` default). The poller reads top-level files,
+enqueues each as a bundle with `intake_source: nfs`, then deletes the file;
+the worker uploads the result to Paperless, tagged `ingestbuddy:verarbeitet`.
+The directories are `1000:1000`, mode `0777` (the api runs as uid 1000).
+
 ## Known gaps / provisional wiring
 
 Two pieces of config here are placeholders, deliberately, because the thing
