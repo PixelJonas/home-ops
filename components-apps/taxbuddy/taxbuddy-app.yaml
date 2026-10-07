@@ -460,7 +460,7 @@ spec:
               lookup-mcp:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/lookup_mcp
-                  digest: "sha256:414c50a890b902ab553e2eb5ecd26302ae16903e46d070dde773729d3383a10a"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
+                  digest: "sha256:18cf22570cb571aa1eec671195aa06230c1d2767faf830cd73aafd82251de814"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -619,7 +619,7 @@ spec:
               sync-worker:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/sync_worker
-                  digest: "sha256:9996b207a4afd2f20c0b59de04344d841d5bd092bbdb93b23690db5d6d230791"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
+                  digest: "sha256:6cc827daaa2aff3da0ef3b892afbad195108d5e145c789b54e7e1375a9197fbc"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
