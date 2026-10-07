@@ -78,6 +78,12 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: QDRANT_API_KEY
+                  # NFS scan inbox (ingestbuddy#9): the `inbox` PVC below,
+                  # mounted on this controller only. pipeline_api's NFS
+                  # poller ingests top-level files here (and <inbox>/vehicle
+                  # for the vehicle domain) and deletes each after enqueue.
+                  # NFS_POLL_INTERVAL_SECONDS left at its default.
+                  NFS_INBOX_PATH: /inbox
                 probes:
                   liveness:
                     enabled: true
@@ -257,6 +263,17 @@ spec:
               valkey:
                 valkey:
                   - path: /data
+          # NFS scan inbox (ingestbuddy#9) -- static PV/PVC in
+          # ingestbuddy-inbox-pvc.yaml, NAS path
+          # /volume1/configs/paperless/consume/inbox. api controller only:
+          # the worker never touches the inbox.
+          inbox:
+            enabled: true
+            existingClaim: nfs-ingestbuddy-inbox
+            advancedMounts:
+              api:
+                api:
+                  - path: /inbox
 
   project: cluster-apps
   syncPolicy:
