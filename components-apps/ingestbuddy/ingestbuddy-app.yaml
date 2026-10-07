@@ -110,7 +110,7 @@ spec:
               worker:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_worker
-                  digest: "sha256:22f07270e83b8aab18930a016f9f124bca305f39ea192f8e2baf5d5514a72700"
+                  digest: "sha256:32ced78863fbcb7fbb4ca1bee033928eee19bffc14bbcfa08be6005de5b68c33"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
