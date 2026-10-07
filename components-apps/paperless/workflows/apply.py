@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Idempotent upsert of ingestbuddy's ingestbuddy:* gate tags and pipeline intake
-Workflow into a live Paperless-ngx instance (ingestbuddy#7, infra-ops#61 +
-infra-ops#56). Run as a regular-sync Job (wave ~150, Replace=true,Force=true)
-in components-apps/paperless/ -- deliberately NOT an ArgoCD PostSync hook,
-which ignores sync waves and would deadlock the first sync before the
-paperless app itself is up.
+"""Idempotent upsert of ingestbuddy's ingestbuddy:* gate tags, the pipeline
+intake Workflow (ingestbuddy#7, infra-ops#61 + infra-ops#56) and the
+ingestbuddy:eingang auto-tag Workflow (ingestbuddy#9 Phase A) into a live
+Paperless-ngx instance. Run as a regular-sync Job (wave ~150,
+Replace=true,Force=true) in components-apps/paperless/ -- deliberately
+NOT an ArgoCD PostSync hook, which ignores sync waves and would deadlock
+the first sync before the paperless app itself is up.
 
 Behaviour: drift-correcting upsert by name, never deletes anything not
-in the two committed JSON files (pipeline-tags.json,
-pipeline-intake.workflow.json) this reads. It never touches any other
-tag or workflow -- in particular it never touches the UI-managed
-workflows id 2 ("Tax Agent Ingest") or id 3 ("Vehicle cost pipeline
-webhook"), whose current config is only snapshotted read-only under
-./snapshots/ for drift visibility.
+in the committed JSON files (pipeline-tags.json and the WORKFLOW_FILES
+below) this reads. It never touches any other tag or workflow -- in
+particular it never touches the UI-managed workflows id 2 ("Tax Agent
+Ingest") or id 3 ("Vehicle cost pipeline webhook"), whose current config
+is only snapshotted read-only under ./snapshots/ for drift visibility.
 
 Uses only the Python stdlib (urllib) -- quay.io/openshift/origin-cli
 ships python3 but not `requests`, matching the pattern already used by
@@ -29,7 +29,11 @@ import urllib.parse
 import urllib.request
 
 TAGS_FILE = "/config/pipeline-tags.json"
-WORKFLOW_FILE = "/config/pipeline-intake.workflow.json"
+# Upserted in this order, each independently by exact workflow name.
+WORKFLOW_FILES = (
+    "/config/pipeline-intake.workflow.json",
+    "/config/ingestbuddy-auto-tag.workflow.json",
+)
 WEBHOOK_SECRET_PLACEHOLDER = "__PAPERLESS_WEBHOOK_SECRET__"
 
 
@@ -112,6 +116,18 @@ def resolve_workflow_payload(template: dict, tag_ids: dict[str, int], webhook_se
             ) from exc
 
     for action in payload["actions"]:
+        # Only resolved when present, so actions without it (the intake
+        # workflow's webhook action) produce exactly the same payload as before.
+        if "assign_tag_names" in action:
+            assign_names = action.pop("assign_tag_names")
+            try:
+                action["assign_tags"] = [tag_ids[n] for n in assign_names]
+            except KeyError as exc:
+                raise RuntimeError(
+                    f"workflow action references unknown tag name {exc} -- add it to "
+                    "pipeline-tags.json first"
+                ) from exc
+
         webhook = action.get("webhook")
         if not webhook:
             continue
@@ -145,15 +161,18 @@ def main() -> int:
 
     with open(TAGS_FILE, encoding="utf-8") as f:
         tags = json.load(f)
-    with open(WORKFLOW_FILE, encoding="utf-8") as f:
-        workflow_template = json.load(f)
+    workflow_templates = []
+    for path in WORKFLOW_FILES:
+        with open(path, encoding="utf-8") as f:
+            workflow_templates.append(json.load(f))
 
     log(f"upserting {len(tags)} pipeline tag(s) against {base_url}...")
     tag_ids = {tag["name"]: upsert_tag(base_url, token, tag) for tag in tags}
 
-    log("upserting pipeline intake workflow...")
-    payload = resolve_workflow_payload(workflow_template, tag_ids, webhook_secret)
-    upsert_workflow(base_url, token, payload)
+    for workflow_template in workflow_templates:
+        log(f"upserting workflow '{workflow_template['name']}'...")
+        payload = resolve_workflow_payload(workflow_template, tag_ids, webhook_secret)
+        upsert_workflow(base_url, token, payload)
 
     log("done.")
     return 0
