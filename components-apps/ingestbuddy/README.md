@@ -71,7 +71,7 @@ New Doppler key `INGESTBUDDY_DATABASE_REST_REPO_LOCAL`; shared
 |-----|---------|
 | `INGESTBUDDY_POSTGRES_PASSWORD` | CNPG `ingestbuddy-db` password; templated into `ingestbuddy-db-connection`'s `uri` |
 | `INGESTBUDDY_GHCR_PULL_TOKEN` | GHCR pull secret for `ghcr.io/pixeljonas/ingestbuddy/*` |
-| `INGESTBUDDY_PAPERLESS_WEBHOOK_SECRET` | Verifies incoming Paperless webhook calls (ticket #5, not yet consumed by code) |
+| `INGESTBUDDY_PAPERLESS_WEBHOOK_SECRET` | Verifies incoming Paperless webhook calls: `ingestbuddy-credentials`/`PAPERLESS_WEBHOOK_SECRET`, consumed by the `api` controller as `PAPERLESS_WEBHOOK_SECRET` (checked against the `x-paperless-webhook-secret` header, ingestbuddy#9); the same Doppler key is injected into the Paperless intake workflow by `components-apps/paperless`'s `paperless-workflows-apply` Job |
 | `INGESTBUDDY_DOCLING_SERVE_API_KEY` | docling-serve auth. **Same value as `TAXBUDDY_DOCLING_SERVE_API_KEY`** — docling-serve's own `DOCLING_SERVE_API_KEY` env is a single shared value the server checks against (upstream docling-serve has no multi-key support), so this must stay byte-for-byte identical to whatever `docling-serve-credentials`/`DOCLING_SERVE_API_KEY` actually holds. |
 | `INGESTBUDDY_LITELLM_KEY` | ingestbuddy's own LiteLLM virtual key |
 | `INGESTBUDDY_DATABASE_REST_REPO_LOCAL` | restic REST repo for the Postgres backup |
