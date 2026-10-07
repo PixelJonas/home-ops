@@ -116,7 +116,7 @@
       "email": null,
       "webhook": {
         "id": 3,
-        "url": "http://vehicle-pipeline-app-app.vehicle-pipeline.svc.cluster.local:8000/webhooks/paperless-vehicle",
+        "url": "http://vehicle-pipeline-app.vehicle-pipeline.svc.cluster.local:8000/webhooks/paperless-vehicle",
         "use_params": false,
         "as_json": false,
         "params": null,
