@@ -619,7 +619,7 @@ spec:
               sync-worker:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/sync_worker
-                  digest: "sha256:e57f0d24b9bf654959d801a87634b90abd4bb68e3f96c42fb9846f74b13c75f2"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
+                  digest: "sha256:9996b207a4afd2f20c0b59de04344d841d5bd092bbdb93b23690db5d6d230791"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
