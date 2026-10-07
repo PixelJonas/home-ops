@@ -45,6 +45,9 @@ spec:
                   VEHICLE_TAGS: >-
                     {"multivan": ["Fahrzeug:Multivan", "Fahrzeug:Multivan-auto"],
                     "id4": ["Fahrzeug:ID4", "Fahrzeug:ID4-auto"]}
+                  # Extraction model (LiteLLM alias). gpt-5-nano 429s while the
+                  # OpenAI account has no credits; switch back when topped up.
+                  LITELLM_MODEL: claude-sonnet-4-6
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
