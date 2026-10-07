@@ -1,0 +1,65 @@
+# Retained data PVCs of the retired paperless-gpt deployment (ingestbuddy#9).
+#
+# These three PVCs were created by the (now removed) `paperless-gpt` ArgoCD
+# Application (bjw-s app-template, persistence.{prompts,database,local-files}).
+# They are adopted here by the parent `paperless` Application so their data
+# survives the removal of the deployment until ingestbuddy#10 decides to
+# delete them as the final, deliberate point of no return.
+#
+# Safety:
+# - Prune=false: the parent app never prunes them, even if this file is
+#   later removed from kustomization.yaml -- deletion must be done by hand.
+# - Delete=false: they are also kept if the parent `paperless` Application
+#   itself is ever deleted with its cascading resources-finalizer.
+# - The backing PVs (lvms-vg1, topolvm) have reclaimPolicy Delete, so deleting
+#   one of these PVCs WOULD destroy its data -- hence the two options above.
+# - Spec mirrors the live objects exactly (spec is immutable after binding);
+#   volumeName is deliberately omitted -- client-side apply leaves the
+#   bound value untouched.
+#
+# volsync keeps backing up gpt-database and gpt-prompts (see backup/).
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-gpt-prompts
+  namespace: paperless
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
+  storageClassName: lvms-vg1
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-gpt-database
+  namespace: paperless
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: lvms-vg1
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-gpt-local-files
+  namespace: paperless
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: lvms-vg1

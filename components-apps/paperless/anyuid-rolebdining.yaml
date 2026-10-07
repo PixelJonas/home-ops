@@ -8,9 +8,6 @@ subjects:
   - kind: ServiceAccount
     name: paperless-ng
     namespace: paperless
-  - kind: ServiceAccount
-    name: paperless-gpt
-    namespace: paperless
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
