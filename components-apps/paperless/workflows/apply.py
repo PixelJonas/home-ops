@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Idempotent upsert of ingestbuddy's pipeline:* tags and pipeline intake
+"""Idempotent upsert of ingestbuddy's ingestbuddy:* gate tags and pipeline intake
 Workflow into a live Paperless-ngx instance (ingestbuddy#7, infra-ops#61 +
 infra-ops#56). Run as a regular-sync Job (wave ~150, Replace=true,Force=true)
 in components-apps/paperless/ -- deliberately NOT an ArgoCD PostSync hook,
