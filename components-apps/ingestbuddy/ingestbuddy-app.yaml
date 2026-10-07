@@ -26,7 +26,7 @@ spec:
               api:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_api
-                  digest: "sha256:0b8c6894f5e878284e0a8e27baeaed6d897608eff14b7efb4c32d13d89daacc0"
+                  digest: "sha256:93cbc17acfa3d41fa37dd657c42a8b41659ef1391741ad84511fcf5c161c8ce6"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
