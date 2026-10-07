@@ -20,7 +20,7 @@ resources:
 # hash (kustomize default) -- workflows-job.yaml's volume references the
 # base name "paperless-workflows-apply" below, which kustomize's built-in
 # nameReference transformer rewrites to the hashed name automatically. Any
-# edit to these three files is what forces ArgoCD to actually replace the
+# edit to these files is what forces ArgoCD to actually replace the
 # (otherwise-immutable) Job -- see workflows-job.yaml's annotation comment.
 configMapGenerator:
   - name: paperless-workflows-apply
@@ -37,3 +37,4 @@ configMapGenerator:
       - apply.py=workflows/apply.py
       - pipeline-tags.json=workflows/pipeline-tags.json
       - pipeline-intake.workflow.json=workflows/pipeline-intake.workflow.json
+      - ingestbuddy-auto-tag.workflow.json=workflows/ingestbuddy-auto-tag.workflow.json
