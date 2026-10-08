@@ -93,7 +93,7 @@ spec:
               doc-pipeline:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/doc_pipeline
-                  digest: "sha256:274fffeece36a811bc3231c85c67995e68e32e2ee76b913fa0297705dc75e647"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:81549f93d8fc90a1850a14ada2b65df311a2ecc319baa4a309b0ae1231a014a4"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -195,7 +195,7 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:7ca2e870768a5165f2bc41f8cf9496a26d3a17c3788873eb62c2d4b6b1eda2c6"
+                  digest: "sha256:d82bc56b0ff7860eac45b74a974103bc5fbb4d59782d5677017f89c825e2c1b7"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -291,7 +291,7 @@ spec:
               self-benchmark:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
-                  digest: "sha256:a3ebc03ff704201f1b1fb6f42f684b9667033f1329ed993642bd90f26ff9327f"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  digest: "sha256:8aa41a79ef696b174356145aef17ac516f506025e7a04ccb6f89a7bb9f62ff32"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
