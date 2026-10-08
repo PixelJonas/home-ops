@@ -244,6 +244,15 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  # taxbuddy#160 re-OCR loop (ADR-0026): opt-in, enabled only
+                  # when both are set. In-cluster ingestbuddy pipeline-api;
+                  # the secret is the shared REOCR_SHARED_SECRET Doppler key.
+                  INGESTBUDDY_BASE_URL: http://ingestbuddy-app-api.ingestbuddy.svc.cluster.local:8000
+                  INGESTBUDDY_REOCR_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: INGESTBUDDY_REOCR_SECRET
                 probes:
                   liveness:
                     enabled: true
