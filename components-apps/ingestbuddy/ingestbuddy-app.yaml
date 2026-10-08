@@ -72,6 +72,14 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: PAPERLESS_WEBHOOK_SECRET
+                  # x-reocr-secret for taxbuddy's re-OCR requests
+                  # (ingestbuddy#36); same Doppler key taxbuddy's
+                  # agent_runtime reads as INGESTBUDDY_REOCR_SECRET.
+                  REOCR_SHARED_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: REOCR_SHARED_SECRET
                   QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
                   QDRANT_API_KEY:
                     valueFrom:
