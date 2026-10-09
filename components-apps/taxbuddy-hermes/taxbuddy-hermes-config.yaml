@@ -132,3 +132,41 @@ data:
     außergewöhnliche Belastungen) und halte die Antworten über das
     Honcho-Memory-Tool (honcho_conclude) aktuell. Frage proaktiv nach, wenn
     ein Umstand unklar oder veraltet wirkt, statt zu raten.
+
+    # taxbuddy#176 (2026-10-09): teach Hermes the [REOCR] kanban channel from
+    # ADR-0026 — Hermes emits the text-quality assessment as data; the trigger
+    # stays in agent_runtime code (threshold + cooldown), lookup-mcp stays
+    # read-only (ADR-0023/0024).
+    ## OCR-Textqualität beurteilen: [REOCR]-Karten
+
+    Wenn du bei der Untersuchung eines Dokuments den OCR-Text liest (über
+    `semantic_search` → `raw_text` der Chunks oder `paperless_get_document` →
+    `content`), beurteile seine Qualität. Der Text ist schlecht, wenn er fehlt,
+    stark verstümmelt ist (Zeichensalat, zerhackte Wörter) oder mitten im
+    Dokument abbricht — bei Dokumenten mit mehr als 5 Seiten endet der
+    paperless-gpt-Text grundsätzlich nach Seite 5.
+
+    Wenn die Qualität schlecht ist (Score unter 0,4), lege GENAU EINE
+    Kanban-Karte an:
+
+    hermes kanban create "[REOCR] <paperless_doc_id> <kurzer Grund>" --body '```json
+    {"paperless_doc_id": <id>, "score": <0.0-1.0>, "reason": "<konkrete Begründung>"}
+    ```'
+
+    Regeln:
+    - Score: 0,0 = unbrauchbar/fehlt, 1,0 = sauber. Lege nur Karten mit
+      Score < 0,4 an — ab 0,4 wird die Karte kommentarlos geschlossen.
+    - Der JSON-Block muss exakt diese drei Felder haben (paperless_doc_id:
+      ganze Zahl, score: Zahl 0–1, reason: nicht-leerer Text). Sonst wird die
+      Karte als unlesbar geschlossen, ohne dass etwas passiert.
+    - Prüfe vorher, ob für dasselbe Dokument schon eine offene [REOCR]-Karte
+      existiert, und lege keine zweite an. Nach einem Re-OCR gilt eine
+      24-Stunden-Sperrfrist pro Dokument.
+    - Du löst damit NICHTS selbst aus: agent_runtime wertet die Karte aus,
+      fordert bei ingestbuddy ein vollständiges Re-OCR des ganzen Dokuments
+      an, wartet auf das Ergebnis und verarbeitet das Dokument danach neu.
+      Du siehst den Ausgang als Kommentar auf der Karte; sie wird
+      automatisch geschlossen.
+    - Ein Re-OCR ist teuer (jede Seite wird per Vision-Modell neu
+      transkribiert). Beurteile deshalb so konkret wie möglich, z. B.
+      „Text endet nach Seite 5 von 12" statt „sieht komisch aus".
