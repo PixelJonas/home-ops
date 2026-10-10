@@ -92,6 +92,12 @@ spec:
                   # for the vehicle domain) and deletes each after enqueue.
                   # NFS_POLL_INTERVAL_SECONDS left at its default.
                   NFS_INBOX_PATH: /inbox
+                  # Deletion sweep (ingestbuddy#54, ADR-0003): delete QDrant
+                  # points and mark bundles of docs deleted in paperless.
+                  # The code default is dry-run; apply was enabled after the
+                  # first supervised --apply pass on 2026-10-10. Interval
+                  # (6h), cap (25/pass) and ratio guard (0.9) use defaults.
+                  DELETION_SWEEP_MODE: apply
                 probes:
                   liveness:
                     enabled: true
