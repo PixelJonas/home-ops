@@ -77,18 +77,31 @@ spec:
     copyMethod: Direct                    # destination is not in use — Direct is correct here
 ```
 
-Wait for `status.latestMoverStatus.result: Successful` on both (volume takes
-~6-10 min based on the backup's 6m26s write).
+Wait for `status.latestMoverStatus.result: Successful` on both (measured
+2026-10-11: volume 5m22s, state 14s).
 
 ## Phase 4 — data verification (before any boot)
 
-Helper pod mounting both restored PVCs. Files are owned `107:107` with
-mode 660, so the pod needs root: temporarily
+Helper pod mounting both restored PVCs; it must run as root: temporarily
 `oc adm policy add-scc-to-user anyuid -z default -n knx-ets-restore-test`
 (remove it in Phase 6).
 
+**Mandatory ownership fix first** (found 2026-10-11): the VolSync mover runs
+as an arbitrary UID and restores files owned by *that* UID with the original
+modes (660) — qemu (uid 107) then cannot open `disk.img` or the swtpm state
+and the VM will not boot. From the root helper pod:
+
+```bash
+chown -R 107:107 /restore/root /restore/state
+```
+
 Checks:
-- `stat -c '%s %u:%g' /restore/root/disk.img` → `60040413184 107:107`
+- `stat -c '%s %u:%g' /restore/root/disk.img` → size `64050167808`,
+  owner `107:107` after the chown. (Size is NOT the tar's 60040413184:
+  KubeVirt expands the raw image to fill the 64Gi PVC on first boot, so
+  backups taken after 2026-10-11 contain the expanded size. If unsure,
+  compare against the live PVC: `ls -l` the disk in the running prod
+  virt-launcher pod.)
 - `find /restore/state -name 'tpm2-00.permall'` →
   `swtpm/b73ae2a8-c599-45f0-9830-33e50088fae3/tpm2/tpm2-00.permall`
 - `/restore/state/nvram/windows-11-virtio-ets_VARS.fd` present
@@ -140,8 +153,10 @@ oc get replicationsource -n knx-ets   # prod: schedule intact, no manual trigger
 - Expected test-only deviations: ETS6 unlicensed (no dongle), possible
   Windows activation notice (MAC change). Both vanish with the namespace.
 - If the test VM lands in BitLocker recovery: vTPM state mismatch — check the
-  state PVC label matches the test VM name and the firmware UUID is identical,
-  then re-run Phase 4's `tpm2-00.permall` check.
-- Until the first run of this runbook passes, the July 2026 NAS tars
-  (`pmb-backup/knx-ets-knx-ets-backup/`) are the authoritative fallback —
-  they are kept indefinitely (decision 2026-10-11).
+  state PVC label matches the test VM name, the firmware UUID is identical,
+  the ownership fix (Phase 4) was applied, then re-run the `tpm2-00.permall`
+  check.
+- First full run passed 2026-10-11 (clone agent-connected in <1 min,
+  Windows 11, no BitLocker recovery). The July 2026 NAS tars
+  (`pmb-backup/knx-ets-knx-ets-backup/`) stay as fallback regardless — kept
+  indefinitely (decision 2026-10-11).
