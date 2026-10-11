@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - pvc-rootdisk.yaml
+  - pvc-persistent-state.yaml
+  - virtualmachine.yaml
+  # VolSync backup (./backup/volume, ./backup/persistent-state) is prepared
+  # but deliberately NOT wired in yet — enabled in a later phase after the
+  # first successful boot. See backup/README.md.
