@@ -6,4 +6,6 @@ resources:
   - pvc-rootdisk.yaml
   - pvc-persistent-state.yaml
   - virtualmachine.yaml
+  - service-knx-mcp.yaml
+  - networkpolicy-knx-mcp.yaml
   - ./backup
