@@ -187,6 +187,15 @@ applications:
     source:
       path: components-infra/knowhere/base
 
+  knx-ets:
+    annotations:
+      argocd.argoproj.io/sync-wave: "40"
+      argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    destination:
+      namespace: knx-ets
+    source:
+      path: components-infra/knx-ets/base
+
   node-config:
     annotations:
       argocd.argoproj.io/sync-wave: "99"
