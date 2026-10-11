@@ -195,6 +195,17 @@ applications:
       namespace: knx-ets
     source:
       path: components-infra/knx-ets/base
+    extraFields: |
+      # runStrategy is the VM's power switch (virtctl start/stop) — GitOps
+      # declares the desired default (Halted) but must not fight operator or
+      # admin power-state changes.
+      ignoreDifferences:
+        - group: kubevirt.io
+          kind: VirtualMachine
+          name: windows-11-virtio-ets
+          namespace: knx-ets
+          jsonPointers:
+            - /spec/runStrategy
 
   node-config:
     annotations:
