@@ -1,0 +1,19 @@
+# Stable in-cluster name for the KNX-MCP ETS app running inside the VM
+# (knx-mcp.knx-ets.svc.cluster.local:51900). ClusterIP only — deliberately
+# no Route/NodePort/LoadBalancer: the endpoint is plain HTTP guarded only by
+# an access key (Doppler homelab/home KNX_ETS_MCP_ACCESS_KEY), so it stays on
+# the pod network. Port 51900 is the KNX-MCP default for ETS6.
+apiVersion: v1
+kind: Service
+metadata:
+  name: knx-mcp
+  namespace: knx-ets
+spec:
+  type: ClusterIP
+  selector:
+    vm.kubevirt.io/name: windows-11-virtio-ets
+  ports:
+    - name: http-mcp
+      port: 51900
+      targetPort: 51900
+      protocol: TCP
