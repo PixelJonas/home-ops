@@ -21,6 +21,15 @@ spec:
     spec:
       architecture: amd64
       domain:
+        features:
+          hyperv:
+            # Reenlightenment makes KubeVirt pin the VM to the cluster's
+            # lowest TSC frequency (xandar, 3.0GHz) via a scheduling label
+            # that altus (3.6GHz, non-scalable) doesn't carry — the VM can
+            # never leave altus anyway (USB dongle + LVMS-local disks), so
+            # migration-time TSC fixes are moot.
+            reenlightenment:
+              enabled: false
         devices:
           autoattachPodInterface: false
           disks:
