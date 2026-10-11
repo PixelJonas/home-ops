@@ -8,6 +8,10 @@ kind: Service
 metadata:
   name: knx-mcp
   namespace: knx-ets
+  annotations:
+    # Selects the KubeVirt-created virt-launcher pod, which kube-linter
+    # can't see in the rendered manifests.
+    ignore-check.kube-linter.io/dangling-service: "selects the virt-launcher pod of VM windows-11-virtio-ets"
 spec:
   type: ClusterIP
   selector:
