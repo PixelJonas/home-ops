@@ -253,6 +253,19 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: INGESTBUDDY_REOCR_SECRET
+                  # taxbuddy#178 shadow-mode truncated-OCR detection
+                  # (taxbuddy#181): activates when QDRANT_URL +
+                  # QDRANT_API_KEY are both set; logs only — card creation
+                  # stays off (REOCR_DET_ENABLED deliberately unset pending
+                  # owner go-ahead). Same read-only key + service URL
+                  # lookup-mcp already uses (ADR-0024).
+                  QDRANT_URL: http://qdrant-app.qdrant.svc:6333
+                  QDRANT_COLLECTION: ingestbuddy_documents
+                  QDRANT_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: QDRANT_READ_ONLY_API_KEY
                 probes:
                   liveness:
                     enabled: true
