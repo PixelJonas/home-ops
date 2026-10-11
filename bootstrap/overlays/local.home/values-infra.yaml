@@ -195,6 +195,12 @@ applications:
       namespace: knx-ets
     source:
       path: components-infra/knx-ets/base
+    # Without RespectIgnoreDifferences every sync (e.g. any change to this
+    # component) re-applies the git runStrategy (Halted) despite the
+    # ignoreDifferences below, shutting down a running VM (happened
+    # 2026-10-11 when the knx-mcp Service was added).
+    syncOptions:
+      - RespectIgnoreDifferences=true
     extraFields: |
       # runStrategy is the VM's power switch (virtctl start/stop) — GitOps
       # declares the desired default (Halted) but must not fight operator or
