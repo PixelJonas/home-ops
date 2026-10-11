@@ -1,9 +1,9 @@
 {
-  "_snapshot_note": "Read-only drift-visibility snapshot (ingestbuddy#7 / infra-ops#61). Fetched via GET /api/workflows/2/ on 2026-09-26. This file is NOT applied by the paperless-workflows-apply Job -- it exists purely so this UI-managed workflow's config is visible/diffable in git. The webhook shared-secret header value has been redacted before commit; the live value lives only in Doppler (homelab/home) and the running Workflow object, never in this repo.",
+  "_snapshot_note": "Read-only drift-visibility snapshot (ingestbuddy#7 / infra-ops#61). Fetched via GET /api/workflows/2/ on 2026-09-26; `enabled` refreshed 2026-10-11 after ingestbuddy#9 Phase B disabled this workflow via PATCH /api/workflows/2/ {\"enabled\": false} at 2026-10-11T12:56:56Z (triggers 4/5, action 5 unchanged; everything else re-verified identical to live). Revert: PATCH {\"enabled\": true}. This file is NOT applied by the paperless-workflows-apply Job -- it exists purely so this UI-managed workflow's config is visible/diffable in git. The webhook shared-secret header value has been redacted before commit; the live value lives only in Doppler (homelab/home) and the running Workflow object, never in this repo.",
   "id": 2,
   "name": "Tax Agent Ingest",
   "order": 1,
-  "enabled": true,
+  "enabled": false,
   "triggers": [
     {
       "id": 4,
