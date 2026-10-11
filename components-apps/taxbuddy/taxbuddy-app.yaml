@@ -541,7 +541,7 @@ spec:
               web-ui:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/web_ui
-                  digest: "sha256:04c0100a7ef1b91e2ff6c7a359e8ddd8bd91f8e687b2cda12890b1be82845ca0"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  digest: "sha256:cadfcbfca6ae84db3a94e5f7c2c959d3a828d46a2e6e272e586446d974060b2e"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -691,7 +691,7 @@ spec:
               matching-engine:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/matching_engine
-                  digest: "sha256:b2c962f4b58851cde1244d8eb5070fbe4cd01e85df7503caf7ad09266358c0e7"
+                  digest: "sha256:9d0e9a47185055367dce8541ecf9f3169fd71ba221d608a14d894f6b7a0bb926"
                   pullPolicy: IfNotPresent
                 command: ["python", "-m", "matching_engine.main", "--once"]
                 env:
