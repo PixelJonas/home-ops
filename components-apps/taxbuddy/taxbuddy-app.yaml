@@ -222,6 +222,12 @@ spec:
                   # from outside the cluster, so it's the edge-terminated
                   # route, not the in-cluster service.
                   KNOWLEDGE_SERVICE_URL: https://taxbuddy-knowledge.apps.altus.janz.digital
+                  # taxbuddy ADR-0027 (#197): the offene Steuerjahre the poll
+                  # loop delivers [STEUERPAKET]/[CHECKLISTE]/[LÜCKEN] for,
+                  # one set of cards per year. Remove a year once it is
+                  # filed. Needs an agent_runtime image with #197; the
+                  # image defaults to 2025 alone when unset.
+                  PACK_STEUERJAHRE: "2025,2026"
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
                   # taxbuddy P3-T04 (weekly digest): optional cloud-rendered
