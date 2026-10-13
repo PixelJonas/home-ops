@@ -19,3 +19,16 @@ template:
         securityContext:
           privileged: true
           runAsUser: 0
+        volumeMounts:
+          - name: containers-storage-cache
+            mountPath: /var/lib/containers/storage
+    volumes:
+      - name: containers-storage-cache
+        hostPath:
+          # sakaar is single-node (sno) — every ephemeral runner pod for this
+          # scale-set lands here, so a hostPath graphroot persists podman's
+          # image/layer cache across runs instead of starting cold every job.
+          # Scoped per-repo (not shared across other gha-runner-scale-set-*
+          # apps) to limit blast radius and keep pruning independent.
+          path: /var/lib/gha-runner-cache/taxbuddy
+          type: DirectoryOrCreate
