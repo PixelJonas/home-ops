@@ -422,6 +422,71 @@ spec:
                     cpu: 500m
                     memory: 512Mi
 
+          # taxbuddy #201: Bundesgesetzblatt Teil I watcher. Polls the
+          # recht.bund.de BGBl. I feed, keeps promulgations whose FNA codes
+          # touch EStG/AO and related tax laws, has the `classification`
+          # LLM role split each law per Steuerjahr (from its Inkrafttreten
+          # article) and writes one `gesetz` knowledge candidate per
+          # (law, Steuerjahr) with status=proposed (owner-confirm gate per
+          # taxbuddy #56), plus one kanban summary task per pass. Same
+          # image/env/RBAC as bmf-watcher; daily is ample for BGBl. I.
+          # Scheduled 30 min after bmf-watcher's morning run.
+          # Manual re-trigger:
+          #   oc create job --from=cronjob/taxbuddy-app-bgbl-watcher \
+          #     bgbl-watcher-manual-$(date +%s) -n taxbuddy
+          bgbl-watcher:
+            type: cronjob
+            cronjob:
+              schedule: "53 6 * * *"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 5
+              backoffLimit: 1
+            pod:
+              # Kanban delivery shells out via
+              # `oc exec deploy/taxbuddy-hermes-app` using the pod's own
+              # in-cluster token (same rationale as agent-runtime above).
+              automountServiceAccountToken: true
+            containers:
+              bgbl-watcher:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
+                  digest: "sha256:b5f2aef783151da0c3bcd379e66aefbf922f1d621205181c931ed46424cede02"   # taxbuddy@bc79f4b (release run 38442907648, includes #206); release.yml bumps all knowledge_service digests together
+                  pullPolicy: IfNotPresent
+                # The image's default CMD is the HTTP service; the watcher
+                # is a one-shot module entry point.
+                command:
+                  - python
+                  - -m
+                  - knowledge_service.watchers.bgbl
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  HERMES_NAMESPACE: taxbuddy-hermes
+                  HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+
           # OPS-T01 (taxbuddy #118): knowledge-service HTTP API. Serves
           # GET /knowledge/items (the bmf-watcher's proposed candidates,
           # P3-T02) and the per-Anlage pack endpoints (JSON overview,
