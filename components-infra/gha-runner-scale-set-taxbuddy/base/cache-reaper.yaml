@@ -37,8 +37,6 @@ spec:
         spec:
           serviceAccountName: arc-runner-set-taxbuddy-cache-reaper
           restartPolicy: OnFailure
-          securityContext:
-            runAsUser: 0
           containers:
             - name: reaper
               image: registry.access.redhat.com/ubi9/ubi-minimal:latest
@@ -46,10 +44,12 @@ spec:
                 - /bin/sh
                 - -c
                 - |
-                  set -e
                   echo "before:"; du -sh /cache 2>/dev/null || true
                   find /cache -mindepth 1 -delete
                   echo "after:"; du -sh /cache 2>/dev/null || true
+              securityContext:
+                privileged: true
+                runAsUser: 0
               volumeMounts:
                 - name: containers-storage-cache
                   mountPath: /cache
