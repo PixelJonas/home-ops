@@ -19,3 +19,12 @@ template:
         securityContext:
           privileged: true
           runAsUser: 0
+        volumeMounts:
+          - name: containers-storage
+            mountPath: /var/lib/containers/storage
+    volumes:
+      - name: containers-storage
+        # The shared runner image uses podman's overlay driver (#935); overlay
+        # can't nest on the container's own overlayfs root, so the graphroot
+        # needs a real filesystem. emptyDir: ephemeral per runner pod, no cache.
+        emptyDir: {}
