@@ -452,7 +452,7 @@ spec:
               bgbl-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:c64df473ecf4b1b40f725531840910291b4ca9a8ac7d95eea4534dbca6794e6d"   # release.yml bumps all knowledge_service digests together; needs a build containing taxbuddy #206 (59972ec)
+                  digest: "sha256:b5f2aef783151da0c3bcd379e66aefbf922f1d621205181c931ed46424cede02"   # taxbuddy@bc79f4b (release run 38442907648, includes #206); release.yml bumps all knowledge_service digests together
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
