@@ -36,6 +36,7 @@ configMapGenerator:
     files:
       - apply.py=workflows/apply.py
       - pipeline-tags.json=workflows/pipeline-tags.json
+      - mcp-groups.json=workflows/mcp-groups.json
       - pipeline-intake.workflow.json=workflows/pipeline-intake.workflow.json
       - ingestbuddy-auto-tag.workflow.json=workflows/ingestbuddy-auto-tag.workflow.json
       - mcp-view-group.workflow.json=workflows/mcp-view-group.workflow.json

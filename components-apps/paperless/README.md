@@ -38,10 +38,15 @@ The workflow `mcp:grant view to mcp-readers`
 `paperless-workflows-apply` Job, order 4) adds that grant to every newly added
 document (consume folder, API upload, mail fetch, web UI).
 
-- The group `mcp-readers` was created live on 2026-10-13 and is **not** in
-  git. `apply.py` resolves it by name and **fails the Job** if it is missing
-  (it never creates groups). Recreate it with only the `view_*` permissions
-  above, then re-run the Job.
+- The group `mcp-readers` is declared in `workflows/mcp-groups.json` and
+  upserted by `apply.py`: created if missing, and its permission set is
+  drift-corrected on every run, so the read-only guarantee can't be widened by
+  hand. A group a workflow references but `mcp-groups.json` doesn't declare is
+  a hard error, never an implicit create.
+- The user `mcp-readonly` is **not** in git: creating it needs a password and
+  its API token lives in Doppler (`homelab/home` `PAPERLESS_MCP_API_TOKEN`).
+  Recreate it by hand as a non-staff, non-superuser member of `mcp-readers`
+  with no direct permissions, mint a token, and update that Doppler key.
 - Existing documents, tags and correspondents were bulk-granted once on
   2026-10-13 (`set_permissions`, `merge: true`).
 - **Gap:** tags, correspondents, document types and storage paths created
