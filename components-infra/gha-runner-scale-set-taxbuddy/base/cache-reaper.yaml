@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: arc-runner-set-taxbuddy-cache-reaper
+  namespace: arc-runners
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: arc-runner-set-taxbuddy-cache-reaper-privileged
+subjects:
+  - kind: ServiceAccount
+    name: arc-runner-set-taxbuddy-cache-reaper
+    namespace: arc-runners
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: arc-runner-set-taxbuddy-cache-reaper
+  namespace: arc-runners
+spec:
+  # Sunday 03:00 — the quietest point in the week for this repo's CI traffic.
+  # Wipes the whole graphroot rather than pruning by age: it's a build cache,
+  # not persistent state, so losing it just costs one cold build.
+  schedule: "0 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: arc-runner-set-taxbuddy-cache-reaper
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 0
+          containers:
+            - name: reaper
+              image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "before:"; du -sh /cache 2>/dev/null || true
+                  find /cache -mindepth 1 -delete
+                  echo "after:"; du -sh /cache 2>/dev/null || true
+              volumeMounts:
+                - name: containers-storage-cache
+                  mountPath: /cache
+          volumes:
+            - name: containers-storage-cache
+              hostPath:
+                path: /var/lib/gha-runner-cache/taxbuddy
+                type: DirectoryOrCreate

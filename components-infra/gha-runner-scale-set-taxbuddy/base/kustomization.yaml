@@ -6,6 +6,7 @@ commonAnnotations:
 
 resources:
   - privileged-clusterrolebinding.yaml
+  - cache-reaper.yaml
 
 helmCharts:
   - name: gha-runner-scale-set
