@@ -22,8 +22,9 @@ metadata:
     #
     # Unlike those two Jobs, this one doesn't need a manual "no-op
     # annotation bump" to force a rerun when its script/config changes:
-    # apply.py, pipeline-tags.json, pipeline-intake.workflow.json and
-    # ingestbuddy-auto-tag.workflow.json are all sourced into a kustomize
+    # apply.py, pipeline-tags.json, pipeline-intake.workflow.json,
+    # ingestbuddy-auto-tag.workflow.json and mcp-view-group.workflow.json are
+    # all sourced into a kustomize
     # configMapGenerator (see kustomization.yaml), whose name carries a
     # content hash. Any edit to those files changes that hash, which
     # changes this Job's own volume.configMap.name field, which is what
