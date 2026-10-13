@@ -7,6 +7,11 @@ Replace=true,Force=true) in components-apps/paperless/ -- deliberately
 NOT an ArgoCD PostSync hook, which ignores sync waves and would deadlock
 the first sync before the paperless app itself is up.
 
+It also upserts the "mcp:grant view to mcp-readers" Workflow, which gives the
+read-only `mcp-readers` group VIEW permission on every newly added document
+so the claude.ai Paperless MCP connector can see it. The group is looked up
+by name and must already exist -- this script never creates groups.
+
 Behaviour: drift-correcting upsert by name, never deletes anything not
 in the committed JSON files (pipeline-tags.json and the WORKFLOW_FILES
 below) this reads. It never touches any other tag or workflow -- in
@@ -33,6 +38,7 @@ TAGS_FILE = "/config/pipeline-tags.json"
 WORKFLOW_FILES = (
     "/config/pipeline-intake.workflow.json",
     "/config/ingestbuddy-auto-tag.workflow.json",
+    "/config/mcp-view-group.workflow.json",
 )
 WEBHOOK_SECRET_PLACEHOLDER = "__PAPERLESS_WEBHOOK_SECRET__"
 
@@ -100,7 +106,39 @@ def upsert_tag(base_url: str, token: str, desired: dict) -> int:
     return created["id"]
 
 
-def resolve_workflow_payload(template: dict, tag_ids: dict[str, int], webhook_secret: str) -> dict:
+def resolve_group(base_url: str, token: str, name: str) -> int:
+    """Looks a Paperless group up by exact name. Never creates one: a missing
+    group is a hard error, because silently skipping the grant would leave new
+    documents invisible to the MCP connector with nothing to flag it. The
+    server-side name__iexact filter narrows the list, but the exact match is
+    re-checked client-side so a backend that ignores the filter can't hand us
+    the wrong group."""
+    query = urllib.parse.urlencode({"name__iexact": name})
+    matches = [g for g in list_all(base_url, token, f"/api/groups/?{query}") if g["name"] == name]
+    if not matches:
+        raise RuntimeError(
+            f"group '{name}' not found -- create it in Paperless first (this script never creates groups)"
+        )
+    log(f"group '{name}': id={matches[0]['id']}")
+    return matches[0]["id"]
+
+
+def referenced_group_names(templates: list[dict]) -> list[str]:
+    names: list[str] = []
+    for template in templates:
+        for action in template.get("actions", []):
+            for name in action.get("assign_view_group_names", []):
+                if name not in names:
+                    names.append(name)
+    return names
+
+
+def resolve_workflow_payload(
+    template: dict,
+    tag_ids: dict[str, int],
+    webhook_secret: str,
+    group_ids: dict[str, int] | None = None,
+) -> dict:
     payload = {k: v for k, v in template.items() if not k.startswith("_")}
 
     for trigger in payload["triggers"]:
@@ -126,6 +164,16 @@ def resolve_workflow_payload(template: dict, tag_ids: dict[str, int], webhook_se
                 raise RuntimeError(
                     f"workflow action references unknown tag name {exc} -- add it to "
                     "pipeline-tags.json first"
+                ) from exc
+
+        # Same "only when present" rule: existing workflows are untouched.
+        if "assign_view_group_names" in action:
+            group_names = action.pop("assign_view_group_names")
+            try:
+                action["assign_view_groups"] = [(group_ids or {})[n] for n in group_names]
+            except KeyError as exc:
+                raise RuntimeError(
+                    f"workflow action references unresolved group name {exc}"
                 ) from exc
 
         webhook = action.get("webhook")
@@ -169,9 +217,14 @@ def main() -> int:
     log(f"upserting {len(tags)} pipeline tag(s) against {base_url}...")
     tag_ids = {tag["name"]: upsert_tag(base_url, token, tag) for tag in tags}
 
+    group_ids = {
+        name: resolve_group(base_url, token, name)
+        for name in referenced_group_names(workflow_templates)
+    }
+
     for workflow_template in workflow_templates:
         log(f"upserting workflow '{workflow_template['name']}'...")
-        payload = resolve_workflow_payload(workflow_template, tag_ids, webhook_secret)
+        payload = resolve_workflow_payload(workflow_template, tag_ids, webhook_secret, group_ids)
         upsert_workflow(base_url, token, payload)
 
     log("done.")

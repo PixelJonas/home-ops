@@ -38,3 +38,4 @@ configMapGenerator:
       - pipeline-tags.json=workflows/pipeline-tags.json
       - pipeline-intake.workflow.json=workflows/pipeline-intake.workflow.json
       - ingestbuddy-auto-tag.workflow.json=workflows/ingestbuddy-auto-tag.workflow.json
+      - mcp-view-group.workflow.json=workflows/mcp-view-group.workflow.json
