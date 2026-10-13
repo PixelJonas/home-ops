@@ -9,8 +9,11 @@ the first sync before the paperless app itself is up.
 
 It also upserts the "mcp:grant view to mcp-readers" Workflow, which gives the
 read-only `mcp-readers` group VIEW permission on every newly added document
-so the claude.ai Paperless MCP connector can see it. The group is looked up
-by name and must already exist -- this script never creates groups.
+so the claude.ai Paperless MCP connector can see it. The group itself is
+declared in mcp-groups.json and upserted here (created if missing, its
+permission set drift-corrected so the read-only guarantee holds). A group a
+workflow references but mcp-groups.json doesn't declare must already exist --
+that case is a hard error, never an implicit create.
 
 Behaviour: drift-correcting upsert by name, never deletes anything not
 in the committed JSON files (pipeline-tags.json and the WORKFLOW_FILES
@@ -34,6 +37,7 @@ import urllib.parse
 import urllib.request
 
 TAGS_FILE = "/config/pipeline-tags.json"
+GROUPS_FILE = "/config/mcp-groups.json"
 # Upserted in this order, each independently by exact workflow name.
 WORKFLOW_FILES = (
     "/config/pipeline-intake.workflow.json",
@@ -106,21 +110,51 @@ def upsert_tag(base_url: str, token: str, desired: dict) -> int:
     return created["id"]
 
 
-def resolve_group(base_url: str, token: str, name: str) -> int:
-    """Looks a Paperless group up by exact name. Never creates one: a missing
-    group is a hard error, because silently skipping the grant would leave new
-    documents invisible to the MCP connector with nothing to flag it. The
-    server-side name__iexact filter narrows the list, but the exact match is
-    re-checked client-side so a backend that ignores the filter can't hand us
-    the wrong group."""
+def find_group(base_url: str, token: str, name: str) -> dict | None:
+    """Exact-name group lookup. The server-side name__iexact filter narrows the
+    list, but the exact match is re-checked client-side so a backend that
+    ignores the filter can't hand us the wrong group."""
     query = urllib.parse.urlencode({"name__iexact": name})
     matches = [g for g in list_all(base_url, token, f"/api/groups/?{query}") if g["name"] == name]
-    if not matches:
-        raise RuntimeError(
-            f"group '{name}' not found -- create it in Paperless first (this script never creates groups)"
+    return matches[0] if matches else None
+
+
+def upsert_group(base_url: str, token: str, desired: dict) -> int:
+    """Creates the group if absent and drift-corrects its permission set. The
+    permissions are compared as a set (the API returns them sorted, the file
+    needn't be), and an unknown codename is rejected by Paperless itself, which
+    fails the Job loudly rather than leaving a half-privileged group."""
+    name = desired["name"]
+    wanted = sorted(desired["permissions"])
+    group = find_group(base_url, token, name)
+    if group is None:
+        created = api_request(
+            base_url, token, "POST", "/api/groups/", {"name": name, "permissions": wanted}
         )
-    log(f"group '{name}': id={matches[0]['id']}")
-    return matches[0]["id"]
+        log(f"group '{name}': created (id={created['id']})")
+        return created["id"]
+    if sorted(group.get("permissions", [])) != wanted:
+        api_request(
+            base_url, token, "PATCH", f"/api/groups/{group['id']}/", {"permissions": wanted}
+        )
+        log(f"group '{name}' (id={group['id']}): drift-corrected permissions")
+    else:
+        log(f"group '{name}' (id={group['id']}): already up to date")
+    return group["id"]
+
+
+def resolve_group(base_url: str, token: str, name: str) -> int:
+    """Looks up a group a workflow references but mcp-groups.json doesn't
+    declare. Never creates one: a missing group is a hard error, because
+    silently skipping the grant would leave new documents invisible to the MCP
+    connector with nothing to flag it."""
+    group = find_group(base_url, token, name)
+    if group is None:
+        raise RuntimeError(
+            f"group '{name}' not found -- declare it in mcp-groups.json or create it in Paperless first"
+        )
+    log(f"group '{name}': id={group['id']}")
+    return group["id"]
 
 
 def referenced_group_names(templates: list[dict]) -> list[str]:
@@ -217,10 +251,13 @@ def main() -> int:
     log(f"upserting {len(tags)} pipeline tag(s) against {base_url}...")
     tag_ids = {tag["name"]: upsert_tag(base_url, token, tag) for tag in tags}
 
-    group_ids = {
-        name: resolve_group(base_url, token, name)
-        for name in referenced_group_names(workflow_templates)
-    }
+    with open(GROUPS_FILE, encoding="utf-8") as f:
+        groups = json.load(f)
+    log(f"upserting {len(groups)} group(s)...")
+    group_ids = {group["name"]: upsert_group(base_url, token, group) for group in groups}
+    for name in referenced_group_names(workflow_templates):
+        if name not in group_ids:
+            group_ids[name] = resolve_group(base_url, token, name)
 
     for workflow_template in workflow_templates:
         log(f"upserting workflow '{workflow_template['name']}'...")
