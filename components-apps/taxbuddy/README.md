@@ -3,7 +3,7 @@
 German tax-assistant platform (repo: `PixelJonas/taxbuddy`). ArgoCD Application
 `taxbuddy-app` (bjw-s app-template) with controllers: `ingestion-api`,
 `doc-pipeline`, `agent-runtime`, `knowledge-service`, `web-ui`, `valkey`, and
-the `sync-worker`, `self-benchmark`, and `bmf-watcher` CronJobs.
+the `sync-worker`, `self-benchmark`, `bmf-watcher`, and `bgbl-watcher` CronJobs.
 
 ## Database migrations (HARD-T01)
 
@@ -143,6 +143,26 @@ non-zero exit, visible in the CronJob history. Re-runs are idempotent
 ```bash
 oc create job --from=cronjob/taxbuddy-app-bmf-watcher \
   bmf-watcher-manual-$(date +%s) -n taxbuddy
+```
+
+## bgbl-watcher (Bundesgesetzblatt I → proposed `gesetz` candidates, taxbuddy #201)
+
+CronJob `taxbuddy-app-bgbl-watcher` daily at 06:53 Europe/Berlin (30 min after
+bmf-watcher's morning run), same `knowledge_service` image, env and
+`oc exec` RBAC as bmf-watcher. Per run: fetch the recht.bund.de BGBl. Teil I
+feed, keep promulgations whose FNA codes touch EStG/AO and related tax laws,
+diff against known ELI permalinks, have the `classification` LLM role split
+each law per Steuerjahr (from its Inkrafttreten article), and write one
+`gesetz` knowledge item per (law, Steuerjahr) with `status='proposed'`
+(owner-confirm gate per taxbuddy #56). One kanban summary task per run that
+found candidates. Requires a `knowledge_service` image built from taxbuddy
+59972ec (#206) or later.
+
+### Manual re-trigger
+
+```bash
+oc create job --from=cronjob/taxbuddy-app-bgbl-watcher \
+  bgbl-watcher-manual-$(date +%s) -n taxbuddy
 ```
 
 ## knowledge-service HTTP API (OPS-T01 / taxbuddy #118)
