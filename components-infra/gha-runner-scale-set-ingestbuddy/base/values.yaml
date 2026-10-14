@@ -11,7 +11,8 @@ template:
   spec:
     containers:
       - name: runner
-        image: ghcr.io/pixeljonas/sakaar-gha-runner:latest
+        # Pinned, not :latest, so an image change rolls out pool by pool via PR.
+        image: ghcr.io/pixeljonas/sakaar-gha-runner:sha-15c5d9c
         command: ["/home/runner/run.sh"]
         env:
           - name: RUNNER_ALLOW_RUNASROOT
@@ -19,12 +20,22 @@ template:
         securityContext:
           privileged: true
           runAsUser: 0
+        resources:
+          # Disk is the scarce resource on sakaar's single node: the request
+          # lets the scheduler queue runners instead of the kubelet evicting
+          # them under DiskPressure; the limit evicts only a runaway job.
+          requests:
+            ephemeral-storage: 4Gi
+          limits:
+            ephemeral-storage: 20Gi
         volumeMounts:
           - name: containers-storage
             mountPath: /var/lib/containers/storage
     volumes:
       - name: containers-storage
-        # The shared runner image uses podman's overlay driver (#935); overlay
-        # can't nest on the container's own overlayfs root, so the graphroot
-        # needs a real filesystem. emptyDir: ephemeral per runner pod, no cache.
+        # The runner image uses podman's overlay driver, which can't nest on
+        # the container's own overlayfs root, so the graphroot needs a real
+        # filesystem. Per-pod emptyDir, never shared: a graphroot shared by
+        # concurrent pods corrupts podman's container DB (each pod has its
+        # own runroot) and lets parallel runs overwrite each other's tags.
         emptyDir: {}
