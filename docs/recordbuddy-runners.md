@@ -24,7 +24,7 @@ RecordBuddy (M0.5 milestone) needs two CI runner targets:
 - `githubConfigUrl`: `https://github.com/PixelJonas/recordbuddy`
 - `runnerScaleSetName` / `releaseName`: `arc-runner-set-recordbuddy`
 - `minRunners: 0`, `maxRunners: 3`
-- Runs the shared image `ghcr.io/pixeljonas/sakaar-gha-runner:latest`
+- Runs the shared image `ghcr.io/pixeljonas/sakaar-gha-runner`, pinned to a `sha-` tag (same tag across all scale-sets)
 - Uses the **shared** GitHub App credentials via the existing
   `gha-runners-github-secret` ExternalSecret (Doppler keys
   `GHA_RUNNERS_APP_ID` / `GHA_RUNNERS_INSTALLATION_ID` /
