@@ -259,6 +259,12 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: INGESTBUDDY_REOCR_SECRET
+                  # Re-OCR fallback-poll give-up (ADR-0026). 10 days = 864000 s,
+                  # raised from the 6 h code default because re-OCR may sit
+                  # queued for the local OCR host for days. A real failure
+                  # is now declared only after this; watch ingestbuddy's
+                  # queue/DLQ meanwhile.
+                  REOCR_WAIT_TIMEOUT_SECONDS: "864000"
                   # taxbuddy#178/#179 deterministic truncated-OCR detection
                   # (taxbuddy#181/#182): QDRANT_* activates shadow detection;
                   # REOCR_DET_ENABLED turns on [REOCR] card creation
