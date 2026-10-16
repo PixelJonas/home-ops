@@ -265,6 +265,11 @@ spec:
                   # is now declared only after this; watch ingestbuddy's
                   # queue/DLQ meanwhile.
                   REOCR_WAIT_TIMEOUT_SECONDS: "864000"
+                  # Per-doc re-OCR cooldown (ADR-0026), measured from request
+                  # creation. 11 days = 950400 s (wait timeout + 1 day) so a
+                  # second [REOCR] card cannot re-trigger while the first
+                  # request is still waiting; code default is 24 h.
+                  REOCR_DOC_COOLDOWN_SECONDS: "950400"
                   # taxbuddy#178/#179 deterministic truncated-OCR detection
                   # (taxbuddy#181/#182): QDRANT_* activates shadow detection;
                   # REOCR_DET_ENABLED turns on [REOCR] card creation
