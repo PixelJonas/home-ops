@@ -80,14 +80,32 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: REOCR_SHARED_SECRET
-                  # x-ocr-queue-secret for the OCR-queue admin API. Inert until
-                  # the image that reads it ships; MIDGARD_* settings are
-                  # intentionally left unset (feature stays off).
+                  # x-ocr-queue-secret for the OCR-queue admin API
+                  # (ingestbuddy ADR-0005).
                   OCR_QUEUE_ADMIN_SECRET:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: OCR_QUEUE_ADMIN_SECRET
+                  # Midgard-aware OCR queue (ingestbuddy ADR-0005): turns the
+                  # queue on. Supervisor /healthz on midgard (LAN, no auth).
+                  # Without it ingestbuddy never calls the `local: true`
+                  # models. Must match the worker's value.
+                  MIDGARD_HEALTH_URL: http://10.42.0.5:18080/healthz
+                  # Home Assistant event webhooks (wake/shutdown logic lives in
+                  # HA). The URL embeds the webhook id, so it comes from
+                  # Doppler via url_env; only pipeline-api emits events.
+                  HA_MIDGARD_OCR_WEBHOOK_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: HA_MIDGARD_OCR_WEBHOOK_URL
+                  OCR_QUEUE_WEBHOOKS: >-
+                    [{"url_env": "HA_MIDGARD_OCR_WEBHOOK_URL",
+                    "events": ["ocr_queue.work_waiting", "ocr_queue.drained",
+                    "ocr_queue.deadline_near", "ocr_queue.forced_fallback",
+                    "midgard.unavailable_for", "midgard.available"],
+                    "enabled": true}]
                   QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
                   QDRANT_API_KEY:
                     valueFrom:
@@ -194,6 +212,10 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: TAXBUDDY_WEBHOOK_SECRET
+                  # Midgard-aware OCR queue (ingestbuddy ADR-0005): the worker
+                  # routes escalation/re-OCR pages by this probe. Must match
+                  # the api's value.
+                  MIDGARD_HEALTH_URL: http://10.42.0.5:18080/healthz
                 probes:
                   # The RQ worker has no HTTP listener — exec
                   # pipeline_worker.healthcheck instead. liveness is
