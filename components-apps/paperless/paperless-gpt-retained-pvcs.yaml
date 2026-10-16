@@ -17,7 +17,16 @@
 #   volumeName is deliberately omitted -- client-side apply leaves the
 #   bound value untouched.
 #
-# volsync keeps backing up gpt-database and gpt-prompts (see backup/).
+# Backups (ingestbuddy#10, 2026-10-16): the gpt-database / gpt-prompts volsync
+# ReplicationSources were removed once their final snapshots were verified.
+# The data had no writer since 2026-10-07, and the restic repos (Doppler
+# PAPERLESS_GPT_DATABASE_REST_REPO_LOCAL / PAPERLESS_GPT_PROMPTS_REST_REPO_LOCAL,
+# password RESTIC_PASSWORD) are left untouched, so every snapshot stays
+# restorable (no further prune runs). Final snapshots: gpt-database 1330526d,
+# gpt-prompts 0f36e922 (both 2026-10-16 05:0x UTC, md5-verified against the
+# live PVCs). paperless-gpt-local-files was empty and never backed up.
+# Restore: `git revert` the removal to get the restic Secret back, then a
+# volsync ReplicationDestination (or a one-off restic pod) on those repos.
 
 apiVersion: v1
 kind: PersistentVolumeClaim
