@@ -20,7 +20,7 @@ spec:
         name: vaultwarden-db-vaultwarden-secret
 
   storage:
-    size: 1Gi
+    size: 2Gi
 
   # Loosen probe timeouts so transient node contention on Altus (CPU/IO
   # pressure from other workloads) doesn't trip the liveness probe and
