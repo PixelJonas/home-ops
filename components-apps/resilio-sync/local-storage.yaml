@@ -1,0 +1,86 @@
+# Static local storage on xandar for resilio-sync's sync/downloads/media
+# volumes, moved off synology-nfs-storage 2026-10-17: rslsync polling-rescans
+# its /sync tree (which contains large .git trees; inotify doesn't work over
+# NFS), hammering the NAS with ~3-4k GETATTR/s 24/7. Local disk removes the
+# NAS from the hot path.
+#
+# StorageClass local-xandar is owned by components-apps/influxdb3
+# (local-storage.yaml) and referenced here by name only -- not redeclared,
+# to avoid two Applications owning the same cluster-scoped resource.
+#
+# Host dirs: /var/mnt/resilio-sync/{sync,downloads,media}, created manually,
+# owned 1024:100 to match the container's PUID/PGID.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: resilio-sync-app-sync
+spec:
+  capacity:
+    storage: 150Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-xandar
+  persistentVolumeReclaimPolicy: Retain
+  local:
+    path: /var/mnt/resilio-sync/sync
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - xandar
+  claimRef:
+    namespace: resilio-sync
+    name: resilio-sync-app-sync
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: resilio-sync-app-downloads
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-xandar
+  persistentVolumeReclaimPolicy: Retain
+  local:
+    path: /var/mnt/resilio-sync/downloads
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - xandar
+  claimRef:
+    namespace: resilio-sync
+    name: resilio-sync-app-downloads
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: resilio-sync-app-media
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-xandar
+  persistentVolumeReclaimPolicy: Retain
+  local:
+    path: /var/mnt/resilio-sync/media
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - xandar
+  claimRef:
+    namespace: resilio-sync
+    name: resilio-sync-app-media
