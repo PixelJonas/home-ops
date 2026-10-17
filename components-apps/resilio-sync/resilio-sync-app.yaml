@@ -63,7 +63,7 @@ spec:
 
         persistence:
           config:
-            storageClass: lvms-vg1
+            storageClass: local-xandar
             accessMode: ReadWriteOnce
             globalMounts:
               - path: /config
