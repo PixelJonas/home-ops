@@ -299,7 +299,7 @@ spec:
             enabled: true
             accessMode: ReadWriteOnce
             storageClass: lvms-vg1
-            size: 2Gi
+            size: 5Gi
             advancedMounts:
               hermes:
                 hermes:
