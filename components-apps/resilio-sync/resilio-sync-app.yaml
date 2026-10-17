@@ -23,6 +23,7 @@ spec:
 
         controllers:
           resilio:
+            replicas: 0
             containers:
               resilio:
                 image:
