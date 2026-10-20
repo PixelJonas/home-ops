@@ -19,13 +19,13 @@ spec:
   data:
     - secretKey: HA_URL
       remoteRef:
-        key: MYGARAGE_HA_URL
+        key: VEHICLE_PIPELINE_HA_URL
     - secretKey: HA_TOKEN
       remoteRef:
-        key: MYGARAGE_HA_TOKEN
+        key: VEHICLE_PIPELINE_HA_TOKEN
     - secretKey: TRIP_VEHICLES
       remoteRef:
-        key: MYGARAGE_TRIP_ENRICHER_VEHICLES
+        key: VEHICLE_PIPELINE_TRIP_VEHICLES
     - secretKey: TRIP_PHONES
       remoteRef:
-        key: MYGARAGE_TRIP_ENRICHER_PHONES
+        key: VEHICLE_PIPELINE_TRIP_PHONES
