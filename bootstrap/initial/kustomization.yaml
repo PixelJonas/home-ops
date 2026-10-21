@@ -6,3 +6,4 @@ resources:
   - appproject.yaml
   - config-manager.yaml
   - rolebinding-cluster-admin.yaml
+  - gitops-service.yaml

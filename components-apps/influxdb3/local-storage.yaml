@@ -1,0 +1,90 @@
+# Static local storage on xandar (OpenShift equivalent of a "localpath"
+# provisioner: no dynamic provisioning, PVs point at pre-created dirs on
+# the node's own NVMe). Added 2026-09-30 when influxdb3 moved altus ->
+# xandar; lvms-vg1 is pinned to altus and xandar has no LVMS deviceClass.
+# Host dirs: /var/mnt/influxdb3/{data,plugins,volsync-cache}, created
+# manually with container_file_t labels.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-xandar
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: influxdb3-app-data
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-xandar
+  persistentVolumeReclaimPolicy: Retain
+  local:
+    path: /var/mnt/influxdb3/data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - xandar
+  claimRef:
+    namespace: influxdb3
+    name: influxdb3-app-data
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: influxdb3-app-plugins
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-xandar
+  persistentVolumeReclaimPolicy: Retain
+  local:
+    path: /var/mnt/influxdb3/plugins
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - xandar
+  claimRef:
+    namespace: influxdb3
+    name: influxdb3-app-plugins
+---
+# Cache PVC for the VolSync restic mover (auto-created by VolSync; the
+# claimRef pre-binds it so it lands on xandar alongside the source PVC).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: volsync-src-data-backup-cache
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-xandar
+  persistentVolumeReclaimPolicy: Retain
+  local:
+    path: /var/mnt/influxdb3/volsync-cache
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - xandar
+  claimRef:
+    namespace: influxdb3
+    name: volsync-src-data-backup-cache

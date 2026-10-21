@@ -12,8 +12,8 @@ spec:
         cpu: 10m
         memory: 256Mi
       limits:
-        cpu: 500m
-        memory: 512Mi
+        cpu: 150m
+        memory: 256Mi
   channel: stable-v1
   installPlanApproval: Automatic
   name: openshift-external-secrets-operator
