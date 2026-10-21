@@ -27,9 +27,10 @@ spec:
           # dind's layer store and the runner's action cache live on per-pod
           # generic ephemeral LVMS volumes (thin pool on sda + NVMe), not
           # emptyDir/rootfs on altus' sdb: that disk also holds etcd and the
-          # root fs, and CI write bursts (vfs copies whole image rootfs per
-          # container) stalled etcd. Volumes are deleted with the pod, like
-          # the emptyDir was. Thin-provisioned, so size is a cap, not usage.
+          # root fs, and CI write bursts (then vfs, which copies a whole image
+          # rootfs per container) stalled etcd. Volumes are deleted with the
+          # pod, like the emptyDir was. Thin-provisioned, so size is a cap, not
+          # usage; the docker-prune sidecar below keeps the store bounded.
           extraVolumes:
             - name: dind-storage
               ephemeral:
@@ -81,11 +82,54 @@ spec:
                 mountPath: /docker-sock
             extraArgs:
               - --mtu=1400
-              - --storage-driver=vfs
+              # overlay2 on the xfs (ftype=1) ephemeral volume: no
+              # overlay-on-overlay (the store isn't on CRI-O's rootfs), so
+              # #429's vfs workaround is moot; its download hangs were MTU
+              # (fixed by the two MTU flags here).
+              - --storage-driver=overlay2
               - --default-network-opt=bridge=com.docker.network.driver.mtu=1400
               # Pod ndots:5 + search domains make musl apk/wget fail ("DNS: no
               # address for host") on 2-dot names; ndots:1 resolves FQDNs as-is.
               - --dns-opt=ndots:1
+        # Native sidecar (restartPolicy: Always, starts after dind): prunes
+        # unused images/containers/networks/build cache older than 7 days once
+        # a day, or older than 24h whenever the store is >=70% full. `until`
+        # only matches objects no container uses, so running jobs are safe.
+        postExtraInitContainers:
+          - name: docker-prune
+            image: docker.io/library/docker:29.5.2-cli # renovate
+            restartPolicy: Always
+            env:
+              - name: DOCKER_HOST
+                value: unix:///docker-sock/docker.sock
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                last=0
+                while true; do
+                  sleep 600
+                  docker info >/dev/null 2>&1 || continue
+                  used=$(df -P /var/lib/docker | awk 'NR==2 {sub("%", "", $5); print $5}')
+                  now=$(date +%s)
+                  if [ "${used:-0}" -ge 70 ]; then age=24h
+                  elif [ $((now - last)) -ge 86400 ]; then age=168h
+                  else continue; fi
+                  echo "$(date -Iseconds) store ${used}% used, pruning until=${age}"
+                  docker system prune -af --filter "until=${age}" | tail -1
+                  docker builder prune -af --filter "until=${age}" | tail -1
+                  df -P /var/lib/docker | awk 'NR==2 {print "after: " $5 " used"}'
+                  last=$now
+                done
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+            volumeMounts:
+              - name: docker-socket
+                mountPath: /docker-sock
+              - name: dind-storage
+                mountPath: /var/lib/docker
+                readOnly: true
 
   project: cluster-apps
   syncPolicy:
