@@ -26,7 +26,7 @@ spec:
               api:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_api
-                  digest: "sha256:adea6071ff72afcc21198c26b3fd36f1d707e1257be07a69cc2ac2fdcadfac65"
+                  digest: "sha256:88c7399e75044fcf85cca6125482b46f362f2860966fedb36878924059591c01"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -80,6 +80,32 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: REOCR_SHARED_SECRET
+                  # x-ocr-queue-secret for the OCR-queue admin API
+                  # (ingestbuddy ADR-0005).
+                  OCR_QUEUE_ADMIN_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: OCR_QUEUE_ADMIN_SECRET
+                  # Midgard-aware OCR queue (ingestbuddy ADR-0005): turns the
+                  # queue on. Supervisor /healthz on midgard (LAN, no auth).
+                  # Without it ingestbuddy never calls the `local: true`
+                  # models. Must match the worker's value.
+                  MIDGARD_HEALTH_URL: http://10.42.0.5:18080/healthz
+                  # Home Assistant event webhooks (wake/shutdown logic lives in
+                  # HA). The URL embeds the webhook id, so it comes from
+                  # Doppler via url_env; only pipeline-api emits events.
+                  HA_MIDGARD_OCR_WEBHOOK_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: HA_MIDGARD_OCR_WEBHOOK_URL
+                  OCR_QUEUE_WEBHOOKS: >-
+                    [{"url_env": "HA_MIDGARD_OCR_WEBHOOK_URL",
+                    "events": ["ocr_queue.work_waiting", "ocr_queue.drained",
+                    "ocr_queue.deadline_near", "ocr_queue.forced_fallback",
+                    "midgard.unavailable_for", "midgard.available"],
+                    "enabled": true}]
                   QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
                   QDRANT_API_KEY:
                     valueFrom:
@@ -124,7 +150,7 @@ spec:
               worker:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_worker
-                  digest: "sha256:e98ea67836fc1817df98f9be3fb95d16fbf9b57117b5b1ad5a649281d3013c47"
+                  digest: "sha256:fecb9ab0f54d7166425907b341f3cd554c26b677a315d62ca8b1b220f85bc17a"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -186,6 +212,10 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: TAXBUDDY_WEBHOOK_SECRET
+                  # Midgard-aware OCR queue (ingestbuddy ADR-0005): the worker
+                  # routes escalation/re-OCR pages by this probe. Must match
+                  # the api's value.
+                  MIDGARD_HEALTH_URL: http://10.42.0.5:18080/healthz
                 probes:
                   # The RQ worker has no HTTP listener — exec
                   # pipeline_worker.healthcheck instead. liveness is

@@ -13,6 +13,7 @@ resources:
   - postgresql-database.yaml
   - ingestbuddy-inbox-pvc.yaml
   - ingestbuddy-app.yaml
+  - servicemonitor.yaml
   - backup
   # networkpolicy.yaml intentionally NOT included, matching
   # components-apps/taxbuddy/kustomization.yaml — see tax-agent's ADR-007:

@@ -12,7 +12,7 @@ template:
     containers:
       - name: runner
         # Pinned, not :latest, so an image change rolls out pool by pool via PR.
-        image: ghcr.io/pixeljonas/sakaar-gha-runner:sha-15c5d9c
+        image: ghcr.io/pixeljonas/sakaar-gha-runner:sha-2c49caa
         command: ["/home/runner/run.sh"]
         env:
           - name: RUNNER_ALLOW_RUNASROOT
