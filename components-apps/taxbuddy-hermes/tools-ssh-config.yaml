@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: taxbuddy-hermes-tools-ssh
+  namespace: taxbuddy-hermes
+data:
+  # knowhere's herdr client (`herdr machine add ssh://tools@taxbuddy-hermes
+  # -app-herdr.taxbuddy-hermes.svc.cluster.local:2222`) authenticates to the
+  # tools sidecar's sshd with jonas' personal key (~/.ssh/id_ed25519 on
+  # knowhere). Public key only — safe to commit.
+  authorized_keys: |
+    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHCP46Uv9sCpjN1aGpCnmu7JJYXTVtXWhv9UGStpcDBN jonas-personal-key

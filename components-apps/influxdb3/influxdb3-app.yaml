@@ -17,111 +17,51 @@ spec:
       values: |-
         controllers:
           influxdb3:
+            # Moved altus -> xandar 2026-09-30 and resumed (replicas back
+            # to 1) after the 2026-09-26 pause. Storage is now static local
+            # PVs on xandar's NVMe (StorageClass local-xandar, see
+            # local-storage.yaml) instead of lvms-vg1, which is pinned to
+            # altus. No data migration: the 1.x -> 3.x backfill re-runs
+            # from source, same as the 2026-09-22 NAS -> Altus move; the
+            # old lvms data was still covered by the VolSync restic backup
+            # (last sync 2026-09-30T05:03Z) when the PVCs were dropped.
+            replicas: 1
+            pod:
+              nodeSelector:
+                kubernetes.io/hostname: xandar
+              securityContext:
+                # Local PVs get a recursive chown on every pod start
+                # otherwise (VolumePermissionChangeInProgress took ~1min
+                # on a nearly-empty data dir at the 2026-10-01 xandar
+                # reboot -- that only grows as the 100Gi dataset fills).
+                fsGroupChangePolicy: OnRootMismatch
             containers:
               influxdb3:
                 image:
                   repository: docker.io/library/influxdb
                   tag: 3.11.4-core
                   pullPolicy: IfNotPresent
-                # Fresh instance moving from the Synology NAS (2026-09-22,
-                # after InfluxDB 3 Core's memory growth OOM-crash-looped the
-                # whole NAS during the HA 1.x->3.x backfill). Data is NOT
-                # migrated -- the backfill script is simply re-run against
-                # this instance once it's up (see homeassistant repo,
-                # scripts/migrate_influxdb_1x_to_3x.py). node-id changed
-                # from synology-nas to altus to reflect the new home; admin
-                # token and ha_metrics_* databases are recreated out-of-band
-                # after first boot, same one-shot pattern used originally.
                 args:
                   - serve
-                  - --node-id=altus
+                  - --node-id=xandar
                   - --object-store=file
                   - --data-dir=/var/lib/influxdb3/data
                   - --plugin-dir=/var/lib/influxdb3/plugins
-                  - --query-file-limit=10000
+                  - --query-file-limit=50000
+                  - --checkpoint-interval=5m
+                  - --wal-replay-concurrency-limit=4
+                  - --force-snapshot-mem-size=40%
+                  - --wal-files-per-snapshot=50
                 env:
                   TZ: Europe/Berlin
                 resources:
                   requests:
-                    cpu: 250m
-                    memory: 512Mi
-                  # The NAS instance was hard-capped at 2Gi (mem_limit) as a
-                  # defensive measure after an OOM there took the whole box
-                  # down via swap-thrashing -- that risk doesn't apply the
-                  # same way on Altus (a pod OOM-kill just restarts the pod,
-                  # node has 92Gi allocatable), so this is set generously
-                  # for backfill headroom rather than defensively.
-                  #
-                  # Raised 4Gi -> 8Gi 2026-09-22: confirmed OOMKilled
-                  # (exit code 137) during the InfluxDB 1.x->3.x backfill
-                  # (homeassistant repo) -- WAL replay on restart had grown
-                  # to 900+ files from the backfill's own sustained write
-                  # volume, and replaying that backlog on every crash-loop
-                  # restart exceeded 4Gi before the pod could become ready,
-                  # a self-reinforcing OOM/restart/replay-again cycle.
-                  #
-                  # Raised 8Gi -> 16Gi 2026-09-22 (same day, ~4h later):
-                  # OOMKilled again under sustained backfill+live write
-                  # load even at 8Gi, this time cycling rapidly (9
-                  # restarts within minutes) rather than the original
-                  # slow WAL-replay-driven loop -- startup got much
-                  # faster by this point (loading from a snapshot
-                  # checkpoint, not replaying hundreds of individual WAL
-                  # files), so this looks like steady-state memory
-                  # pressure from write throughput, not a startup-time
-                  # replay cost. Node has 92Gi allocatable; the backfill
-                  # is temporary, so generous headroom now avoids a third
-                  # round of this rather than tuning to the minimum that
-                  # happens to work.
-                  #
-                  # Raised 16Gi -> 20Gi, cpu 2 -> 3 2026-09-23: OOMKilled
-                  # twice more at 16Gi with a sharply shrinking interval
-                  # between crashes (~14h, then ~9h, then only ~2.4h),
-                  # and the second of those two crashed again within its
-                  # own ~10min startup window before finishing WAL
-                  # replay -- a genuine crash loop with live HA writes
-                  # fully down, not the periodic self-resolving pressure
-                  # seen at 14:53 and 18:24. Deliberately modest bump
-                  # (not another doubling) because the Altus node itself
-                  # is running near its own memory ceiling (83-92% across
-                  # all workloads during this incident, shared with
-                  # honcho-vllm at 12Gi and docling-serve at 8Gi) --
-                  # ~17Gi was free on the node at the time, comfortably
-                  # covering this increase without pushing the node into
-                  # pressure. CPU bumped alongside since node CPU
-                  # headroom is ample (6+ of 15.5 cores free) and a
-                  # faster WAL replay reduces the window during which
-                  # replay-driven memory pressure can compound.
-                  #
-                  # TEMPORARY: raised 20Gi -> 32Gi 2026-09-24. 20Gi was not
-                  # enough: every restart replays 1203 WAL files (with
-                  # ~2M parquet files on disk) and OOMs at the same
-                  # point persisting snapshot 115, never converging (62
-                  # restarts). Node had ~37Gi free (54Gi of 92Gi used)
-                  # after the cluster restart; influxdb3 requests only
-                  # 512Mi so it is the first OOM victim under node
-                  # pressure. Scale back down once the WAL is
-                  # checkpointed and the backfill has finished.
+                    cpu: 500m
+                    memory: 4Gi
                   limits:
-                    cpu: "3"
-                    memory: 32Gi
+                    cpu: "2"
+                    memory: 24Gi
                 probes:
-                  # No documented HTTP health endpoint confirmed for
-                  # InfluxDB 3 Core -- plain TCP check on the serve port.
-                  #
-                  # Added startupProbe 2026-09-22: there was previously no
-                  # startup probe at all, so liveness (initialDelay 15s,
-                  # period 20s, default failureThreshold 3 = ~75s budget)
-                  # applied from boot -- confirmed via `oc get events`
-                  # ("failed liveness probe, will be restarted") that this
-                  # killed the pod mid-WAL-replay well before the ~900-file
-                  # backlog (see memory limit note above) could finish
-                  # replaying, compounding the OOM crash-loop rather than
-                  # just being caused by it. A generous ~10 minute startup
-                  # budget defers liveness/readiness until first success,
-                  # long enough for a large WAL backlog to finish replaying
-                  # even under memory/CPU pressure, while still eventually
-                  # detecting a genuinely hung container.
                   startup:
                     enabled: true
                     custom: true
@@ -130,7 +70,7 @@ spec:
                         port: 8181
                       initialDelaySeconds: 10
                       periodSeconds: 10
-                      failureThreshold: 60
+                      failureThreshold: 360
                   liveness:
                     enabled: true
                     custom: true
@@ -154,12 +94,6 @@ spec:
             ports:
               http:
                 port: 8181
-
-        # Only Home Assistant (an external host, not another in-cluster
-        # app) talks to this -- needs a real Route, unlike an in-cluster-
-        # only backend such as docling-serve. Auth stays on (admin token
-        # required for every read/write), same trust boundary as the old
-        # LAN-only NAS exposure.
         ingress:
           influxdb3:
             enabled: true
@@ -178,24 +112,14 @@ spec:
           data:
             enabled: true
             accessMode: ReadWriteOnce
-            storageClass: lvms-vg1
-            # Raised 20Gi -> 100Gi 2026-09-23: PVC hit 100% full ("No space
-            # left on device" on every WAL/parquet write), blocking both
-            # live HA writes and the backfill for 25+ min with no self-
-            # recovery possible (unlike the transient DNS/OOM issues seen
-            # earlier). Root cause: ha_metrics_categorical/hourly have
-            # infinite retention and InfluxDB 3 Core has no compactor (see
-            # homeassistant repo ADR-0001), so the backfill's historical
-            # write volume accumulates without bound. lvms-vg1 had 369Gi
-            # free on the node at the time; sized generously since this
-            # will keep growing for the life of the backfill and beyond.
+            storageClass: local-xandar
             size: 100Gi
             globalMounts:
               - path: /var/lib/influxdb3/data
           plugins:
             enabled: true
             accessMode: ReadWriteOnce
-            storageClass: lvms-vg1
+            storageClass: local-xandar
             size: 1Gi
             globalMounts:
               - path: /var/lib/influxdb3/plugins

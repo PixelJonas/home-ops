@@ -23,6 +23,10 @@ spec:
 
         controllers:
           resilio:
+            replicas: 1
+            pod:
+              nodeSelector:
+                kubernetes.io/hostname: xandar
             containers:
               resilio:
                 image:
@@ -59,29 +63,29 @@ spec:
 
         persistence:
           config:
-            storageClass: lvms-vg1
+            storageClass: local-xandar
             accessMode: ReadWriteOnce
             globalMounts:
               - path: /config
             size: 5Gi
           media:
-            storageClass: synology-nfs-storage
+            storageClass: local-xandar
             accessMode: ReadWriteOnce
             size: 10Gi
             globalMounts:
               - path: /media
           downloads:
-            storageClass: synology-nfs-storage
+            storageClass: local-xandar
             accessMode: ReadWriteOnce
             globalMounts:
               - path: /downloads
             size: 10Gi
           sync:
-            storageClass: synology-nfs-storage
+            storageClass: local-xandar
             accessMode: ReadWriteOnce
             globalMounts:
               - path: /sync
-            size: 10Gi
+            size: 150Gi
 
   syncPolicy:
     automated:

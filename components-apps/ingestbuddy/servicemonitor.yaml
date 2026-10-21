@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ingestbuddy-api
+  namespace: ingestbuddy
+  labels:
+    app.kubernetes.io/name: ingestbuddy-app
+spec:
+  # pipeline-api GET /metrics (ingestbuddy ADR-0005): ocr_queue_* and
+  # midgard_* gauges. Unauthenticated, counts only.
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ingestbuddy-app
+      app.kubernetes.io/service: ingestbuddy-app-api
+  namespaceSelector:
+    matchNames:
+      - ingestbuddy
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s
+      scrapeTimeout: 30s
