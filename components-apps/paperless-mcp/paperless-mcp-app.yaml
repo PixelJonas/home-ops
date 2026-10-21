@@ -1,0 +1,186 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: paperless-mcp-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: paperless-mcp
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.2.1
+    helm:
+      values: |-
+        defaultPodOptions:
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+
+        controllers:
+          paperless-mcp:
+            strategy: Recreate
+            containers:
+              # Paperless MCP backend: loopback only, reached through the proxy.
+              # No PAPERLESS_API_KEY and no --no-auth: it rejects any request
+              # that lacks an Authorization header, so it can't be reached
+              # un-proxied. The proxy injects the view-only token.
+              mcp:
+                image:
+                  repository: ghcr.io/baruchiro/paperless-mcp
+                  tag: 2.2.1
+                  pullPolicy: IfNotPresent
+                env:
+                  PAPERLESS_URL: http://paperless-ng.paperless.svc.cluster.local:8000
+                  # Disable file_path uploads entirely (no allowed directory).
+                  PAPERLESS_MCP_UPLOAD_PATHS: /nonexistent
+                  PAPERLESS_PUBLIC_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-mcp-credentials
+                        key: PAPERLESS_MCP_PUBLIC_URL
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 3000
+                      initialDelaySeconds: 10
+                      periodSeconds: 20
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 3000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 128Mi
+                  limits:
+                    memory: 256Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop:
+                      - ALL
+
+              # OAuth 2.1 gateway: Authelia (OIDC) login + 2-user allowlist,
+              # then proxies /mcp to the backend with the Paperless token.
+              proxy:
+                image:
+                  repository: ghcr.io/sigbit/mcp-auth-proxy
+                  tag: v2.10.2
+                  pullPolicy: IfNotPresent
+                args:
+                  - --no-auto-tls
+                  - http://127.0.0.1:3000
+                env:
+                  LISTEN: ":8080"
+                  DATA_PATH: /data
+                  HTTP_STREAMING_ONLY: "true"
+                  OIDC_PROVIDER_NAME: Authelia
+                  EXTERNAL_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-mcp-credentials
+                        key: PAPERLESS_MCP_EXTERNAL_URL
+                  OIDC_CONFIGURATION_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-mcp-credentials
+                        key: PAPERLESS_MCP_OIDC_CONFIGURATION_URL
+                  OIDC_CLIENT_ID:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-mcp-credentials
+                        key: PAPERLESS_MCP_OIDC_CLIENT_ID
+                  OIDC_CLIENT_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-mcp-credentials
+                        key: PAPERLESS_MCP_OIDC_CLIENT_SECRET
+                  OIDC_ALLOWED_USERS:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-mcp-credentials
+                        key: PAPERLESS_MCP_ALLOWED_USERS
+                  PROXY_BEARER_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: paperless-mcp-credentials
+                        key: PAPERLESS_MCP_API_TOKEN
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8080
+                      initialDelaySeconds: 10
+                      periodSeconds: 20
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8080
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+                resources:
+                  requests:
+                    cpu: 25m
+                    memory: 64Mi
+                  limits:
+                    memory: 128Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop:
+                      - ALL
+
+        # Only the proxy port is exposed; public ingress is the Cloudflare
+        # tunnel (home-k8s) pointing at this Service, so no Route/Ingress.
+        service:
+          paperless-mcp:
+            controller: paperless-mcp
+            ports:
+              http:
+                port: 8080
+
+        persistence:
+          # OAuth state (DCR clients, signing keys, sessions) lives in /data.
+          data:
+            enabled: true
+            accessMode: ReadWriteOnce
+            storageClass: lvms-vg1
+            size: 1Gi
+            advancedMounts:
+              paperless-mcp:
+                proxy:
+                  - path: /data
+          tmp:
+            type: emptyDir
+            advancedMounts:
+              paperless-mcp:
+                mcp:
+                  - path: /tmp
+                proxy:
+                  - path: /tmp
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

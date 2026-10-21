@@ -6,15 +6,18 @@
   path: /spec/restic/repository
   value: restic-config-config
 
-# Fleet-wide follow-up to PR #370: copyMethod: Direct mounts the live
-# source PVC into the backup mover pod, which can trigger an SELinux
-# relabel and cause permission/IO-contention issues against the live
-# workload. This StorageClass genuinely supports CSI snapshots
-# (confirmed via `oc get csidriver`/`oc get volumesnapshotclass` on
-# altus), so switch to Snapshot to avoid ever touching the live PVC.
+# config moved to local-xandar 2026-10-17 (static local PV, no CSI snapshot
+# support), so the PR #370 Snapshot copyMethod no longer applies here --
+# back to the base template's copyMethod: Direct. cacheStorageClassName
+# follows it so the mover pod can schedule on xandar, and
+# moverSecurityContext matches resilio's PUID/PGID (1024:100) so the mover
+# can read the source files it owns.
+- op: replace
+  path: /spec/restic/cacheStorageClassName
+  value: local-xandar
 - op: add
-  path: /spec/restic/copyMethod
-  value: Snapshot
-- op: add
-  path: /spec/restic/volumeSnapshotClassName
-  value: lvms-vg1
+  path: /spec/restic/moverSecurityContext
+  value:
+    runAsUser: 1024
+    runAsGroup: 100
+    fsGroup: 100
