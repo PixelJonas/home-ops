@@ -1,4 +1,4 @@
-FROM ghcr.io/actions/actions-runner:2.336.0
+FROM ghcr.io/actions/actions-runner:2.338.0
 
 # Runner intentionally runs as root (podman-in-runner needs it).
 # hadolint ignore=DL3002,DL3066
@@ -6,7 +6,7 @@ USER root
 # apt packages intentionally unpinned; versions move with the base image.
 # hadolint ignore=DL3008
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends podman podman-docker netavark aardvark-dns iptables build-essential python3-dev \
+    && apt-get install -y --no-install-recommends podman podman-docker netavark aardvark-dns iptables build-essential python3-dev pipx nodejs npm \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /etc/containers \
-    && printf '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' > /etc/containers/storage.conf
+    && printf '[storage]\ndriver = "overlay"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' > /etc/containers/storage.conf
