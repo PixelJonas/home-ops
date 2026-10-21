@@ -24,9 +24,31 @@ spec:
           serviceAccountName: gitea-actions-runner
           persistence:
             size: 5Gi
+          # dind's layer store and the runner's action cache live on per-pod
+          # generic ephemeral LVMS volumes (thin pool on sda + NVMe), not
+          # emptyDir/rootfs on altus' sdb: that disk also holds etcd and the
+          # root fs, and CI write bursts (vfs copies whole image rootfs per
+          # container) stalled etcd. Volumes are deleted with the pod, like
+          # the emptyDir was. Thin-provisioned, so size is a cap, not usage.
           extraVolumes:
             - name: dind-storage
-              emptyDir: {}
+              ephemeral:
+                volumeClaimTemplate:
+                  spec:
+                    accessModes: ["ReadWriteOnce"]
+                    storageClassName: lvms-vg1
+                    resources:
+                      requests:
+                        storage: 250Gi
+            - name: runner-cache
+              ephemeral:
+                volumeClaimTemplate:
+                  spec:
+                    accessModes: ["ReadWriteOnce"]
+                    storageClassName: lvms-vg1
+                    resources:
+                      requests:
+                        storage: 10Gi
           # Requests only, no limits: unset = BestEffort, which starves dind's
           # 1s exec liveness probe under CI load; a cap would OOM-kill job builds.
           # Runner/dind write-up: infra-ops repo .claude/rules/kubernetes-argocd.md
@@ -41,6 +63,9 @@ spec:
             extraVolumeMounts:
               - name: docker-socket
                 mountPath: /docker-sock
+              # act's action clones (~/.cache/act), else on the rootfs (sdb)
+              - name: runner-cache
+                mountPath: /root/.cache
             extraEnvs:
               - name: DOCKER_HOST
                 value: unix:///docker-sock/docker.sock
