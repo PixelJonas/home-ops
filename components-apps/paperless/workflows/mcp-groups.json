@@ -1,0 +1,14 @@
+[
+  {
+    "name": "mcp-readers",
+    "permissions": [
+      "view_correspondent",
+      "view_customfield",
+      "view_document",
+      "view_documenttype",
+      "view_storagepath",
+      "view_tag",
+      "view_uisettings"
+    ]
+  }
+]

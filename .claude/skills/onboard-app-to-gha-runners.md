@@ -94,7 +94,8 @@ from whichever is closer to the new repo's needs.
     spec:
       containers:
         - name: runner
-          image: ghcr.io/pixeljonas/sakaar-gha-runner:latest
+          # Use the same sha- tag as the sibling scale-sets (never :latest).
+          image: ghcr.io/pixeljonas/sakaar-gha-runner:sha-<current>
           command: ["/home/runner/run.sh"]
           env:
             - name: RUNNER_ALLOW_RUNASROOT
@@ -102,6 +103,19 @@ from whichever is closer to the new repo's needs.
           securityContext:
             privileged: true
             runAsUser: 0
+          resources:
+            requests:
+              ephemeral-storage: 4Gi
+            limits:
+              ephemeral-storage: 20Gi
+          volumeMounts:
+            - name: containers-storage
+              mountPath: /var/lib/containers/storage
+      volumes:
+        # Required: podman's overlay driver needs a real-fs graphroot. Per-pod
+        # emptyDir only — never a hostPath shared between runner pods.
+        - name: containers-storage
+          emptyDir: {}
   ```
 
   **`privileged-clusterrolebinding.yaml`**

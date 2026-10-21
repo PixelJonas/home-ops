@@ -1,0 +1,16 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: vaultwarden-app-config
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-config
+
+# lvms-vg1 supports CSI snapshots (VolumeSnapshotClass lvms-vg1), so back
+# up from a point-in-time snapshot instead of mounting the live RWO PVC
+# (same fleet convention as tymeslot/actual-budget data-backup).
+- op: add
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: lvms-vg1

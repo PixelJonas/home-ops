@@ -16,3 +16,6 @@ rules:
         "pods/log",
       ]
     verbs: ["list", "get", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get"]

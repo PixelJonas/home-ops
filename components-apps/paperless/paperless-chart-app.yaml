@@ -37,9 +37,19 @@ spec:
                   # -- Redis to use
                   PAPERLESS_REDIS: redis://localhost:6379
                   PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.apps.altus.janz.digital,https://paperless.janz.digital"
-                  PAPERLESS_ALLOWED_HOSTS: "paperless.apps.altus.janz.digital,paperless.janz.digital,localhost"
+                  # paperless-ng.paperless.svc.cluster.local added 2026-09-26: the
+                  # paperless-workflows-apply Job (sync-wave 150) calls the API over
+                  # this in-cluster service DNS name; without it Django's ALLOWED_HOSTS
+                  # check rejects every request with a blank 400, which was silently
+                  # keeping the job (and this app's ArgoCD health) permanently Degraded.
+                  PAPERLESS_ALLOWED_HOSTS: "paperless.apps.altus.janz.digital,paperless.janz.digital,localhost,paperless-ng.paperless.svc.cluster.local"
                   PAPERLESS_CORS_ALLOWED_HOSTS: "https://paperless.apps.altus.janz.digital,https://paperless.janz.digital"
                   PAPERLESS_URL: "https://paperless.janz.digital"
+                  # Trust the edge's X-Forwarded-Proto (Cloudflare tunnel -> svc over
+                  # plain http, and the OpenShift edge route) so Django builds absolute
+                  # URLs (DRF pagination next/previous) as https. Only applies when the
+                  # header is present; internal svc callers without it stay on http.
+                  PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
                   # -- OCR languages to install
                   PAPERLESS_OCR_LANGUAGE: deu
                   PAPERLESS_OCR_LANGUAGES: deu
@@ -51,6 +61,14 @@ spec:
                   PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://localhost:3000
                   PAPERLESS_TIKA_ENDPOINT: http://localhost:9998
                   PAPERLESS_CONSUMPTION_DIR: /consume
+                  # ingestbuddy#9: scans now land in consume/inbox and are
+                  # ingested by ingestbuddy (which uploads to Paperless via the
+                  # API). The folder watcher is off; /consume only sees the
+                  # empty consume/legacy subdir (subPath below) as a second
+                  # guard. Only stops the s6 svc-consumer (document_consumer)
+                  # process -- API uploads and mail fetching don't use it.
+                  # Any non-empty value disables (s6 checks `-n`).
+                  PAPERLESS_CONSUMER_DISABLE: "true"
                   PAPERLESS_PRE_CONSUME_SCRIPT: /usr/src/paperless/custom-scripts/pdf_rm_blank.sh
                   PAPERLESS_POST_CONSUME_SCRIPT: /usr/src/paperless/custom-scripts/paperless_post_consume.sh
                   PAPERLESS_ENABLE_HTTP_REMOTE_USER: "true"
@@ -154,8 +172,12 @@ spec:
             storageClass: synology-nfs-storage
             size: 20Gi
           consume:
+            # Only the `legacy/` subdir of the share (ingestbuddy#9) -- its
+            # sibling `inbox/` belongs to ingestbuddy's NFS poller and must
+            # not be watched/consumed by Paperless too.
             globalMounts:
               - path: /consume
+                subPath: legacy
             existingClaim: nfs-paperless-consume
           custom-scripts:
             name: paperless-ng-custom-scripts

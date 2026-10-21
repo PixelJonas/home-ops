@@ -1,4 +1,4 @@
-# Stock HyperConverged CR — deliberately empty spec, no featureGates.
+# HyperConverged CR — no featureGates, ever.
 #
 # Altus previously ran OpenShift Virtualization with an experimental
 # USB-passthrough feature gate enabled (for a Windows 11 KNX-ETS VM). That
@@ -6,6 +6,12 @@
 # upgrade and forced a full reinstall (see docs/journal in infra-ops:
 # altus-to-sakaar-migration.md). Do not add featureGates here without a
 # documented reason — every one is a fresh way to repeat that incident.
+#
+# USB host passthrough is now done via the GA native field
+# spec.permittedHostDevices.usbHostDevices (GA since CNV 4.17) — no feature
+# gates, no jsonpatch annotations. Currently permitting only the KNX licence
+# dongle (2a07:0102) for the windows-11-virtio-ets VM in the knx-ets
+# namespace.
 apiVersion: hco.kubevirt.io/v1beta1
 kind: HyperConverged
 metadata:
@@ -16,4 +22,10 @@ metadata:
     # which hasn't run yet on ArgoCD's first sync — same reasoning as
     # nmstate's NMState CR in components-infra/nmstate/kustomization.yaml.
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-spec: {}
+spec:
+  permittedHostDevices:
+    usbHostDevices:
+      - resourceName: kubevirt.io/knx-license-stick
+        selectors:
+          - vendor: "2a07"
+            product: "0102"

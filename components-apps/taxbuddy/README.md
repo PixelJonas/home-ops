@@ -3,7 +3,7 @@
 German tax-assistant platform (repo: `PixelJonas/taxbuddy`). ArgoCD Application
 `taxbuddy-app` (bjw-s app-template) with controllers: `ingestion-api`,
 `doc-pipeline`, `agent-runtime`, `knowledge-service`, `web-ui`, `valkey`, and
-the `sync-worker`, `self-benchmark`, and `bmf-watcher` CronJobs.
+the `sync-worker`, `self-benchmark`, `bmf-watcher`, and `bgbl-watcher` CronJobs.
 
 ## Database migrations (HARD-T01)
 
@@ -145,6 +145,26 @@ oc create job --from=cronjob/taxbuddy-app-bmf-watcher \
   bmf-watcher-manual-$(date +%s) -n taxbuddy
 ```
 
+## bgbl-watcher (Bundesgesetzblatt I → proposed `gesetz` candidates, taxbuddy #201)
+
+CronJob `taxbuddy-app-bgbl-watcher` daily at 06:53 Europe/Berlin (30 min after
+bmf-watcher's morning run), same `knowledge_service` image, env and
+`oc exec` RBAC as bmf-watcher. Per run: fetch the recht.bund.de BGBl. Teil I
+feed, keep promulgations whose FNA codes touch EStG/AO and related tax laws,
+diff against known ELI permalinks, have the `classification` LLM role split
+each law per Steuerjahr (from its Inkrafttreten article), and write one
+`gesetz` knowledge item per (law, Steuerjahr) with `status='proposed'`
+(owner-confirm gate per taxbuddy #56). One kanban summary task per run that
+found candidates. Requires a `knowledge_service` image built from taxbuddy
+59972ec (#206) or later.
+
+### Manual re-trigger
+
+```bash
+oc create job --from=cronjob/taxbuddy-app-bgbl-watcher \
+  bgbl-watcher-manual-$(date +%s) -n taxbuddy
+```
+
 ## knowledge-service HTTP API (OPS-T01 / taxbuddy #118)
 
 Deployment `taxbuddy-app-knowledge-service` from the same `knowledge_service`
@@ -178,6 +198,7 @@ each new digest together — no separate regex/manifest wiring was needed.
 |-----|---------|
 | `TAXBUDDY_POSTGRES_PASSWORD` | CNPG `taxbuddy-db` password; templated into `taxbuddy-db-connection` `uri` |
 | `TAXBUDDY_PAPERLESS_URL` / `TAXBUDDY_PAPERLESS_TOKEN` / `TAXBUDDY_PAPERLESS_WEBHOOK_SECRET` | Paperless ingest |
+| `TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET` | ingestion-api `INGESTBUDDY_INTAKE_SECRET` for `POST /intake/ingestbuddy` (taxbuddy#109); shared with ingestbuddy's `TAXBUDDY_WEBHOOK_SECRET` |
 | `TAXBUDDY_LITELLM_BASE_URL` / `TAXBUDDY_DOCPIPELINE_LITELLM_KEY` / `TAXBUDDY_LLMCLIENT_LITELLM_KEY` | LLM proxy |
 | `TAXBUDDY_DOCLING_SERVE_API_KEY` | docling-serve |
 | `TAXBUDDY_DOCPIPELINE_HONCHO_API_KEY` | Honcho memory |
