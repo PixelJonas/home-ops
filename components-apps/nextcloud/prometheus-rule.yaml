@@ -18,23 +18,10 @@ spec:
             summary: "Nextcloud is unreachable"
             description: "nextcloud-exporter has reported nextcloud_up == 0 for 5 minutes."
 
-        - alert: NextcloudBackupMissedInterval
-          expr: increase(volsync_missed_intervals_total{obj_namespace="nextcloud"}[1d]) > 0
-          for: 0m
-          labels:
-            severity: warning
-          annotations:
-            summary: "Nextcloud VolSync backup missed its scheduled window"
-            description: "{{ $labels.obj_name }} in namespace nextcloud did not complete a backup sync before its next scheduled trigger."
-
-        - alert: NextcloudBackupOutOfSync
-          expr: volsync_volume_out_of_sync{obj_namespace="nextcloud"} == 1
-          for: 30m
-          labels:
-            severity: warning
-          annotations:
-            summary: "Nextcloud VolSync volume is out of sync"
-            description: "{{ $labels.obj_name }} has been out of sync for over 30 minutes."
+        # VolSync backup-missed/out-of-sync alerts for this namespace are
+        # covered by the fleet-wide VolSyncBackupMissedInterval/OutOfSync
+        # rules in components-infra/openshift-monitoring/base — removed here
+        # 2026-09-25 to avoid duplicate alerts for the same condition.
 
         - alert: NextcloudPVCUsageHigh
           expr: |

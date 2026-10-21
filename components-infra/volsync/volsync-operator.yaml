@@ -30,6 +30,17 @@ spec:
           seccompProfile:
             type: RuntimeDefault
 
+        # Chart defaults (limits: cpu 1000m/memory 1Gi) were far above
+        # observed usage (oc adm top) — trimmed to reduce cluster-wide
+        # CPU/memory overcommit. Requests kept at chart defaults.
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
   project: cluster-config
   syncPolicy:
     syncOptions:
