@@ -34,7 +34,7 @@ for the history of why this replaced one-App-per-repo).
   `actions-runner-system`) serves all scale-sets already; nothing to do
   there.
 
-Reference implementation: `components-infra/gha-runner-scale-set-palbuddy/`
+Reference implementation: `components-infra/gha-runner-scale-set-recordbuddy/`
 and `components-infra/gha-runner-scale-set-devland/` — copy the pattern
 from whichever is closer to the new repo's needs.
 
@@ -227,7 +227,7 @@ loop, the finalizer never clears, and the namespace gets stuck
 refuses to create *any* new object in it (including a temporary secret to
 unblock the controller), so there is no clean recovery at that point.
 
-Hit exactly this migrating palbuddy/devland/tax-agent's runners to the
+Hit exactly this migrating the devland/tax-agent runners to the
 shared namespace on 2026-07-25 — all three old namespaces got stuck this
 way. Recovery (when the namespace is already `Terminating` and it's too
 late to fix cleanly): the actual runner pods and jobs will already have
