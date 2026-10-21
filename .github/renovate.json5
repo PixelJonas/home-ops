@@ -62,5 +62,19 @@
       datasourceTemplate: "docker",
       versioningTemplate: "semver-coerced",
     },
+    {
+      description: "Inline container images marked `image: <repo>:<tag> # renovate`",
+      customType: "regex",
+      managerFilePatterns: [
+        "/components-apps/.+\\.yaml$/",
+        "/components-infra/.+\\.yaml$/",
+      ],
+      matchStrings: [
+        // prettier-ignore
+        "image: *(?<depName>[^\\s:'\"]+):(?<currentValue>[^\\s@'\"]+) *# *renovate\n",
+      ],
+      datasourceTemplate: "docker",
+      versioningTemplate: "docker",
+    },
   ],
 }
