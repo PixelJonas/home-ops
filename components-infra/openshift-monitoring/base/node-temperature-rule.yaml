@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-temperature
+  namespace: openshift-monitoring
+spec:
+  groups:
+    - name: node-temperature
+      rules:
+        - alert: NodeCPUTemperatureWarning
+          expr: node_thermal_zone_temp{type="x86_pkg_temp"} > 85
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.instance }} CPU package temperature is elevated"
+            description: "CPU package temperature on {{ $labels.instance }} has been above 85°C for 2 minutes (current: {{ $value }}°C)."
+        - alert: NodeCPUTemperatureCritical
+          expr: node_thermal_zone_temp{type="x86_pkg_temp"} > 95
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.instance }} CPU package temperature is critical"
+            description: "CPU package temperature on {{ $labels.instance }} has been above 95°C for 1 minute (current: {{ $value }}°C). This range has preceded an unplanned hard shutdown before (2026-09-23)."

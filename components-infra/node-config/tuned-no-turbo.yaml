@@ -1,0 +1,21 @@
+apiVersion: tuned.openshift.io/v1
+kind: Tuned
+metadata:
+  name: altus-no-turbo
+  namespace: openshift-cluster-node-tuning-operator
+spec:
+  profile:
+    - name: openshift-control-plane-no-turbo
+      data: |
+        [main]
+        summary=Control-plane profile with Intel turbo disabled (thermal/VRM mitigation on altus)
+        include=openshift-control-plane
+
+        [cpu]
+        no_turbo=1
+  recommend:
+    - match:
+        - label: kubernetes.io/hostname
+          value: altus
+      priority: 15
+      profile: openshift-control-plane-no-turbo

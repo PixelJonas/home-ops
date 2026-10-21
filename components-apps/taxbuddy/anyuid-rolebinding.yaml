@@ -8,6 +8,14 @@ subjects:
   - kind: ServiceAccount
     name: taxbuddy-app
     namespace: taxbuddy
+  # migration-job.yaml's wave-105 Job runs from the ingestion_api image
+  # (fixed `USER appuser`, uid 1000) and needs the same anyuid grant; it
+  # gets its own SA because taxbuddy-app's SA is only created by the child
+  # app's helm chart, which doesn't exist yet on a fresh deploy when the
+  # migration Job first runs.
+  - kind: ServiceAccount
+    name: taxbuddy-db-migrate
+    namespace: taxbuddy
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

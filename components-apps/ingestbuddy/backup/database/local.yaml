@@ -1,0 +1,17 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: database-syno-db-backup
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-database
+
+# Same rationale as mygarage/paperless/etc.: this StorageClass supports CSI
+# snapshots (confirmed via `oc get csidriver`/`oc get volumesnapshotclass`
+# on altus), so use Snapshot rather than Direct to avoid ever touching the
+# live PVC (SELinux relabel / IO-contention risk against the live workload).
+- op: add
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: synology-snapshot

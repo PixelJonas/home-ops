@@ -1,0 +1,37 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: vehicle-pipeline-db-app-secret
+  namespace: vehicle-pipeline
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: vehicle-pipeline-db-app-secret
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: "vehicle_pipeline"
+        password: "{{ .password }}"
+        # Self-contained rather than relying on CNPG to enrich this secret
+        # with a `uri` key post-provisioning: builds the connection string
+        # from the same password value plus CNPG's standard `<cluster>-rw`
+        # read-write Service DNS name, which is stable regardless of CNPG's
+        # own secret-management behavior.
+        #
+        # Scheme is plain `postgresql://`, NOT `postgresql+psycopg://`
+        # (unlike taxbuddy's/mygarage's SQLAlchemy-based db-connection
+        # secrets) -- vehicle-pipeline's app.py/db.py pass DATABASE_URL
+        # straight into psycopg_pool.ConnectionPool, which expects a raw
+        # libpq-style conninfo URI, not a SQLAlchemy dialect URL. Confirmed
+        # against containers/vehicle-pipeline/src/vehicle_pipeline/{main,db}.py
+        # and pyproject.toml (psycopg[binary]/psycopg-pool, no sqlalchemy dep).
+        uri: "postgresql://vehicle_pipeline:{{ .password }}@vehicle-pipeline-db-rw.vehicle-pipeline.svc:5432/vehicle_pipeline"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: VEHICLE_PIPELINE_POSTGRES_PASSWORD

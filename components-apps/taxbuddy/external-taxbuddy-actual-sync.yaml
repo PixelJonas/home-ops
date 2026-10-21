@@ -1,0 +1,29 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: external-taxbuddy-actual-sync
+  namespace: taxbuddy
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: taxbuddy-actual-sync
+  data:
+    # Server login password — same Doppler key the actual-budget namespace
+    # already syncs; mounted as a file for ACTUAL_PASSWORD_FILE (the CLI
+    # 26.9.0 has no working _FILE support, so the sync worker reads the
+    # file itself — see taxbuddy packages/actual_client/config.py).
+    - secretKey: ACTUAL_BUDGET_PASSWORD
+      remoteRef:
+        key: ACTUAL_BUDGET_PASSWORD
+    # Budget sync ID. Points at ACTUAL_BUDGET_SYNC_ID (recorded during the
+    # #87 bank linking on 2026-09-20 — matches the budget the server
+    # actually holds). The older TAXBUDDY_ACTUAL_SYNC_ID key predates that
+    # budget and is stale; do not switch back without re-verifying against
+    # the server's user-files group id.
+    - secretKey: ACTUAL_SYNC_ID
+      remoteRef:
+        key: ACTUAL_BUDGET_SYNC_ID

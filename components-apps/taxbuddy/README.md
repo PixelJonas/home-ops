@@ -1,0 +1,206 @@
+# taxbuddy
+
+German tax-assistant platform (repo: `PixelJonas/taxbuddy`). ArgoCD Application
+`taxbuddy-app` (bjw-s app-template) with controllers: `ingestion-api`,
+`doc-pipeline`, `agent-runtime`, `knowledge-service`, `web-ui`, `valkey`, and
+the `sync-worker`, `self-benchmark`, `bmf-watcher`, and `bgbl-watcher` CronJobs.
+
+## Database migrations (HARD-T01)
+
+`migration-job.yaml` is a sync-wave-gated Job (`taxbuddy-db-migrate`, wave 105 —
+after the CNPG cluster at wave 100 and the `taxbuddy-db-connection` secret at
+wave 30, before the `taxbuddy-app` Application CR at wave 111) that runs
+`python -m tax_core.migrations upgrade head` from the pinned `ingestion_api`
+image on every sync. Properties:
+
+- **Idempotent:** `alembic upgrade head` is a no-op when the DB is already at
+  head.
+- **Failure-loud:** ArgoCD waits for each wave to become healthy before moving
+  on, and a Job is only healthy once it completes — so a failed migration fails
+  the sync at wave 105, the updated `taxbuddy-app` spec (wave 111) is never
+  applied, and the rollout is blocked with the parent `taxbuddy` Application
+  Degraded.
+- **Version-locked:** the Job's image digest is bumped by taxbuddy's
+  `release.yml` in the same auto-merging PR as the app controllers, so the
+  migrations applied always match the code being rolled out.
+- **Not a PreSync hook, on purpose:** hook phase takes precedence over sync
+  waves in ArgoCD's ordering, so a PreSync hook would run before the CNPG
+  cluster exists on a fresh deploy and deadlock the first sync. The Job is a
+  regular wave-105 resource with `sync-options: Force=true,Replace=true` (Job
+  pod templates are immutable; plain `Replace=true` is `kubectl replace`, which
+  still can't change `spec.template` — Force turns it into delete + recreate).
+  `ttlSecondsAfterFinished` keeps the last run inspectable for a week; if the
+  TTL cleaner deletes it, selfHeal recreates it and the no-op re-run succeeds.
+
+The Job needs an `ingestion_api` image built from a taxbuddy commit containing
+the `tax_core.migrations` entrypoint (taxbuddy#107); older digests fail it
+with `No module named tax_core.migrations.__main__`.
+
+### Manual escape hatch
+
+Run Alembic by hand — e.g. to unblock a rollout whose migration Job keeps
+failing, to inspect state (`current`, `history`), or to apply a deliberate
+`downgrade`:
+
+```bash
+oc apply -n taxbuddy -f - <<'EOF'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: taxbuddy-db-migrate-manual
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: taxbuddy-db-migrate
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: taxbuddy-ghcr-pull-secret
+      containers:
+        - name: migrate
+          # Use the digest pinned in taxbuddy-app.yaml (or migration-job.yaml)
+          image: "ghcr.io/pixeljonas/taxbuddy/ingestion_api@<DIGEST>"
+          command: ["python", "-m", "tax_core.migrations", "upgrade", "head"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: taxbuddy-db-connection
+                  key: uri
+EOF
+oc logs -n taxbuddy -f job/taxbuddy-db-migrate-manual
+```
+
+Swap `upgrade head` for `current`, `stamp head`, `downgrade <rev>`, etc. as
+needed (all Alembic args pass through). Once the DB is at head the wave-105
+migration Job succeeds again and the blocked sync proceeds. Clean up with
+`oc delete job taxbuddy-db-migrate-manual -n taxbuddy`.
+
+If the migration Job itself is permanently broken (not the migration), remove
+`migration-job.yaml` from `kustomization.yaml` in a PR and the parent app prunes
+it — but that re-opens the "production drifts behind on migrations" gap HARD-T01
+closed, so prefer fixing forward.
+
+
+## sync-worker (Actual Budget → tax.transactions mirror, P2-T04 / ADR-0020)
+
+Daily CronJob `taxbuddy-app-sync-worker` at 05:15 Europe/Berlin (offset from the
+actual-budget volsync backup at 05:00). One-shot pod from
+`ghcr.io/pixeljonas/taxbuddy/sync_worker` (digest pinned; taxbuddy's
+`release.yml` auto-bumps the `repository:` + `digest:` pair in
+`taxbuddy-app.yaml` on every taxbuddy main build via an auto-merging PR).
+
+Per run, per active `enable_banking` bank connection: Actual bank-sync trigger →
+one wide transaction pull since the cursor → idempotent upsert into
+`tax.transactions` → `import_runs` row → `bank_connections` status update. The
+job exits non-zero if any bank failed. Actual is the write authority — the
+worker never writes back.
+
+### One-time setup (owner)
+
+The CronJob is deliberately gated on the Actual budget existing:
+
+1. Finish the Actual bootstrap in `components-apps/actual-budget/README.md`
+   (password, budget file, enableBanking flag, bank linking).
+2. Copy the budget's Sync ID (Actual UI: Settings → Advanced) into Doppler
+   `homelab`/`home` as **`ACTUAL_BUDGET_SYNC_ID`** (recorded there since the
+   #87 bank linking on 2026-09-20). Until this key exists,
+   ExternalSecret `external-taxbuddy-actual-sync` stays in error state and the
+   CronJob pod cannot start — that's intentional. (`TAXBUDDY_ACTUAL_SYNC_ID`
+   is an older, stale key from the pre-#87 test budget — not used.)
+3. Insert one `tax.bank_connections` row per linked bank with
+   `channel='enable_banking'`, `status='active'`, and
+   `meta->>'actual_account_id'` set to the Actual account UUID (Actual UI:
+   account settings, or `actual accounts list` via the CLI image).
+
+### Manual re-trigger
+
+```bash
+oc create job --from=cronjob/taxbuddy-app-sync-worker \
+  taxbuddy-sync-manual-$(date +%s) -n taxbuddy
+```
+
+Re-runs are idempotent (upsert keyed on `actual_id`); `import_runs` records
+`imported_count` vs `duplicate_count`.
+
+## bmf-watcher (BMF-Schreiben → proposed knowledge candidates, P3-T02)
+
+CronJob `taxbuddy-app-bmf-watcher` at 06:23 and 18:23 Europe/Berlin from the
+`knowledge_service` image (digest placeholder until taxbuddy's `release.yml`
+pins it on the first main build containing the watcher). Per run: fetch the
+BMF "Steuern" RSS topic feed, keep only BMF-Schreiben (`/BMF_Schreiben/` URL
+prefix), diff against `tax.knowledge_items.source_url`, classify relevance
+via the `classification` LLM role, and write relevant Schreiben as knowledge
+candidates with `status='proposed'` — never auto-published (owner-confirm
+gate per taxbuddy #56). One `[WISSEN]` kanban task summarizes each run that
+found new candidates (kanban-only delivery per taxbuddy #59, same
+`oc exec` pods/exec RBAC as agent-runtime). No changes → quiet; failure →
+non-zero exit, visible in the CronJob history. Re-runs are idempotent
+(source-URL diff + `ON CONFLICT DO NOTHING`).
+
+### Manual re-trigger
+
+```bash
+oc create job --from=cronjob/taxbuddy-app-bmf-watcher \
+  bmf-watcher-manual-$(date +%s) -n taxbuddy
+```
+
+## bgbl-watcher (Bundesgesetzblatt I → proposed `gesetz` candidates, taxbuddy #201)
+
+CronJob `taxbuddy-app-bgbl-watcher` daily at 06:53 Europe/Berlin (30 min after
+bmf-watcher's morning run), same `knowledge_service` image, env and
+`oc exec` RBAC as bmf-watcher. Per run: fetch the recht.bund.de BGBl. Teil I
+feed, keep promulgations whose FNA codes touch EStG/AO and related tax laws,
+diff against known ELI permalinks, have the `classification` LLM role split
+each law per Steuerjahr (from its Inkrafttreten article), and write one
+`gesetz` knowledge item per (law, Steuerjahr) with `status='proposed'`
+(owner-confirm gate per taxbuddy #56). One kanban summary task per run that
+found candidates. Requires a `knowledge_service` image built from taxbuddy
+59972ec (#206) or later.
+
+### Manual re-trigger
+
+```bash
+oc create job --from=cronjob/taxbuddy-app-bgbl-watcher \
+  bgbl-watcher-manual-$(date +%s) -n taxbuddy
+```
+
+## knowledge-service HTTP API (OPS-T01 / taxbuddy #118)
+
+Deployment `taxbuddy-app-knowledge-service` from the same `knowledge_service`
+image as the bmf-watcher CronJob (the image's default CMD is the HTTP
+service). Serves:
+
+- `GET /knowledge/items?steuerjahr=<jahr>[&topic=…][&status=…]` — knowledge
+  items; `status=proposed` surfaces the bmf-watcher's owner-pending BMF
+  candidates (P3-T02), `status=trusted` is the consumer filter.
+- `GET /packs/<steuerjahr>` plus per-Anlage
+  `belegverzeichnis.md` / `belegverzeichnis.pdf` / `belege.zip` — the P4-T01
+  per-Anlage pack exports. Only the ZIP bundle (and the Beleg links in the
+  indexes) call Paperless (`PAPERLESS_URL`/`PAPERLESS_TOKEN` from the
+  `taxbuddy-credentials` ESO secret); pack generation itself runs off the DB
+  mirror.
+
+Edge-terminated route `taxbuddy-knowledge.apps.altus.janz.digital` (same
+pattern as web-ui). agent-runtime gets it as `KNOWLEDGE_SERVICE_URL` so the
+P4-T01 `[STEUERPAKET]` kanban task can render owner-clickable Markdown/PDF/ZIP
+export links — the URL must resolve from outside the cluster, hence the route
+rather than the in-cluster service name.
+
+Digest auto-bump: taxbuddy's `release.yml` regex replaces **all**
+`repository:` + `digest:` occurrences of the `knowledge_service` image in
+`taxbuddy-app.yaml`, so this controller and the bmf-watcher CronJob move to
+each new digest together — no separate regex/manifest wiring was needed.
+
+## Secrets (Doppler `homelab`/`home` via ESO)
+
+| Key | Purpose |
+|-----|---------|
+| `TAXBUDDY_POSTGRES_PASSWORD` | CNPG `taxbuddy-db` password; templated into `taxbuddy-db-connection` `uri` |
+| `TAXBUDDY_PAPERLESS_URL` / `TAXBUDDY_PAPERLESS_TOKEN` / `TAXBUDDY_PAPERLESS_WEBHOOK_SECRET` | Paperless ingest |
+| `TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET` | ingestion-api `INGESTBUDDY_INTAKE_SECRET` for `POST /intake/ingestbuddy` (taxbuddy#109); shared with ingestbuddy's `TAXBUDDY_WEBHOOK_SECRET` |
+| `TAXBUDDY_LITELLM_BASE_URL` / `TAXBUDDY_DOCPIPELINE_LITELLM_KEY` / `TAXBUDDY_LLMCLIENT_LITELLM_KEY` | LLM proxy |
+| `TAXBUDDY_DOCLING_SERVE_API_KEY` | docling-serve |
+| `TAXBUDDY_DOCPIPELINE_HONCHO_API_KEY` | Honcho memory |
+| `ACTUAL_BUDGET_PASSWORD` | Actual server password, file-mounted for the sync worker |
+| `ACTUAL_BUDGET_SYNC_ID` | Actual budget sync ID (matches the live budget; `TAXBUDDY_ACTUAL_SYNC_ID` is stale) |

@@ -12,7 +12,7 @@ spec:
   source:
     chart: app-template
     repoURL: https://bjw-s-labs.github.io/helm-charts
-    targetRevision: 5.1.0
+    targetRevision: 5.2.1
     helm:
       values: |-
         defaultPodOptions:
@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:830b2bc25cae0397b7b04b925827a46502b77dd8097d81e5cf69e0330ae93f3d"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:0a21a50335d413c51fbee298c1894293c0cca848ea2f68612f8613dd8bd64106"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -52,6 +52,11 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: PAPERLESS_WEBHOOK_SECRET
+                  INGESTBUDDY_INTAKE_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: INGESTBUDDY_INTAKE_SECRET
                   LITELLM_BASE_URL:
                     valueFrom:
                       secretKeyRef:
@@ -88,7 +93,7 @@ spec:
               doc-pipeline:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/doc_pipeline
-                  digest: "sha256:5ab2dd21737cd8adbbd0f3715f7699db6d83acc11544f8005675543c42a39a11"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:ccf6e37aad21cba84b4648caefd270ce2e19ac5693f5d9010ada170c5bd9a423"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -152,7 +157,15 @@ spec:
                           - doc_pipeline.healthcheck
                       initialDelaySeconds: 15
                       periodSeconds: 15
-                      timeoutSeconds: 5
+                      # taxbuddy#129: process_document jobs now legitimately
+                      # run up to 15min (large docling OCR). Under node memory
+                      # pressure the exec probe (cold python start + valkey
+                      # ping) timed out 3x and kubelet SIGKILLed the worker
+                      # mid-job twice in one afternoon — an abandoned-job
+                      # limbo RQ retries don't cover. A batch worker that is
+                      # slow to answer a ping for a minute is not dead.
+                      timeoutSeconds: 10
+                      failureThreshold: 6
                   readiness:
                     enabled: true
                     custom: true
@@ -164,7 +177,7 @@ spec:
                           - doc_pipeline.healthcheck
                       initialDelaySeconds: 10
                       periodSeconds: 10
-                      timeoutSeconds: 5
+                      timeoutSeconds: 10
 
           agent-runtime:
             replicas: 1
@@ -182,11 +195,12 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:19e5058f6e9ebcbba895374f32bdf0c67ce944ebcba4ce1bacc8438d6a4098e4"
+                  digest: "sha256:79b8b34d991fcc66ffe024c417d5adbad293477ab742d7d861ef93ed2e6606a6"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
                   AGENT_RUNTIME: hermes
+                  QUEUE_URL: redis://taxbuddy-app-valkey:6379/0
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
@@ -202,8 +216,436 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: PAPERLESS_TOKEN
+                  # P4-T01 [STEUERPAKET] kanban delivery (taxbuddy #67):
+                  # base URL used to render the pack Markdown/PDF/ZIP
+                  # export links in the kanban task. The owner clicks these
+                  # from outside the cluster, so it's the edge-terminated
+                  # route, not the in-cluster service.
+                  KNOWLEDGE_SERVICE_URL: https://taxbuddy-knowledge.apps.altus.janz.digital
+                  # taxbuddy ADR-0027 (#197): the offene Steuerjahre the poll
+                  # loop delivers [STEUERPAKET]/[CHECKLISTE]/[LÜCKEN] for,
+                  # one set of cards per year. Remove a year once it is
+                  # filed. Needs an agent_runtime image with #197; the
+                  # image defaults to 2025 alone when unset.
+                  PACK_STEUERJAHRE: "2025,2026"
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                  # taxbuddy P3-T04 (weekly digest): optional cloud-rendered
+                  # Kurzüberblick. The narrator receives only structured
+                  # aggregates (counts, category labels, statutory deadline
+                  # titles/dates, public BMF titles) — never raw documents
+                  # or personal line items. llm.yaml ships inside the
+                  # agent_runtime image at its WORKDIR (LLMConfig.load()'s
+                  # default path). Same secret keys doc_pipeline already
+                  # consumes. If LiteLLM is unreachable the digest still
+                  # ships without the Kurzüberblick.
+                  WEEKLY_DIGEST_LLM_ENABLED: "true"
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  # taxbuddy#160 re-OCR loop (ADR-0026): opt-in, enabled only
+                  # when both are set. In-cluster ingestbuddy pipeline-api;
+                  # the secret is the shared REOCR_SHARED_SECRET Doppler key.
+                  INGESTBUDDY_BASE_URL: http://ingestbuddy-app-api.ingestbuddy.svc.cluster.local:8000
+                  INGESTBUDDY_REOCR_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: INGESTBUDDY_REOCR_SECRET
+                  # Re-OCR fallback-poll give-up (ADR-0026). 10 days = 864000 s,
+                  # raised from the 6 h code default because re-OCR may sit
+                  # queued for the local OCR host for days. A real failure
+                  # is now declared only after this; watch ingestbuddy's
+                  # queue/DLQ meanwhile.
+                  REOCR_WAIT_TIMEOUT_SECONDS: "864000"
+                  # Per-doc re-OCR cooldown (ADR-0026), measured from request
+                  # creation. 11 days = 950400 s (wait timeout + 1 day) so a
+                  # second [REOCR] card cannot re-trigger while the first
+                  # request is still waiting; code default is 24 h.
+                  REOCR_DOC_COOLDOWN_SECONDS: "950400"
+                  # taxbuddy#178/#179 deterministic truncated-OCR detection
+                  # (taxbuddy#181/#182): QDRANT_* activates shadow detection;
+                  # REOCR_DET_ENABLED turns on [REOCR] card creation
+                  # (auto:-prefixed reason, creation-time dedup, 5/run cap —
+                  # owner go-ahead 2026-10-11 on taxbuddy#177). Same read-only
+                  # key + service URL lookup-mcp already uses (ADR-0024).
+                  QDRANT_URL: http://qdrant-app.qdrant.svc:6333
+                  QDRANT_COLLECTION: ingestbuddy_documents
+                  QDRANT_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: QDRANT_READ_ONLY_API_KEY
+                  REOCR_DET_ENABLED: "true"
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
+          # HARD-T02 (taxbuddy #101, ADR-013): scheduled in-cluster
+          # extraction-accuracy self-benchmark. Scores the versioned
+          # synthetic corpus baked into the image against the real
+          # extract/classify stages via in-cluster LiteLLM, checks against
+          # the baked-in baseline, and delivers the outcome to the
+          # taxbuddy-hermes kanban board (flagged task on regression,
+          # heartbeat-only otherwise). Runs under the chart's default
+          # taxbuddy-app ServiceAccount, which already holds pods/exec in
+          # the taxbuddy-hermes namespace (agent-runtime-hermes-exec-rbac.yaml)
+          # — the kanban path shells out via `oc exec`.
+          self-benchmark:
+            type: cronjob
+            cronjob:
+              schedule: "23 5 * * 1"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 5
+            pod:
+              # Same rationale as agent-runtime above: kanban delivery
+              # shells out via `oc exec deploy/taxbuddy-hermes-app` using
+              # the pod's own in-cluster token.
+              automountServiceAccountToken: true
+            containers:
+              self-benchmark:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
+                  digest: "sha256:28c27442fa2ad4a7cbf7ff5d85543522d18b3c96b93c52987aa5bed9370b8ae5"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  # Isolated eval workspace only — the runner refuses to
+                  # seed synthetic profiles or fall back to the synthetic
+                  # default peer against any other workspace
+                  # (self_benchmark.evaluate.require_eval_workspace).
+                  HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
+                  # Workspace-scoped key: in-cluster Honcho runs with
+                  # AUTH_USE_AUTH=true (JWTs are per-workspace), so the
+                  # doc-pipeline key (scoped to "taxbuddy") cannot touch
+                  # the taxbuddy-eval workspace. Separate Doppler key
+                  # TAXBUDDY_EVAL_HONCHO_API_KEY scoped to taxbuddy-eval.
+                  HONCHO_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: HONCHO_EVAL_API_KEY
+                  HONCHO_WORKSPACE: taxbuddy-eval
+                  HERMES_NAMESPACE: taxbuddy-hermes
+                  HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                  # Baseline-unchanged runs post a create+immediately-closed
+                  # heartbeat task instead of staying fully silent.
+                  SELF_BENCHMARK_HEARTBEAT: "true"
+
+          # P3-T02 (taxbuddy #62): BMF-Schreiben watcher. Polls the BMF
+          # "Steuern" RSS topic feed (BMF-Schreiben identified by the
+          # /BMF_Schreiben/ URL prefix), classifies relevance via the
+          # `classification` LLM role, writes relevant Schreiben as
+          # knowledge candidates with status=proposed (never
+          # auto-published, owner-confirm gate per taxbuddy #56), and posts
+          # one [WISSEN] summary task to the taxbuddy-hermes kanban
+          # (kanban-only delivery per taxbuddy #59) — same pods/exec RBAC
+          # and oc-exec path as self-benchmark above. 2x/day is ample: the
+          # feed publishes 1-3 Schreiben/week and carries ~20 items.
+          # Manual re-trigger:
+          #   oc create job --from=cronjob/taxbuddy-app-bmf-watcher \
+          #     bmf-watcher-manual-$(date +%s) -n taxbuddy
+          bmf-watcher:
+            type: cronjob
+            cronjob:
+              schedule: "23 6,18 * * *"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 5
+              backoffLimit: 1
+            pod:
+              # Kanban delivery shells out via
+              # `oc exec deploy/taxbuddy-hermes-app` using the pod's own
+              # in-cluster token (same rationale as agent-runtime above).
+              automountServiceAccountToken: true
+            containers:
+              bmf-watcher:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
+                  digest: "sha256:8895af7084644bb4b018f31add52a16e73793b300ae8c313bcfe7416b64c0ae1"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
+                  pullPolicy: IfNotPresent
+                # The image's default CMD is the HTTP service; the watcher
+                # is a one-shot module entry point.
+                command:
+                  - python
+                  - -m
+                  - knowledge_service.watchers.bmf_rss
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  HERMES_NAMESPACE: taxbuddy-hermes
+                  HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+
+          # taxbuddy #201: Bundesgesetzblatt Teil I watcher. Polls the
+          # recht.bund.de BGBl. I feed, keeps promulgations whose FNA codes
+          # touch EStG/AO and related tax laws, has the `classification`
+          # LLM role split each law per Steuerjahr (from its Inkrafttreten
+          # article) and writes one `gesetz` knowledge candidate per
+          # (law, Steuerjahr) with status=proposed (owner-confirm gate per
+          # taxbuddy #56), plus one kanban summary task per pass. Same
+          # image/env/RBAC as bmf-watcher; daily is ample for BGBl. I.
+          # Scheduled 30 min after bmf-watcher's morning run.
+          # Manual re-trigger:
+          #   oc create job --from=cronjob/taxbuddy-app-bgbl-watcher \
+          #     bgbl-watcher-manual-$(date +%s) -n taxbuddy
+          bgbl-watcher:
+            type: cronjob
+            cronjob:
+              schedule: "53 6 * * *"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 5
+              backoffLimit: 1
+            pod:
+              # Kanban delivery shells out via
+              # `oc exec deploy/taxbuddy-hermes-app` using the pod's own
+              # in-cluster token (same rationale as agent-runtime above).
+              automountServiceAccountToken: true
+            containers:
+              bgbl-watcher:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
+                  digest: "sha256:8895af7084644bb4b018f31add52a16e73793b300ae8c313bcfe7416b64c0ae1"   # taxbuddy@bc79f4b (release run 38442907648, includes #206); release.yml bumps all knowledge_service digests together
+                  pullPolicy: IfNotPresent
+                # The image's default CMD is the HTTP service; the watcher
+                # is a one-shot module entry point.
+                command:
+                  - python
+                  - -m
+                  - knowledge_service.watchers.bgbl
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  TAXBUDDY_LLMCLIENT_LITELLM_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
+                  HERMES_NAMESPACE: taxbuddy-hermes
+                  HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+
+          # OPS-T01 (taxbuddy #118): knowledge-service HTTP API. Serves
+          # GET /knowledge/items (the bmf-watcher's proposed candidates,
+          # P3-T02) and the per-Anlage pack endpoints (JSON overview,
+          # Belegverzeichnis MD/PDF, Paperless ZIP bundle) from P4-T01.
+          # Same image as the bmf-watcher CronJob — its default CMD is
+          # this HTTP service. release.yml's digest regex replaces ALL
+          # `repository:` + `digest:` occurrences of the knowledge_service
+          # image in this file, so both blocks stay on the same digest
+          # without a #100-style regex extension.
+          knowledge-service:
+            replicas: 1
+            containers:
+              knowledge-service:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
+                  digest: "sha256:8895af7084644bb4b018f31add52a16e73793b300ae8c313bcfe7416b64c0ae1"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  # Only the pack ZIP bundle endpoint
+                  # (/packs/<jahr>/<anlage>/belege.zip) and the Beleg links
+                  # in the indexes call Paperless; generation itself runs
+                  # off the DB mirror.
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_TOKEN
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
+          lookup-mcp:
+            # Read-only Paperless + Qdrant lookup tools for Hermes over MCP
+            # (streamable HTTP at /mcp, bearer-token auth; taxbuddy#154,
+            # ADR-0024). Wired into taxbuddy-hermes' config.yaml.
+            replicas: 1
+            containers:
+              lookup-mcp:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/lookup_mcp
+                  digest: "sha256:fd39d69dbc7905cd30513afa833da8c87147df139c244364caf1213e57113f29"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  # CNPG Postgres, for the transactions_search tool
+                  # (taxbuddy#164).
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_TOKEN
+                  QDRANT_URL: http://qdrant-app.qdrant.svc:6333
+                  QDRANT_COLLECTION: ingestbuddy_documents
+                  QDRANT_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: QDRANT_READ_ONLY_API_KEY
+                  # Same embedding model ingestbuddy indexes with (bge-m3,
+                  # 1024-dim) via a dedicated bge-m3-only LiteLLM key.
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LITELLM_BASE_URL
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LOOKUP_MCP_LITELLM_KEY
+                  LOOKUP_EMBEDDING_MODEL: bge-m3
+                  LOOKUP_MCP_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: LOOKUP_MCP_TOKEN
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+
+          web-ui:
+            replicas: 1
+            containers:
+              web-ui:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/web_ui
+                  digest: "sha256:cae5bbc1d65abbafd718c0ba51d55997c9a90179d29c57bb47e397b72d27d4b0"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
                 probes:
                   liveness:
                     enabled: true
@@ -257,9 +699,140 @@ spec:
                       initialDelaySeconds: 5
                       periodSeconds: 5
 
+          # Daily Actual Budget -> tax.transactions mirror sync (taxbuddy
+          # repo services/sync_worker, ADR-0020 / P2-T04). One-shot pod; the
+          # app exits non-zero if any bank fails, so the CronJob records the
+          # failure. 05:15 Berlin — offset from the actual-budget volsync
+          # backup at 05:00. PSD2's 4x/day background cap is safely met.
+          # Manual re-trigger:
+          #   oc create job --from=cronjob/taxbuddy-app-sync-worker \
+          #     taxbuddy-sync-manual-$(date +%s) -n taxbuddy
+          # Digest: same placeholder convention as the other controllers —
+          # taxbuddy's release.yml regex-matches `repository:` + `digest:`
+          # for sync_worker in this file and opens an auto-merging bump PR
+          # against home-ops on every taxbuddy main build.
+          sync-worker:
+            type: cronjob
+            cronjob:
+              schedule: "15 5 * * *"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 3
+              backoffLimit: 1
+            containers:
+              sync-worker:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/sync_worker
+                  digest: "sha256:a704fc0168f2f3b0e0e74c764e8f550f28ef715f8da881a090b856b60ffa0d04"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
+                  pullPolicy: IfNotPresent
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  # In-cluster service of the actual-budget app (cross-
+                  # namespace; no route round-trip). Service name is
+                  # `actual-budget-app` (bjw-s app-template release name) —
+                  # verified via in-cluster DNS resolution.
+                  ACTUAL_SERVER_URL: http://actual-budget-app.actual-budget.svc:5006
+                  ACTUAL_PASSWORD_FILE: /secrets/actual-sync/password
+                  # Budget sync ID — from the ESO-managed secret; sourced
+                  # from Doppler key ACTUAL_BUDGET_SYNC_ID (see
+                  # external-taxbuddy-actual-sync.yaml).
+                  ACTUAL_SYNC_ID:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-actual-sync
+                        key: ACTUAL_SYNC_ID
+                  # The CLI downloads a local budget replica per call —
+                  # keep it on the (writable) emptyDir-backed /tmp, not in
+                  # $HOME assumptions of the UBI9 image.
+                  ACTUAL_DATA_DIR: /tmp/actual-data
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+
+          # Daily transaction/receipt matching pass (taxbuddy repo
+          # services/matching_engine, P2-T05 / #166). One-shot `--once`
+          # CronJob — the image's default CMD is the uvicorn FastAPI
+          # server, so the command override runs the CLI instead. 05:30
+          # Berlin, after sync-worker (05:15) has refreshed the
+          # tax.transactions mirror it reads. The engine needs only
+          # DATABASE_URL; PAPERLESS_* enables link writeback for
+          # auto-confirmed matches (degrades gracefully without it) — no
+          # Actual Budget env. Manual re-trigger:
+          #   oc create job --from=cronjob/taxbuddy-app-matching-engine \
+          #     taxbuddy-matching-manual-$(date +%s) -n taxbuddy
+          # Digest: same convention as the other controllers — taxbuddy's
+          # release.yml regex-matches `repository:` + `digest:` for
+          # matching_engine in this file and opens an auto-merging bump
+          # PR against home-ops on every taxbuddy main build.
+          matching-engine:
+            type: cronjob
+            cronjob:
+              schedule: "30 5 * * *"
+              timeZone: Europe/Berlin
+              concurrencyPolicy: Forbid
+              successfulJobsHistory: 3
+              failedJobsHistory: 3
+              backoffLimit: 1
+            containers:
+              matching-engine:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/matching_engine
+                  digest: "sha256:a7f05257ae41b2a4a5221a580d94452641895af73659ca139583e7e148c89975"
+                  pullPolicy: IfNotPresent
+                command: ["python", "-m", "matching_engine.main", "--once"]
+                env:
+                  TZ: Europe/Berlin
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-db-connection
+                        key: uri
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_URL
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-credentials
+                        key: PAPERLESS_TOKEN
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+
         service:
           ingestion-api:
             controller: ingestion-api
+            ports:
+              http:
+                port: 8000
+          knowledge-service:
+            controller: knowledge-service
+            ports:
+              http:
+                port: 8000
+          lookup-mcp:
+            controller: lookup-mcp
+            ports:
+              http:
+                port: 8000
+          web-ui:
+            controller: web-ui
             ports:
               http:
                 port: 8000
@@ -268,6 +841,35 @@ spec:
             ports:
               redis:
                 port: 6379
+
+        ingress:
+          web-ui:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: taxbuddy.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: web-ui
+                      port: http
+          # Edge-terminated like web-ui: the pack export links the
+          # agent-runtime renders into [STEUERPAKET] kanban tasks
+          # (KNOWLEDGE_SERVICE_URL) must resolve from outside the cluster.
+          knowledge-service:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: taxbuddy-knowledge.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: knowledge-service
+                      port: http
 
         persistence:
           valkey-data:
@@ -279,6 +881,21 @@ spec:
               valkey:
                 valkey:
                   - path: /data
+          # ACTUAL_BUDGET_PASSWORD mounted as a file for the sync worker's
+          # ACTUAL_PASSWORD_FILE (CLI 26.9.0 has no working _FILE support;
+          # the actual_client wrapper reads the file itself).
+          actual-sync-credentials:
+            enabled: true
+            type: secret
+            name: taxbuddy-actual-sync
+            items:
+              - key: ACTUAL_BUDGET_PASSWORD
+                path: password
+            advancedMounts:
+              sync-worker:
+                sync-worker:
+                  - path: /secrets/actual-sync
+                    readOnly: true
 
   project: cluster-apps
   syncPolicy:

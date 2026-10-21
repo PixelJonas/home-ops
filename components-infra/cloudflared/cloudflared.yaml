@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: cloudflared
-          image: cloudflare/cloudflared:2026.8.3
+          image: cloudflare/cloudflared:2026.9.1
           args:
             - tunnel
             - --metrics
@@ -36,6 +36,7 @@ spec:
             httpGet:
               path: /ready
               port: 2000
-            failureThreshold: 1
+            failureThreshold: 3
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
