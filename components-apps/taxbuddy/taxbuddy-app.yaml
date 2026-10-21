@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:38ddc1d72824d71806859ea598ae313bc091a0e2653b99d56c563e4d6d86df88"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:0a21a50335d413c51fbee298c1894293c0cca848ea2f68612f8613dd8bd64106"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -93,7 +93,7 @@ spec:
               doc-pipeline:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/doc_pipeline
-                  digest: "sha256:195f52ba555c9ccc1f95eac08c4d23846a6938fc7f2c768e5e621ec95f0f12b4"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:ccf6e37aad21cba84b4648caefd270ce2e19ac5693f5d9010ada170c5bd9a423"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -259,6 +259,17 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: INGESTBUDDY_REOCR_SECRET
+                  # Re-OCR fallback-poll give-up (ADR-0026). 10 days = 864000 s,
+                  # raised from the 6 h code default because re-OCR may sit
+                  # queued for the local OCR host for days. A real failure
+                  # is now declared only after this; watch ingestbuddy's
+                  # queue/DLQ meanwhile.
+                  REOCR_WAIT_TIMEOUT_SECONDS: "864000"
+                  # Per-doc re-OCR cooldown (ADR-0026), measured from request
+                  # creation. 11 days = 950400 s (wait timeout + 1 day) so a
+                  # second [REOCR] card cannot re-trigger while the first
+                  # request is still waiting; code default is 24 h.
+                  REOCR_DOC_COOLDOWN_SECONDS: "950400"
                   # taxbuddy#178/#179 deterministic truncated-OCR detection
                   # (taxbuddy#181/#182): QDRANT_* activates shadow detection;
                   # REOCR_DET_ENABLED turns on [REOCR] card creation
@@ -320,7 +331,7 @@ spec:
               self-benchmark:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
-                  digest: "sha256:8286a4001e9fb013a8243554e86f6d3c73cc3bae141a3d22099874243ed76ca9"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  digest: "sha256:28c27442fa2ad4a7cbf7ff5d85543522d18b3c96b93c52987aa5bed9370b8ae5"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -387,7 +398,7 @@ spec:
               bmf-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:194faf11b5b2c1bd94f3bd0767adfb75ab03b4f25e8f41554fee8934d1d54add"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
+                  digest: "sha256:8895af7084644bb4b018f31add52a16e73793b300ae8c313bcfe7416b64c0ae1"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
@@ -452,7 +463,7 @@ spec:
               bgbl-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:194faf11b5b2c1bd94f3bd0767adfb75ab03b4f25e8f41554fee8934d1d54add"   # taxbuddy@bc79f4b (release run 38442907648, includes #206); release.yml bumps all knowledge_service digests together
+                  digest: "sha256:8895af7084644bb4b018f31add52a16e73793b300ae8c313bcfe7416b64c0ae1"   # taxbuddy@bc79f4b (release run 38442907648, includes #206); release.yml bumps all knowledge_service digests together
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
@@ -502,7 +513,7 @@ spec:
               knowledge-service:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:194faf11b5b2c1bd94f3bd0767adfb75ab03b4f25e8f41554fee8934d1d54add"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
+                  digest: "sha256:8895af7084644bb4b018f31add52a16e73793b300ae8c313bcfe7416b64c0ae1"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin

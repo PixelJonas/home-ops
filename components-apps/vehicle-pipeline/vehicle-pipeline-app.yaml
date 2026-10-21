@@ -32,8 +32,7 @@ spec:
                   TZ: Europe/Berlin
                   # Approved review items land in the local
                   # vehicle_pipeline.costs table (Vollkostenrechnung P1).
-                  # "mygarage" restores the old write-through path; the
-                  # MYGARAGE_* vars below are only required for that.
+                  # The "mygarage" sink was removed with MyGarage itself.
                   COST_SINK: local
                   # Paperless tags (generic labels) per vehicle slug that
                   # mark a document for ingest: the plain vehicle tags plus
@@ -68,19 +67,6 @@ spec:
                   LITELLM_API_KEY:
                     valueFrom:
                       secretKeyRef: {name: vehicle-pipeline-credentials, key: LITELLM_API_KEY}
-                  # In-cluster DNS (live-verified against mygarage's own
-                  # trip-enricher controller, components-apps/mygarage/
-                  # mygarage-chart-app.yaml: "svc is named just
-                  # mygarage-app, port 8686") -- avoids an unnecessary
-                  # round trip through the public Route for an in-cluster
-                  # caller.
-                  MYGARAGE_URL: http://mygarage-app.mygarage.svc:8686
-                  MYGARAGE_USERNAME:
-                    valueFrom:
-                      secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_USERNAME}
-                  MYGARAGE_PASSWORD:
-                    valueFrom:
-                      secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_PASSWORD}
                   MYGARAGE_VEHICLES:
                     valueFrom:
                       secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_VEHICLES}
@@ -146,6 +132,23 @@ spec:
                   TRIP_ODOMETER_ENTITIES: >-
                     {"multivan": "sensor.dieselboi_mileage",
                     "id4": "sensor.electricboi_mileage"}
+                  # Home charging costs (vehicle-pipeline #26): the detector
+                  # polls the myenergi Zappi ("Chargeboi") sensors for
+                  # finished sessions (plug-disconnect transition) and writes
+                  # one charging cost row per session. Entity IDs are not
+                  # secrets (same precedent as TRIP_ODOMETER_ENTITIES);
+                  # vehicle_id is the vehicle_pipeline.vehicles.id slug.
+                  ZAPPI_CHARGERS: >-
+                    [{"slug": "chargeboi",
+                    "vehicle_id": "id4",
+                    "plug_entity": "sensor.myenergi_chargeboi_plug_status",
+                    "energy_entity": "sensor.myenergi_chargeboi_charge_added_session"}]
+                  # Annual BMF flat rate per kWh, elected for the whole
+                  # calendar year (vehicle-pipeline #6). Year map: refresh
+                  # each January when the BMF republishes the rate; a session
+                  # year missing from the map is skipped (logged), never
+                  # priced at a wrong rate.
+                  ZAPPI_RATE_PER_KWH: '{"2026": "0.34"}'
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:

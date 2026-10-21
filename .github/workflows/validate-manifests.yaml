@@ -82,7 +82,7 @@ jobs:
         with:
           cache: true
       - name: shellcheck
-        run: mise exec -- shellcheck scripts/*.sh bootstrap.sh components-apps/mygarage/bootstrap.sh
+        run: mise exec -- shellcheck scripts/*.sh bootstrap.sh
 
   hadolint:
     runs-on: ubuntu-latest
