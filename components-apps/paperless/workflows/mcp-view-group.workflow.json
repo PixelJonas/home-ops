@@ -1,0 +1,18 @@
+{
+  "_comment": "Applied by the paperless-workflows-apply Job. Custom shape, NOT the raw Paperless /api/workflows/ payload: apply.py resolves assign_view_group_names to the live group IDs (assign_view_groups) before the real API call and hard-fails if a named group does not exist (it never creates groups). Purpose: every newly added document gets VIEW permission for the read-only 'mcp-readers' group, so the claude.ai Paperless MCP connector (user 'mcp-readonly', Doppler homelab/home PAPERLESS_MCP_API_TOKEN) can see documents that have an owner. Unowned documents are visible to every user anyway; this covers owned ones. Group 'mcp-readers' holds only view_* model permissions and was created live on 2026-10-13 (not in git). Runs at order 4, after the other workflows (0 auto-tag, 1/2 UI-managed, 3 intake). This workflow only ever adds view access for that one group; it does not touch owner, change permissions or tags. The workflow 'name' is the upsert key -- renaming it here would POST a second workflow.",
+  "name": "mcp:grant view to mcp-readers",
+  "order": 4,
+  "enabled": true,
+  "triggers": [
+    {
+      "type": 2,
+      "sources": [1, 2, 3, 4]
+    }
+  ],
+  "actions": [
+    {
+      "type": 1,
+      "assign_view_group_names": ["mcp-readers"]
+    }
+  ]
+}

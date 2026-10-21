@@ -26,7 +26,7 @@ spec:
                       done <<< "$COMPLETED_POD"
                   fi
               # change the image in disconnected environment
-              image: registry.redhat.io/openshift4/ose-cli:latest
+              image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.22@sha256:58e37785e922707a6f47cdbd415dbfa3ffa33c657a6e807aadacc9bc7ed2e0cd
               imagePullPolicy: IfNotPresent
               name: completed-pod-cleanup
               terminationMessagePath: /dev/termination-log

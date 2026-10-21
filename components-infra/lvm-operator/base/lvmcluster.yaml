@@ -10,12 +10,31 @@ spec:
     deviceClasses:
       - name: vg1
         default: true
+        # Pinned to altus: vg1's device paths are altus's disks. Without a
+        # selector the vg-manager DaemonSet runs on every node, and on a
+        # disk-less worker (xandar) it fails and keeps the LVMCluster Failed.
+        # The webhook rejects adding a nodeSelector to an existing class, so
+        # this was applied once with the webhook bypassed (2026-09-28); it now
+        # passes normally as long as it stays unchanged. Give future
+        # disk-bearing nodes their own deviceClass instead.
+        nodeSelector:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - altus
         thinPoolConfig:
           name: thin-pool-1
           overprovisionRatio: 10
           sizePercent: 90
+        # Stable by-id paths: altus has two identical SATA SSDs whose kernel
+        # names swap between boots (2026-09-28 one boot had the root disk as
+        # /dev/sdb). vg-manager resolves these symlinks and matches them to the
+        # VG's PVs; every link must keep resolving to a current PV, or LVMS
+        # treats that PV as removed.
         deviceSelector:
           paths:
-            - /dev/nvme0n1
-            - /dev/nvme1n1
-            - /dev/sdb
+            - /dev/disk/by-id/nvme-WD_BLACK_SN770_2TB_230623476307 # nvme0n1, 2TB
+            - /dev/disk/by-id/nvme-CT1000P1SSD8_2030E2BAC0C0 # nvme1n1, 1TB
+            - /dev/disk/by-id/wwn-0x500a0751e60e12a0 # SATA SSD, not the root disk
