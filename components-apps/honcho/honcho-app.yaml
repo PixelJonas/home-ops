@@ -27,7 +27,7 @@ spec:
               honcho:
                 image:
                   repository: ghcr.io/plastic-labs/honcho
-                  tag: v3.1.2
+                  tag: v3.2.1
                   pullPolicy: IfNotPresent
                 command:
                   - sh
@@ -76,7 +76,7 @@ spec:
               deriver:
                 image:
                   repository: ghcr.io/plastic-labs/honcho
-                  tag: v3.1.2
+                  tag: v3.2.1
                   pullPolicy: IfNotPresent
                 command:
                   - /app/.venv/bin/python
@@ -107,7 +107,7 @@ spec:
               redis:
                 image:
                   repository: redis
-                  tag: 8.10.1
+                  tag: 8.10.2
                   pullPolicy: IfNotPresent
                 probes:
                   liveness:
@@ -141,7 +141,7 @@ spec:
               vllm:
                 image:
                   repository: docker.io/vllm/vllm-openai-cpu
-                  tag: v0.28.0-x86_64
+                  tag: v0.30.0
                   pullPolicy: IfNotPresent
                 # NOTE: the vllm/vllm-openai-cpu image entrypoint is already
                 # "vllm serve" — args are appended to it directly. A leading
