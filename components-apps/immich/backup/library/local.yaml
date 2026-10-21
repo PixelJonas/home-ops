@@ -5,3 +5,14 @@
 - op: replace
   path: /spec/restic/repository
   value: restic-config-library
+
+# The mover pod for copyMethod: Direct must co-locate with whatever node
+# currently holds the RWO source PVC (immich-app-library) -- with xandar
+# now in the cluster, immich-server can land there. Without this, the
+# cache PVC defaulted to lvms-vg1 (altus-only), so a mover scheduled on
+# xandar could never satisfy both PVCs' node constraints at once and sat
+# Pending forever (VolSyncBackupStale, 2026-09-29). synology-iscsi-storage
+# has no node affinity, so the mover can land wherever the source pod is.
+- op: add
+  path: /spec/restic/cacheStorageClassName
+  value: synology-iscsi-storage

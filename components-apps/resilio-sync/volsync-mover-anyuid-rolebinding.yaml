@@ -1,0 +1,19 @@
+# The restic mover's moverSecurityContext (runAsUser: 1024, fsGroup: 100,
+# see backup/config/{local,backblaze}.yaml) needs to match resilio's own
+# PUID/PGID to read the config files it owns -- outside the restricted-v2
+# SCC's allowed UID range, so the mover SAs need anyuid like the main app.
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: resilio-sync-volsync-mover-anyuid
+subjects:
+  - kind: ServiceAccount
+    name: volsync-src-config-backup
+    namespace: resilio-sync
+  - kind: ServiceAccount
+    name: volsync-src-config-backup-b2
+    namespace: resilio-sync
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "system:openshift:scc:anyuid"

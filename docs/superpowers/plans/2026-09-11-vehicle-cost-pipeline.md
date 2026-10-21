@@ -1,5 +1,7 @@
 # Vehicle Cost Pipeline (Gitea #16) Implementation Plan
 
+> **Historical:** `containers/vehicle-pipeline/` paths below refer to this repo before the 2026-10-07 extraction. The code now lives at https://git.janz.digital/jonas/vehicle-pipeline (full history preserved).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a new home-ops service that watches Paperless for new/updated vehicle documents (Multivan + ID.4), extracts cost data via the shared LiteLLM gateway, and lands **drafts only** in a review queue that Jonas approves before anything is written to MyGarage.

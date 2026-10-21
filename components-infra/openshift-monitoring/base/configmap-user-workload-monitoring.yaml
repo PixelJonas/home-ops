@@ -6,6 +6,9 @@ metadata:
 data:
   config.yaml: |
     prometheus:
+      # Default is 24h; VolSyncBackupStale needs >26h of history (offset
+      # guard + 26h window). 7d keeps a week of headroom on the 40Gi PVC.
+      retention: 7d
       volumeClaimTemplate:
         spec:
           storageClassName: lvms-vg1
