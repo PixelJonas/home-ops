@@ -12,6 +12,9 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          labels:
+            app: defrag-etcd
         spec:
           containers:
             - name: defrag-etcd

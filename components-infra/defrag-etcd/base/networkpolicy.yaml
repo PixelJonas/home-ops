@@ -1,0 +1,15 @@
+# openshift-etcd has a `default-deny` NetworkPolicy (ingress+egress). Without this,
+# the job pod can't reach the API server (172.30.0.1:443 i/o timeout) and every
+# run silently did nothing. Mirrors the operator's own `allow-all-egress` policy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-defrag-etcd-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: defrag-etcd
+  policyTypes:
+    - Egress
+  egress:
+    - {}
