@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: taxbuddy-db-migrate
+  namespace: taxbuddy
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"

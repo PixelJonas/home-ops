@@ -1,0 +1,231 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vehicle-pipeline-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: vehicle-pipeline
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.2.1
+    helm:
+      values: |-
+        defaultPodOptions:
+          imagePullSecrets:
+            - name: vehicle-pipeline-ghcr-pull-secret
+
+        controllers:
+          app:
+            replicas: 1
+            containers:
+              app:
+                image:
+                  repository: ghcr.io/pixeljonas/vehicle-pipeline
+                  tag: latest
+                  pullPolicy: Always
+                env:
+                  TZ: Europe/Berlin
+                  # Approved review items land in the local
+                  # vehicle_pipeline.costs table (Vollkostenrechnung P1).
+                  # The "mygarage" sink was removed with MyGarage itself.
+                  COST_SINK: local
+                  # Paperless tags (generic labels) per vehicle slug that
+                  # mark a document for ingest: the plain vehicle tags plus
+                  # the -auto tags of the old Paperless workflow. Tags not
+                  # present in Paperless are ignored. Documents that already
+                  # have a review item or cost are never re-ingested; older
+                  # documents are picked up by the backfill CLI
+                  # (python -m vehicle_pipeline.backfill, see app README).
+                  VEHICLE_TAGS: >-
+                    {"multivan": ["Fahrzeug:Multivan", "Fahrzeug:Multivan-auto"],
+                    "id4": ["Fahrzeug:ID4", "Fahrzeug:ID4-auto"]}
+                  # Extraction model (LiteLLM alias); kimi-k3 falls back to claude-sonnet-5
+                  # in LiteLLM. gpt-5-nano 429s while the OpenAI account has no credits.
+                  LITELLM_MODEL: kimi-k3
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: vehicle-pipeline-db-app-secret
+                        key: uri
+                  PAPERLESS_URL:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: PAPERLESS_URL}
+                  PAPERLESS_TOKEN:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: PAPERLESS_TOKEN}
+                  PAPERLESS_WEBHOOK_SECRET:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: PAPERLESS_WEBHOOK_SECRET}
+                  LITELLM_BASE_URL:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: LITELLM_BASE_URL}
+                  LITELLM_API_KEY:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: LITELLM_API_KEY}
+                  MYGARAGE_VEHICLES:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_VEHICLES}
+                  # New consumer hand-off receiver (ingestbuddy#12, additive
+                  # only -- see components-apps/vehicle-pipeline's other env
+                  # vars above, all still live): signed POST from
+                  # ingestbuddy's VehicleSink at /webhooks/ingestbuddy-handoff.
+                  INGESTBUDDY_HANDOFF_SECRET:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: INGESTBUDDY_HANDOFF_SECRET}
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet: {path: /healthz, port: 8000}
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet: {path: /healthz, port: 8000}
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+          # Vollkostenrechnung trip detector: same image, own entrypoint and
+          # env contract (vehicle_pipeline/trips/settings.py -- needs no
+          # Paperless/LiteLLM/MyGarage vars). Captures odometer readings and
+          # phone drive spans from Home Assistant into the `trips` schema of
+          # the same database and recomputes the trips projection every 60 s.
+          detector:
+            replicas: 1
+            strategy: Recreate
+            containers:
+              app:
+                image:
+                  repository: ghcr.io/pixeljonas/vehicle-pipeline
+                  tag: latest
+                  pullPolicy: Always
+                command: ["python", "-m", "vehicle_pipeline.trips.detector"]
+                env:
+                  TZ: Europe/Berlin
+                  TRIP_POLL_INTERVAL: "60"
+                  # Business/private notification per closed trip (ADR 0003
+                  # in containers/trip-enricher/docs/adr). Recipients: the
+                  # person(s) with "notify": true in TRIP_PHONES (secret).
+                  # Trips that ended before the first notify-enabled start
+                  # are never notified (cutoff persisted in
+                  # trips.notify_state).
+                  TRIP_NOTIFY_ENABLED: "true"
+                  TRIP_NOTIFY_MAX_PER_CYCLE: "5"
+                  # Deep link base for the notification (the trips page);
+                  # optional -- without it the notification has no link.
+                  PUBLIC_BASE_URL:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-notify-config, key: PUBLIC_BASE_URL}
+                  HEARTBEAT_FILE: /tmp/vehicle-pipeline-detector-heartbeat
+                  # Vehicle slug (= vehicle_pipeline.vehicles.id) -> HA
+                  # odometer entity of the VW EU Data Act feed. Not in the
+                  # trip-enricher vehicle secret, and entity IDs are not
+                  # secrets; a per-vehicle `odometer_entity` key in that
+                  # secret would also work and is overridden by this map.
+                  TRIP_ODOMETER_ENTITIES: >-
+                    {"multivan": "sensor.dieselboi_mileage",
+                    "id4": "sensor.electricboi_mileage"}
+                  # Home charging costs (vehicle-pipeline #26): the detector
+                  # polls the myenergi Zappi ("Chargeboi") sensors for
+                  # finished sessions (plug-disconnect transition) and writes
+                  # one charging cost row per session. Entity IDs are not
+                  # secrets (same precedent as TRIP_ODOMETER_ENTITIES);
+                  # vehicle_id is the vehicle_pipeline.vehicles.id slug.
+                  ZAPPI_CHARGERS: >-
+                    [{"slug": "chargeboi",
+                    "vehicle_id": "id4",
+                    "plug_entity": "sensor.myenergi_chargeboi_plug_status",
+                    "energy_entity": "sensor.myenergi_chargeboi_charge_added_session"}]
+                  # Annual BMF flat rate per kWh, elected for the whole
+                  # calendar year (vehicle-pipeline #6). Year map: refresh
+                  # each January when the BMF republishes the rate; a session
+                  # year missing from the map is skipped (logged), never
+                  # priced at a wrong rate.
+                  ZAPPI_RATE_PER_KWH: '{"2026": "0.34"}'
+                  DATABASE_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: vehicle-pipeline-db-app-secret
+                        key: uri
+                  # Vehicle registry (VIN -> slug), the same one the app
+                  # upserts into vehicle_pipeline.vehicles.
+                  VEHICLES:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: MYGARAGE_VEHICLES}
+                  HA_URL:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-trip-config, key: HA_URL}
+                  HA_TOKEN:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-trip-config, key: HA_TOKEN}
+                  TRIP_VEHICLES:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-trip-config, key: TRIP_VEHICLES}
+                  TRIP_PHONES:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-trip-config, key: TRIP_PHONES}
+                # Heartbeat-file liveness, mirrored from mygarage's
+                # trip-enricher (components-apps/mygarage/mygarage-chart-app.yaml).
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - /bin/sh
+                          - -c
+                          - test "$(( $(date +%s) - $(stat -c %Y /tmp/vehicle-pipeline-detector-heartbeat) ))" -lt 300
+                      initialDelaySeconds: 30
+                      periodSeconds: 30
+                      timeoutSeconds: 5
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      exec:
+                        command:
+                          - test
+                          - -f
+                          - /tmp/vehicle-pipeline-detector-heartbeat
+                      initialDelaySeconds: 15
+                      periodSeconds: 15
+                      timeoutSeconds: 5
+        # No public Ingress/Route at all -- Paperless is itself deployed
+        # in-cluster (components-apps/paperless, same as taxbuddy, whose
+        # live "Tax Agent Ingest" workflow calls its webhook at
+        # http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000,
+        # confirmed via GET /api/workflows/2 -- not a public URL), so
+        # /webhooks needs no public exposure either. /healthz is only ever
+        # hit by kubelet's own probe directly against the pod's container
+        # port, never through a Service/Ingress. /review is reachable only
+        # via the Tailscale-operator-exposed Service below (mirrors
+        # pricing-tool's `pricing-tool` service -- "already gated by
+        # tailnet membership" per that file's own comment); Caddy on the
+        # Synology (itself tailnet-joined) reverse-proxies a public
+        # app.janz.digital domain to it with Authelia forward-auth in
+        # front (infra-ops docs/authelia-sso-forward-auth-2026-08-31.md).
+        service:
+          app:
+            controller: app
+            annotations:
+              tailscale.com/expose: "true"
+              tailscale.com/hostname: "vehicle-pipeline"
+            ports:
+              http:
+                port: 8000
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

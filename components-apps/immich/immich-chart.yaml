@@ -12,18 +12,37 @@ spec:
   source:
     chart: app-template
     repoURL: https://bjw-s-labs.github.io/helm-charts
-    targetRevision: 5.1.0
+    targetRevision: 5.2.1
     helm:
       values: |-
 
         controllers:
           server:
+            pod:
+              # Prefer the worker node xandar (altus is CPU-saturated); falls
+              # back to altus if xandar is unavailable. No node-local volumes.
+              affinity: &preferXandar
+                nodeAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                    - weight: 100
+                      preference:
+                        matchExpressions:
+                          - key: kubernetes.io/hostname
+                            operator: In
+                            values:
+                              - xandar
             containers:
               server:
                 image:
                   repository: ghcr.io/immich-app/immich-server
-                  tag: v3.1.0
+                  tag: v3.2.2
                   pullPolicy: IfNotPresent
+                # Sized from 7d usage (2026-09-29); requests only so the
+                # scheduler accounts for immich's load, no limits.
+                resources:
+                  requests:
+                    cpu: 250m
+                    memory: 1536Mi
                 env:
                   DB_DATABASE_NAME: immich
                   IMMICH_IGNORE_MOUNT_CHECK_ERRORS: true
@@ -40,21 +59,37 @@ spec:
                         name: immich-credentials
                         key: password
           machine-learning:
+            pod:
+              affinity: *preferXandar
             containers:
               machine-learning:
                 image:
                   repository: ghcr.io/immich-app/immich-machine-learning
                   tag: v3.1.0
                   pullPolicy: IfNotPresent
+                # Sized from 7d usage (2026-09-29); requests only so the
+                # scheduler accounts for immich's load, no limits.
+                resources:
+                  requests:
+                    cpu: 250m
+                    memory: 1Gi
                 env:
                   REDIS_HOSTNAME: immich-app-redis.immich.svc.cluster.local
           redis:
+            pod:
+              affinity: *preferXandar
             containers:
               redis:
                 image:
                   repository: ghcr.io/valkey-io/valkey
-                  tag: 9.1.1
+                  tag: 9.2
                   pullPolicy: IfNotPresent
+                # Sized from 7d usage (2026-09-29); requests only so the
+                # scheduler accounts for immich's load, no limits.
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 64Mi
           database:
             containers:
               database:
@@ -62,6 +97,12 @@ spec:
                   repository: ghcr.io/immich-app/postgres
                   tag: 17-vectorchord0.3.0-pgvectors0.3.0
                   pullPolicy: IfNotPresent
+                # Sized from 7d usage (2026-09-29); requests only so the
+                # scheduler accounts for immich's load, no limits.
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 384Mi
                 env:
                   POSTGRES_DB: immich
                   POSTGRES_INITDB_ARGS: '--data-checksums'
@@ -121,15 +162,26 @@ spec:
                 server:
                   - path: /data
             existingClaim: immich-app-library
+          # cache (NFS) is only used by server + machine-learning (ML model
+          # cache). database (lvms-vg1, node-local to altus) is mounted ONLY
+          # by the database controller -- a globalMount here pinned every
+          # immich pod to altus.
           cache:
             enabled: true
-            globalMounts:
-              - path: /cache
+            advancedMounts:
+              server:
+                server:
+                  - path: /cache
+              machine-learning:
+                machine-learning:
+                  - path: /cache
             existingClaim: immich-app-cache
           database:
             enabled: true
-            globalMounts:
-              - path: /var/lib/postgresql/data
+            advancedMounts:
+              database:
+                database:
+                  - path: /var/lib/postgresql/data
             accessMode: ReadWriteOnce
             storageClass: lvms-vg1
             size: 20Gi

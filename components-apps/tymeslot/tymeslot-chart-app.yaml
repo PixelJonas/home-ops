@@ -12,7 +12,7 @@ spec:
   source:
     chart: app-template
     repoURL: https://bjw-s-labs.github.io/helm-charts
-    targetRevision: 5.1.0
+    targetRevision: 5.2.1
     helm:
       values: |-
 
@@ -27,7 +27,7 @@ spec:
               tymeslot:
                 image:
                   repository: luka1thb/tymeslot
-                  tag: "1.15.3"
+                  tag: "1.16.1"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
