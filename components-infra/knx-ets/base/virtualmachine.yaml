@@ -1,0 +1,65 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: windows-11-virtio-ets
+  namespace: knx-ets
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  instancetype:
+    kind: virtualmachineclusterinstancetype
+    name: o1.large
+  preference:
+    kind: VirtualMachineClusterPreference
+    name: windows.11.virtio
+  runStrategy: Halted
+  template:
+    metadata:
+      labels:
+        network.kubevirt.io/headlessService: headless
+    spec:
+      architecture: amd64
+      domain:
+        features:
+          hyperv:
+            # Reenlightenment makes KubeVirt pin the VM to the cluster's
+            # lowest TSC frequency (xandar, 3.0GHz) via a scheduling label
+            # that altus (3.6GHz, non-scalable) doesn't carry — the VM can
+            # never leave altus anyway (USB dongle + LVMS-local disks), so
+            # migration-time TSC fixes are moot.
+            reenlightenment:
+              enabled: false
+        devices:
+          autoattachPodInterface: false
+          disks:
+            - bootOrder: 1
+              name: rootdisk
+            - cdrom:
+                bus: sata
+              name: windows-drivers-disk
+          hostDevices:
+            - deviceName: kubevirt.io/knx-license-stick
+              name: knx-license-stick
+          interfaces:
+            - macAddress: 02:e7:4f:bd:a6:37
+              masquerade: {}
+              name: default
+        firmware:
+          # BitLocker/vTPM in the guest depends on these staying stable.
+          serial: 31a1b417-aac4-494e-994d-0efc68fc5673
+          uuid: b73ae2a8-c599-45f0-9830-33e50088fae3
+        machine:
+          type: pc-q35-rhel9.6.0
+        resources: {}
+      networks:
+        - name: default
+          pod: {}
+      subdomain: headless
+      volumes:
+        - persistentVolumeClaim:
+            claimName: windows-11-virtio-ets-volume
+          name: rootdisk
+        - containerDisk:
+            image: registry.redhat.io/container-native-virtualization/virtio-win-rhel9@sha256:e38fa87ca295c7f750e207b5c29ea9e4c784e51a2e9a365719cd6e45d55642e6
+          name: windows-drivers-disk

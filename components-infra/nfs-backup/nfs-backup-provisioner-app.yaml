@@ -28,6 +28,15 @@ spec:
           onDelete: retain
           pathPattern: "${.PVC.namespace}-${.PVC.name}"
           accessModes: ReadWriteMany
+
+        # Altus is single-node OpenShift; this Deployment runs replicaCount: 1
+        # with strategyType: Recreate, so leader election protects against a
+        # multi-writer scenario that can never occur here. With it on, a brief
+        # kube-apiserver restart (which happens on every control-plane update
+        # on a single-node cluster) makes the pod fail to renew its lease and
+        # exit fatally ("Leaderelection lost"), crash-looping for no benefit.
+        leaderElection:
+          enabled: false
   destination:
     server: "https://kubernetes.default.svc"
     namespace: nfs-provisioner

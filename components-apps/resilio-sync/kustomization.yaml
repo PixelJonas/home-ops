@@ -5,5 +5,7 @@ resources:
   - namespace.yaml
   - anyuid-rolebinding.yaml
   - privileged-rolebinding.yaml
+  - volsync-mover-anyuid-rolebinding.yaml
   - resilio-sync-app.yaml
+  - local-storage.yaml
   - backup
