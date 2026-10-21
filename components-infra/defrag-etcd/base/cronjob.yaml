@@ -3,7 +3,12 @@ kind: CronJob
 metadata:
   name: defrag-etcd
 spec:
-  schedule: "0 11 * * *"
+  # Night slot: a defrag blocks the (single) etcd member while it rewrites the DB.
+  # Runs before the 03:00 UTC backup jobs and only defrags when fragmentation is
+  # meaningful (see script). Was "0 11 * * *" (daily, unconditional, mid-day).
+  schedule: "30 2 * * *"
+  timeZone: Europe/Berlin
+  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       template:
@@ -12,14 +17,48 @@ spec:
             - name: defrag-etcd
               image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.22@sha256:58e37785e922707a6f47cdbd415dbfa3ffa33c657a6e807aadacc9bc7ed2e0cd
               imagePullPolicy: IfNotPresent
+              env:
+                # Defrag only if (dbSize - dbSizeInUse) exceeds BOTH thresholds.
+                - name: MIN_FRAG_BYTES
+                  value: "209715200" # 200 MiB
+                - name: MIN_FRAG_PERCENT
+                  value: "40"
+                # "1" = log the decision, never defrag (for manual test runs).
+                - name: DRY_RUN
+                  value: "0"
               command:
                 - /bin/bash
                 - -c
                 - |
                   #!/usr/bin/env bash
+                  set -euo pipefail
 
-                  oc get pods -l app=etcd -n openshift-etcd --no-headers -o custom-columns=":metadata.name" | while read -r pod ; do
-                      oc exec -n openshift-etcd $pod --container etcdctl  -- sh -c "unset ETCDCTL_ENDPOINTS && etcdctl --command-timeout=30s --endpoints=https://localhost:2379 defrag"
+                  ETCDCTL='unset ETCDCTL_ENDPOINTS && etcdctl --command-timeout=30s --endpoints=https://localhost:2379'
+
+                  pods=$(oc get pods -l app=etcd -n openshift-etcd --no-headers -o custom-columns=":metadata.name")
+                  [ -n "$pods" ] || { echo "no etcd pods found"; exit 1; }
+
+                  for pod in $pods; do
+                      status=$(oc exec -n openshift-etcd "$pod" --container etcdctl -- sh -c "$ETCDCTL endpoint status -w json")
+                      size=$(grep -o '"dbSize":[0-9]*' <<<"$status" | head -1 | cut -d: -f2 || true)
+                      inuse=$(grep -o '"dbSizeInUse":[0-9]*' <<<"$status" | head -1 | cut -d: -f2 || true)
+                      if [ -z "$size" ] || [ -z "$inuse" ] || [ "$size" -le 0 ]; then
+                          echo "$pod: could not parse endpoint status, not defragging"
+                          exit 1
+                      fi
+                      frag=$(( size - inuse ))
+                      pct=$(( frag * 100 / size ))
+                      echo "$pod: dbSize=$size dbSizeInUse=$inuse fragmented=$frag (${pct}%) thresholds: >${MIN_FRAG_BYTES} bytes and >${MIN_FRAG_PERCENT}%"
+                      if [ "$frag" -gt "$MIN_FRAG_BYTES" ] && [ "$pct" -gt "$MIN_FRAG_PERCENT" ]; then
+                          if [ "$DRY_RUN" = "1" ]; then
+                              echo "$pod: above threshold, DRY_RUN=1 so skipping defrag"
+                          else
+                              echo "$pod: above threshold, defragmenting"
+                              oc exec -n openshift-etcd "$pod" --container etcdctl -- sh -c "$ETCDCTL defrag"
+                          fi
+                      else
+                          echo "$pod: below threshold, skipping defrag"
+                      fi
                   done
           serviceAccountName: defrag-etcd
           restartPolicy: OnFailure
