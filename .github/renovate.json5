@@ -53,11 +53,11 @@
       ],
       matchStrings: [
         // prettier-ignore
-        " *repository: *'?\"?(?<depName>.*?)'?\"?\n *tag: *'?\"?(?<currentValue>.*)'?\"?\n",
+        " *repository: *'?\"?(?<depName>.*?)'?\"?\n *tag: *'?\"?(?<currentValue>[^'\"\n]+)'?\"?\n",
         // prettier-ignore
-        " *repository: *'?\"?(?<depName>.*?)'?\"?\n *pullPolicy:.*\n *tag: *'?\"?(?<currentValue>.*)'?\"?\n",
+        " *repository: *'?\"?(?<depName>.*?)'?\"?\n *pullPolicy:.*\n *tag: *'?\"?(?<currentValue>[^'\"\n]+)'?\"?\n",
         // prettier-ignore
-        " *containerRepo=*'?\"?(?<depName>.*?)'?\"?\n *tag: '?\"?(?<currentValue>.*)'?\"?\n",
+        " *containerRepo=*'?\"?(?<depName>.*?)'?\"?\n *tag: '?\"?(?<currentValue>[^'\"\n]+)'?\"?\n",
       ],
       datasourceTemplate: "docker",
       versioningTemplate: "semver-coerced",

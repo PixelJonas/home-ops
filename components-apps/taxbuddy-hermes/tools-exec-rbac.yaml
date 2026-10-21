@@ -1,0 +1,48 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: taxbuddy-hermes-tools-exec
+  namespace: taxbuddy-hermes
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+rules:
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - pods/exec
+    verbs:
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: taxbuddy-hermes-tools-exec
+  namespace: taxbuddy-hermes
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: taxbuddy-hermes-tools-exec
+subjects:
+  # Same ServiceAccount the taxbuddy-hermes-app pod runs under. Used by the
+  # tools sidecar's kubectl for ad-hoc admin/debug exec into the hermes
+  # container (mirrors taxbuddy's agent-runtime-hermes-exec-rbac.yaml
+  # pattern, but self-namespace). The Hermes TUI itself runs natively in
+  # the sidecar and does not depend on this grant.
+  - kind: ServiceAccount
+    name: taxbuddy-hermes-app
+    namespace: taxbuddy-hermes

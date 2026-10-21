@@ -15,7 +15,7 @@ only covers what changed or was learned *after* that plan was written.
 
 ## TL;DR — what actually works right now
 
-The `vehicle-pipeline` service (`containers/vehicle-pipeline/`,
+The `vehicle-pipeline` service (source now in `https://git.janz.digital/jonas/vehicle-pipeline`; was `containers/vehicle-pipeline/`,
 `components-apps/vehicle-pipeline/`) is deployed on Altus, running, and has
 been proven end-to-end against real documents: Paperless webhook + poll
 reconciliation → LiteLLM extraction → taxonomy mapping → human-reviewed

@@ -27,14 +27,40 @@ spec:
           extraVolumes:
             - name: dind-storage
               emptyDir: {}
+          # Requests only, no limits: unset = BestEffort, which starves dind's
+          # 1s exec liveness probe under CI load; a cap would OOM-kill job builds.
+          # Runner/dind write-up: infra-ops repo .claude/rules/kubernetes-argocd.md
+          runner:
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+            # Whole-dir mount + DOCKER_HOST, not the chart's subPath docker.sock
+            # mount (pinned at start -> dead socket after a dind restart). Same
+            # path in dind so socket bind mounts into job containers resolve.
+            extraVolumeMounts:
+              - name: docker-socket
+                mountPath: /docker-sock
+            extraEnvs:
+              - name: DOCKER_HOST
+                value: unix:///docker-sock/docker.sock
           dind:
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
             extraVolumeMounts:
               - name: dind-storage
                 mountPath: /var/lib/docker
+              - name: docker-socket
+                mountPath: /docker-sock
             extraArgs:
               - --mtu=1400
               - --storage-driver=vfs
               - --default-network-opt=bridge=com.docker.network.driver.mtu=1400
+              # Pod ndots:5 + search domains make musl apk/wget fail ("DNS: no
+              # address for host") on 2-dot names; ndots:1 resolves FQDNs as-is.
+              - --dns-opt=ndots:1
 
   project: cluster-apps
   syncPolicy:

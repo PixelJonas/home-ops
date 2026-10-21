@@ -1,0 +1,23 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: ingestbuddy-db-app-secret
+  namespace: ingestbuddy
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: ingestbuddy-db-app-secret
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: "ingestbuddy"
+        password: "{{ .password }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: INGESTBUDDY_POSTGRES_PASSWORD
