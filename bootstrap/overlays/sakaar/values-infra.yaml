@@ -60,23 +60,13 @@ applications:
     source:
       path: components-infra/claude-admin/base
 
-  hermes-infra-agent:
+  openshift-monitoring:
     annotations:
-      argocd.argoproj.io/sync-wave: "11"
+      argocd.argoproj.io/sync-wave: "1"
+    destination:
+      namespace: openshift-monitoring
     source:
-      path: components-infra/hermes-infra-agent/base
-
-  hermes-upgrade-agent:
-    annotations:
-      argocd.argoproj.io/sync-wave: "11"
-    source:
-      path: components-infra/hermes-upgrade-agent/base
-
-  hermes-argocd-agent:
-    annotations:
-      argocd.argoproj.io/sync-wave: "11"
-    source:
-      path: components-infra/hermes-argocd-agent/base
+      path: components-infra/openshift-monitoring/overlays/sakaar
 
   rbac:
     annotations:
@@ -149,13 +139,21 @@ applications:
     source:
       path: components-infra/gha-runner-scale-set-tymeslot/base
 
-  gha-runner-scale-set-devland-editor-agent:
+  gha-runner-scale-set-ingestbuddy:
     annotations:
       argocd.argoproj.io/sync-wave: "3"
     destination:
       namespace: arc-runners
     source:
-      path: components-infra/gha-runner-scale-set-devland-editor-agent/base
+      path: components-infra/gha-runner-scale-set-ingestbuddy/base
+
+  gha-runner-scale-set-private-ops:
+    annotations:
+      argocd.argoproj.io/sync-wave: "3"
+    destination:
+      namespace: arc-runners
+    source:
+      path: components-infra/gha-runner-scale-set-private-ops/base
 
   tailscale-operator:
     annotations:
@@ -182,14 +180,6 @@ applications:
       namespace: devland
     source:
       path: components-apps/devland/base
-
-  devland-editor-agent:
-    annotations:
-      argocd.argoproj.io/sync-wave: "4"
-    destination:
-      namespace: devland
-    source:
-      path: components-apps/devland-editor-agent/base
 
   registry:
     annotations:

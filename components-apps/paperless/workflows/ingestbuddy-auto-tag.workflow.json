@@ -1,0 +1,19 @@
+{
+  "_comment": "Applied by the paperless-workflows-apply Job alongside pipeline-intake.workflow.json (ingestbuddy#9 Phase A). Tags every NEW document (web UI upload, API upload incl. the mobile app, mail fetch, and also the consume folder -- Paperless 3.2 ignores trigger 'sources' for Document Added) with ingestbuddy:eingang so the intake workflow ('pipeline:eingang intake', order 3) fires its ingestbuddy webhook. Trigger is Document Added (type 2) only -- never Document Updated -- because Added fires solely from document_consumption_finished, so the ~1,700 pre-existing documents are never retagged. The trigger excludes ingestbuddy:verarbeitet (ingestbuddy's own uploads arrive via post_document with that tag already applied before the Added signal) and ingestbuddy:eingang (already tagged). Order 0 makes it run before the intake workflow in the same run_workflows(DOCUMENT_ADDED) pass: Paperless writes the assigned tag to the DB immediately and re-reads document tags from the DB when matching each subsequent workflow, so the intake workflow sees the tag on that same Added event and fires exactly once (the tag assignment does not emit document_updated, so the intake workflow's Updated trigger is not re-fired). Like the intake workflow, *_tag_names keys are resolved to tag IDs by apply.py; this file is NOT the raw API shape. Upserted by exact 'name' match -- renaming it here would POST a second workflow. Rollback: set 'enabled' to false (editing this file re-runs the Job via the configMapGenerator hash).",
+  "name": "ingestbuddy:eingang auto-tag",
+  "order": 0,
+  "enabled": true,
+  "triggers": [
+    {
+      "type": 2,
+      "sources": [1, 2, 3, 4],
+      "filter_has_not_tag_names": ["ingestbuddy:verarbeitet", "ingestbuddy:eingang"]
+    }
+  ],
+  "actions": [
+    {
+      "type": 1,
+      "assign_tag_names": ["ingestbuddy:eingang"]
+    }
+  ]
+}

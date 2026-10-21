@@ -24,7 +24,12 @@
 
       echo -----------------------------------
       echo "Backing up $POSTGRES_USER database"
-      kubectl exec deploy/immich-app-database -c database -- /bin/bash -c "PGPASSWORD=$POSTGRES_POSTGRES_PASSWORD pg_dumpall -U postgres" > /backup/backup.sql
+      # Dump to a temp file and only replace backup.sql on success: a failed
+      # dump used to truncate the last good backup.sql, and VolSync then backed
+      # up a 0-byte file (immich, 2026-09-28 03:00 while the app was paused).
+      kubectl exec deploy/immich-app-database -c database -- /bin/bash -c "PGPASSWORD=$POSTGRES_POSTGRES_PASSWORD pg_dumpall -U postgres" > /backup/backup.sql.tmp
+      test -s /backup/backup.sql.tmp
+      mv -f /backup/backup.sql.tmp /backup/backup.sql
       echo -----------------------------------
         ls -lah /backup
       echo -----------------------------------

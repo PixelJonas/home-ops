@@ -12,7 +12,7 @@ spec:
   source:
     chart: nextcloud
     repoURL: https://nextcloud.github.io/helm/
-    targetRevision: 9.2.6
+    targetRevision: 9.3.0
     helm:
       values: |-
         nextcloud:
@@ -62,6 +62,17 @@ spec:
               secure: ssl
               port: 465
               authtype: LOGIN
+
+        # Probe tolerance: Altus has periodic ~30s node-wide stalls where
+        # probes time out across every namespace at once. Chart defaults
+        # (5s x3) restarted the app pod on each stall; tolerate ~60s+.
+        livenessProbe:
+          enabled: true
+          timeoutSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          enabled: true
+          timeoutSeconds: 10
 
         phpClientHttpsFix:
           enabled: true
@@ -113,6 +124,11 @@ spec:
             securityContext:
               runAsUser: 33
               runAsGroup: 33
+            # Chart default backoffLimit 1 retried within a second into the
+            # same mariadb outage (2 Error pods per run). 4 retries with
+            # Job exponential backoff (10s, 20s, 40s, 80s) ride out a DB
+            # restart; concurrencyPolicy Forbid prevents overlap.
+            backoffLimit: 4
 
         persistence:
           enabled: true
@@ -147,6 +163,17 @@ spec:
               enabled: true
               storageClass: lvms-vg1
               size: 10Gi
+            # Bitnami default liveness is timeoutSeconds 1 x3 -- every ~30s
+            # Altus node stall made the exec probe (bash + mariadb-admin)
+            # time out and SIGTERM a healthy mariadb (119 restarts, each a
+            # clean "Normal shutdown", taking cron.php down with it).
+            livenessProbe:
+              enabled: true
+              timeoutSeconds: 10
+              failureThreshold: 6
+            readinessProbe:
+              enabled: true
+              timeoutSeconds: 5
           global:
             compatibility:
               openshift:
@@ -163,11 +190,19 @@ spec:
               enabled: true
               storageClass: lvms-vg1
               size: 2Gi
+            livenessProbe:
+              enabled: true
+              timeoutSeconds: 10
+              failureThreshold: 10
           replica:
             persistence:
               enabled: true
               storageClass: lvms-vg1
               size: 2Gi
+            livenessProbe:
+              enabled: true
+              timeoutSeconds: 10
+              failureThreshold: 10
           global:
             compatibility:
               openshift:

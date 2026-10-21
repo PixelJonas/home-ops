@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    prometheusK8s:
+      retention: 7d
+      retentionSize: 14GB
+      volumeClaimTemplate:
+        spec:
+          storageClassName: lvms-vg1
+          accessModes: [ReadWriteOnce]
+          resources: {requests: {storage: 20Gi}}
