@@ -8,6 +8,11 @@ subjects:
   - kind: ServiceAccount
     name: taxbuddy-hermes-app
     namespace: taxbuddy-hermes
+  # VolSync mover for data-backup must run as uid 10000 (hermes) to read the
+  # 0700 /opt/data tree; VolSync names the mover SA after the source.
+  - kind: ServiceAccount
+    name: volsync-src-data-backup
+    namespace: taxbuddy-hermes
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

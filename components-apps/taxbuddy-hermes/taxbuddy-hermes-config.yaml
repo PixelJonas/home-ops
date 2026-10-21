@@ -14,14 +14,81 @@ data:
   # secret value inlined in config.yaml) for the API key. Webhook platform
   # is opt-in via the WEBHOOK_ENABLED env var (default off), so it is
   # simply left unset here rather than toggled in config.yaml.
+  #
+  # Default model is kimi-k3 at high reasoning effort, falling back to
+  # claude-sonnet-5 (top-level `fallback_model`, same provider/model entry
+  # format, per hermes_cli/config.py's _validate_fallback_model). Effort is
+  # pinned via `agent.reasoning_overrides` rather than relying on hermes'
+  # Kimi detection, which keys off api.kimi.com/moonshot hostnames and so
+  # doesn't fire behind LiteLLM (K3's server-side default is high anyway).
+  # The taxbuddy-hermes LiteLLM virtual key's model allowlist must include
+  # both models — managed via LiteLLM's /key/update API, not GitOps.
+  #
+  # Schema v44 (2026-10-01, image v2026.9.14): the file must carry an
+  # explicit `_config_version`. Without it the image's boot-time
+  # docker_config_migrate.py treats it as v0 (< support floor 12) and logs
+  # "can no longer be auto-migrated" on every boot, since the init
+  # container reseeds this unversioned file each time. The v44 shape below
+  # is exactly what hermes' own migrate_config() produces from the old
+  # config: `custom_providers` list -> `providers` map (still referenced as
+  # `custom:litellm`). Its other v12->v44 steps (plugins opt-in,
+  # verify_on_stop: false) match the already-effective defaults, so they're
+  # omitted. Bump `_config_version` when bumping the image tag.
+  #
+  # `memory.provider: honcho` is what actually activates the Honcho plugin
+  # (agent/agent_init.py); honcho.json alone only configures it. Without it
+  # Honcho memory was never active (taxbuddy workspace had 0 sessions as of
+  # 2026-10-01). The plugin lazy-installs honcho-ai into
+  # $HERMES_LAZY_INSTALL_TARGET (/opt/data/lazy-packages, on the PVC) on
+  # first use — see the dnsConfig note in taxbuddy-hermes-app.yaml.
+  #
+  # `plugins.enabled: [moshi-hooks]` must live HERE (not just in the PVC
+  # copy) because the init-config container reseeds config.yaml from this
+  # ConfigMap on every pod start, which would otherwise wipe the entry that
+  # `moshi-hook install --target hermes` writes. The plugin files
+  # ($HERMES_HOME/plugins/moshi-hooks/) persist on the PVC; they are written
+  # once by running `moshi-hook install --target hermes` in the tools
+  # sidecar after deploy (GitOps can't run it for us because the plugin
+  # embeds the absolute helper path /opt/tools-bin/moshi-hook).
   config.yaml: |
+    _config_version: 44
     model:
-      default: claude-sonnet-5
+      default: kimi-k3
       provider: custom:litellm
-    custom_providers:
-      - name: litellm
-        base_url: http://litellm-app.litellm.svc:4000/v1
+    fallback_model:
+      provider: custom:litellm
+      model: claude-sonnet-5
+    agent:
+      reasoning_overrides:
+        kimi-k3: high
+    memory:
+      provider: honcho
+    plugins:
+      enabled:
+        - moshi-hooks
+        # herdr's agent-state integration (installed post-deploy via
+        # `herdr integration install hermes` in the tools sidecar) — lets the
+        # pod's herdr server detect/lifecycle-track Hermes sessions in its
+        # panes. Same reseed reasoning as moshi-hooks above.
+        - herdr-agent-state
+    providers:
+      litellm:
+        name: litellm
+        api: http://litellm-app.litellm.svc:4000/v1
         key_env: LITELLM_API_KEY
+    # Read-only document lookup (taxbuddy#154, ADR-0024): Paperless
+    # search/get + Qdrant semantic search over ingestbuddy's chunks.
+    # Tools surface as mcp__taxbuddy_lookup__<tool>.
+    mcp_servers:
+      taxbuddy-lookup:
+        url: http://taxbuddy-app-lookup-mcp.taxbuddy.svc:8000/mcp
+        headers:
+          Authorization: "Bearer ${LOOKUP_MCP_TOKEN}"
+        timeout: 60
+        connect_timeout: 30
+        tools:
+          resources: false
+          prompts: false
   # Live finding (Task 6 verification, 2026-07-30): Honcho config is NOT
   # part of config.yaml's schema — it's a separate file read from
   # $HERMES_HOME/honcho.json, confirmed by reading
@@ -35,6 +102,9 @@ data:
   # Honcho's app-template deployment has three controllers (honcho,
   # deriver, openconcho), which gets it the <release>-<controller>
   # service-naming form.
+  # timeout: honcho's dialectic endpoint takes 30-170s under load
+  # (66k-91k token contexts, per server-side PERFORMANCE logs) — the
+  # plugin's 30s default HTTP timeout caused "cannot connect to honcho".
   honcho.json: |
     {
       "workspace": "taxbuddy",
@@ -42,7 +112,8 @@ data:
       "aiPeer": "taxbuddy-hermes",
       "baseUrl": "http://honcho-app-honcho.honcho.svc:8000",
       "environment": "production",
-      "enabled": true
+      "enabled": true,
+      "timeout": 180
     }
   # Live finding (Task 6 verification, 2026-07-30): the tax-advisor persona
   # is NOT a system_prompt config key — it's a separate plain-text file,
@@ -61,3 +132,41 @@ data:
     außergewöhnliche Belastungen) und halte die Antworten über das
     Honcho-Memory-Tool (honcho_conclude) aktuell. Frage proaktiv nach, wenn
     ein Umstand unklar oder veraltet wirkt, statt zu raten.
+
+    # taxbuddy#176 (2026-10-09): teach Hermes the [REOCR] kanban channel from
+    # ADR-0026 — Hermes emits the text-quality assessment as data; the trigger
+    # stays in agent_runtime code (threshold + cooldown), lookup-mcp stays
+    # read-only (ADR-0023/0024).
+    ## OCR-Textqualität beurteilen: [REOCR]-Karten
+
+    Wenn du bei der Untersuchung eines Dokuments den OCR-Text liest (über
+    `semantic_search` → `raw_text` der Chunks oder `paperless_get_document` →
+    `content`), beurteile seine Qualität. Der Text ist schlecht, wenn er fehlt,
+    stark verstümmelt ist (Zeichensalat, zerhackte Wörter) oder mitten im
+    Dokument abbricht — bei Dokumenten mit mehr als 5 Seiten endet der
+    paperless-gpt-Text grundsätzlich nach Seite 5.
+
+    Wenn die Qualität schlecht ist (Score unter 0,4), lege GENAU EINE
+    Kanban-Karte an:
+
+    hermes kanban create "[REOCR] <paperless_doc_id> <kurzer Grund>" --body '```json
+    {"paperless_doc_id": <id>, "score": <0.0-1.0>, "reason": "<konkrete Begründung>"}
+    ```'
+
+    Regeln:
+    - Score: 0,0 = unbrauchbar/fehlt, 1,0 = sauber. Lege nur Karten mit
+      Score < 0,4 an — ab 0,4 wird die Karte kommentarlos geschlossen.
+    - Der JSON-Block muss exakt diese drei Felder haben (paperless_doc_id:
+      ganze Zahl, score: Zahl 0–1, reason: nicht-leerer Text). Sonst wird die
+      Karte als unlesbar geschlossen, ohne dass etwas passiert.
+    - Prüfe vorher, ob für dasselbe Dokument schon eine offene [REOCR]-Karte
+      existiert, und lege keine zweite an. Nach einem Re-OCR gilt eine
+      24-Stunden-Sperrfrist pro Dokument.
+    - Du löst damit NICHTS selbst aus: agent_runtime wertet die Karte aus,
+      fordert bei ingestbuddy ein vollständiges Re-OCR des ganzen Dokuments
+      an, wartet auf das Ergebnis und verarbeitet das Dokument danach neu.
+      Du siehst den Ausgang als Kommentar auf der Karte; sie wird
+      automatisch geschlossen.
+    - Ein Re-OCR ist teuer (jede Seite wird per Vision-Modell neu
+      transkribiert). Beurteile deshalb so konkret wie möglich, z. B.
+      „Text endet nach Seite 5 von 12" statt „sieht komisch aus".

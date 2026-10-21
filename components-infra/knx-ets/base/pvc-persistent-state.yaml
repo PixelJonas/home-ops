@@ -1,0 +1,22 @@
+# Persistent TPM/EFI state PVC for the windows-11-virtio-ets VM. KubeVirt's
+# persistent-state feature looks up this PVC by the `persistent-state-for`
+# label; the original was auto-created with a generateName suffix, so
+# pre-creating it with the label makes KubeVirt adopt it. The swtpm TPM
+# state is restored from backup out-of-band before the VM is first started.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: persistent-state-for-windows-11-virtio-ets
+  namespace: knx-ets
+  labels:
+    persistent-state-for: windows-11-virtio-ets
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  storageClassName: lvms-vg1
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 300Mi

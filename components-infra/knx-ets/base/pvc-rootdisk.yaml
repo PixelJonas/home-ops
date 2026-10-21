@@ -1,0 +1,18 @@
+# Root disk for the windows-11-virtio-ets VM. The PVC starts out empty; the
+# disk contents (disk.img, ~56GiB raw image at the PVC root) are restored
+# from the NAS backup tar out-of-band before the VM is first started.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: windows-11-virtio-ets-volume
+  namespace: knx-ets
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  storageClassName: lvms-vg1
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 64Gi

@@ -1,0 +1,40 @@
+# Restrict the KNX-MCP endpoint (TCP 51900) to the knowhere namespace, where
+# the Claude Code instances that drive ETS run. KNX-MCP can edit the ETS
+# project and program devices on the bus, so no other pod should reach it.
+#
+# Every other port keeps today's behaviour (allowed from anywhere) via the
+# port-range rules below — this policy narrows exactly one port and nothing
+# else. Replies to connections the VM initiates (e.g. KNXnet/IP tunnelling
+# to the bus gateway) are unaffected either way.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knx-mcp-ingress
+  namespace: knx-ets
+spec:
+  podSelector:
+    matchLabels:
+      vm.kubevirt.io/name: windows-11-virtio-ets
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: knowhere
+      ports:
+        - protocol: TCP
+          port: 51900
+    - ports:
+        - protocol: TCP
+          port: 1
+          endPort: 51899
+        - protocol: TCP
+          port: 51901
+          endPort: 65535
+        - protocol: UDP
+          port: 1
+          endPort: 65535
+        - protocol: SCTP
+          port: 1
+          endPort: 65535

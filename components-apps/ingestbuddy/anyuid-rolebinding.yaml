@@ -1,0 +1,23 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ingestbuddy-anyuid
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+subjects:
+  - kind: ServiceAccount
+    name: ingestbuddy-app
+    namespace: ingestbuddy
+  # migration-job.yaml's wave-105 Job runs from the pipeline_api image
+  # (fixed `USER appuser`, uid 1000 — see services/pipeline_api/Dockerfile
+  # in the ingestbuddy repo) and needs the same anyuid grant; it gets its
+  # own SA because ingestbuddy-app's SA is only created by the child app's
+  # helm chart, which doesn't exist yet on a fresh deploy when the
+  # migration Job first runs. Mirrors taxbuddy/anyuid-rolebinding.yaml.
+  - kind: ServiceAccount
+    name: ingestbuddy-db-migrate
+    namespace: ingestbuddy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "system:openshift:scc:anyuid"
