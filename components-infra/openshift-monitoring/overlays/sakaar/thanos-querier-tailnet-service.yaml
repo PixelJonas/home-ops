@@ -1,0 +1,30 @@
+# Publishes thanos-querier (web, 9091: HTTPS + kube-rbac-proxy bearer auth)
+# on the tailnet via the Tailscale operator, so the NAS Grafana's "Sakaar
+# Thanos" datasource can reach it with the external-monitor-reader token.
+# Own Service rather than an annotation on CMO's thanos-querier Service (CMO
+# would revert it). Same selector as CMO's Service; the CMO-managed
+# thanos-querier NetworkPolicy already allows ingress on 9091.
+# tag:sakaar-thanos is owned by tag:k8s-operator in infra-ops
+# stacks/tailscale/acl.tf, which also scopes the grant to the NAS
+# monitoring node.
+apiVersion: v1
+kind: Service
+metadata:
+  name: thanos-querier-tailnet
+  namespace: openshift-monitoring
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "sakaar-thanos"
+    tailscale.com/tags: "tag:sakaar-thanos"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: query-layer
+    app.kubernetes.io/instance: thanos-querier
+    app.kubernetes.io/name: thanos-query
+    app.kubernetes.io/part-of: openshift-monitoring
+  ports:
+    - name: web
+      port: 9091
+      protocol: TCP
+      targetPort: web
