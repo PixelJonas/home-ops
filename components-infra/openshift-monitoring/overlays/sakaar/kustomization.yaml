@@ -24,3 +24,4 @@ resources:
   - monitoring-role-binding.yaml
   - volsync-backup-rule.yaml
   - configmap-cluster-monitoring.yaml
+  - thanos-querier-tailnet-service.yaml
