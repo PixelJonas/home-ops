@@ -13,6 +13,7 @@ metadata:
   name: thanos-querier-tailnet
   namespace: openshift-monitoring
   annotations:
+    ignore-check.kube-linter.io/dangling-service: "selects the CMO-managed thanos-querier pods (not in git)"
     tailscale.com/expose: "true"
     tailscale.com/hostname: "sakaar-thanos"
     tailscale.com/tags: "tag:sakaar-thanos"
