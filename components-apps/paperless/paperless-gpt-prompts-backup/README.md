@@ -12,12 +12,14 @@ deployment was removed (ingestbuddy#9 / #10).
   2025-10-02.
 
 These files are documentation only -- nothing in this repo deploys them.
-The `paperless-gpt-prompts` PVC itself is retained (see
-`../paperless-gpt-retained-pvcs.yaml`) until ingestbuddy#10 deletes it.
 
 Re-verified 2026-10-16 (ingestbuddy#10): md5 of all 8 files identical in git,
 on the PVC, and in the final restic snapshot `0f36e922` of the gpt-prompts
-repo (Doppler `PAPERLESS_GPT_PROMPTS_REST_REPO_LOCAL`).
+repo.
+
+As of 2026-10-25 (ingestbuddy#10) this directory is the **only** remaining copy:
+the `paperless-gpt-prompts` PVC and both paperless-gpt restic repos were
+deleted.
 
 The deployment's own configuration (env, models, OCR settings) lived only in
 the removed ArgoCD Application's Helm values; see
