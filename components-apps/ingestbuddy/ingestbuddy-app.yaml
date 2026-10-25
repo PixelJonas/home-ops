@@ -216,6 +216,20 @@ spec:
                   # routes escalation/re-OCR pages by this probe. Must match
                   # the api's value.
                   MIDGARD_HEALTH_URL: http://10.42.0.5:18080/healthz
+                  # Vehicle domain shadow run (ingestbuddy#13): routing +
+                  # extraction run and land in bundles.domain_metadata, but
+                  # VEHICLE_SINK_URL/SECRET stay unset, so no draft reaches
+                  # vehicle-pipeline while its legacy intake is still live.
+                  # VEHICLE_TAGS mirrors components-apps/vehicle-pipeline's
+                  # value; keep the two in sync until the legacy poll retires.
+                  MYGARAGE_VEHICLES:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: MYGARAGE_VEHICLES
+                  VEHICLE_TAGS: >-
+                    {"multivan": ["Fahrzeug:Multivan", "Fahrzeug:Multivan-auto"],
+                    "id4": ["Fahrzeug:ID4", "Fahrzeug:ID4-auto"]}
                 probes:
                   # The RQ worker has no HTTP listener — exec
                   # pipeline_worker.healthcheck instead. liveness is
