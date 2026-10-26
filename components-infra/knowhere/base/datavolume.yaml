@@ -23,4 +23,4 @@ spec:
     resources:
       requests:
         storage: 300Gi
-    storageClassName: lvms-vg1
+    storageClassName: lvms-knowhere
