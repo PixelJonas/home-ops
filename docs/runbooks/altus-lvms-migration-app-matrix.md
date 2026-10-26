@@ -2,21 +2,22 @@
 
 Date: 2026-10-26
 
-This is the application-side companion to the Altus LVMS/Knowhere isolation plan. It covers the **104 live PVCs using `lvms-vg1` in 25 namespaces** observed read-only on that date. It does not authorize a cutover. Execute final backups and restores sequentially or in controlled batches of at most two, from outside Knowhere, under the parent plan's Gates A-C.
+This is the application-side companion to the Altus LVMS/Knowhere isolation plan. It covers the **104 live PVCs using `lvms-vg1` in 25 namespaces** observed read-only on that date. It does not authorize a cutover. Execute final backups and restores sequentially or in controlled batches of at most two, from outside Knowhere, under the parent plan's Gates A-C. Knowhere is the exception to the halted restore/cutover model: its two data volumes use the supported two-leg live migration below, and production Knowhere must remain running throughout the entire process.
 
 Route codes used below:
 
-- **V — VolSync restore (15):** final quiesced ReplicationSource sync; recreate the PVC and restore with a ReplicationDestination using `copyMethod: Direct`.
+- **V — VolSync restore (14):** final quiesced ReplicationSource sync; recreate the PVC and restore with a ReplicationDestination using `copyMethod: Direct`. Knowhere projects V03 remains a disaster-recovery test, not a production migration route.
 - **D — database dump/import (11):** fresh logical dump to the existing non-LVMS dump PVC, final dump-PVC sync, newly initialized empty database volume, then SQL import.
-- **O — offline copy (7):** stopped-writer filesystem archive/copy, except Knowhere's stopped Block root disk, which uses a sparse/qcow2 off-node copy.
+- **O — offline copy (6):** stopped-writer filesystem archive/copy. Knowhere root O01 is separately approved backup-safety evidence only, never a migration mechanism.
+- **L — live KubeVirt storage migration (2):** migrate both Knowhere disks together in each of two running-VM storage/compute migration legs. No production shutdown, reboot, or restore is permitted.
 - **R — recreate empty (65):** disposable cache, queue, runner, or VolSync mover-cache volume. Do not copy its old contents.
 - **I — managed image reimport (6):** let CDI/DataImportCron import a fresh managed OS image. Do not copy the old image PVC.
 
-Accounting check: **15 V + 11 D + 7 O + 65 R + 6 I = 104**. Any new, missing, renamed, or unclassified PVC at final inventory is an abort condition, not something to improvise into a group.
+Accounting check: **14 V + 11 D + 6 O + 2 L + 65 R + 6 I = 104**. Any new, missing, renamed, or unclassified PVC at final inventory is an abort condition, not something to improvise into a group.
 
 ## Complete PVC routing ledger
 
-The left data column lists every V/D/O PVC. The right column lists every R/I PVC. Names are namespace-local.
+The left data column lists every V/D/O/L PVC. The right column lists every R/I PVC. Names are namespace-local.
 
 | Namespace | Preserved PVCs and route | Empty recreation or managed reimport | Total |
 |---|---|---|---:|
@@ -27,7 +28,7 @@ The left data column lists every V/D/O PVC. The right column lists every R/I PVC
 | `immich` | D `immich-app` (standalone PostgreSQL data PVC) | R `volsync-src-database-backup-b2-cache`, `volsync-src-database-backup-cache` | 3 |
 | `ingestbuddy` | D `ingestbuddy-db-1` | R `ingestbuddy-app` (Valkey AOF/queue), `volsync-src-database-backup-cache` | 3 |
 | `jellystat` | — | R `volsync-src-database-backup-cache` | 1 |
-| `knowhere` | O `knowhere-rootdisk` (Block); V `knowhere-projects` | R `volsync-src-projects-backup-cache` on `lvms-knowhere` | 3 |
+| `knowhere` | L `knowhere-rootdisk` (Block) + `knowhere-projects` (Filesystem), together in each live-migration leg | R `volsync-src-projects-backup-cache`, interim off `lvms-vg1` and final on `lvms-knowhere` | 3 |
 | `knx-ets` | V `windows-11-virtio-ets-volume`, `persistent-state-for-windows-11-virtio-ets` | R `volsync-src-persistent-state-backup-cache`, `volsync-src-volume-backup-cache` | 4 |
 | `litellm` | D `litellm-db-1` | R `volsync-src-database-backup-cache` | 2 |
 | `media` | — | R `volsync-src-audiobookshelf-backup-cache`, `volsync-src-overseerr-backup-cache`, `volsync-src-prowlarr-backup-cache`, `volsync-src-radarr-backup-cache`, `volsync-src-readarr-backup-cache`, `volsync-src-sonarr-anime-backup-cache`, `volsync-src-sonarr-backup-cache` | 7 |
@@ -45,7 +46,7 @@ The left data column lists every V/D/O PVC. The right column lists every R/I PVC
 | `tymeslot` | V `tymeslot-app`; D `tymeslot-db-1` | R `volsync-src-data-backup-b2-cache`, `volsync-src-data-backup-cache`, `volsync-src-database-backup-b2-cache`, `volsync-src-database-backup-cache` | 6 |
 | `vaultwarden` | V `vaultwarden-app-config`; D `vaultwarden-db-1` | R `volsync-src-config-backup-cache`, `volsync-src-database-backup-b2-cache`, `volsync-src-database-backup-cache` | 5 |
 | `vehicle-pipeline` | D `vehicle-pipeline-db-1` | R `volsync-src-database-backup-cache` | 2 |
-| **Total** | **15 V + 11 D + 7 O** | **65 R + 6 I** | **104** |
+| **Total** | **14 V + 11 D + 6 O + 2 L** | **65 R + 6 I** | **104** |
 
 ### Related storage that is not part of the 104
 
@@ -61,7 +62,7 @@ Do not recreate or count these as LVMS successors, but include them in consisten
 ### V: VolSync filesystem restore
 
 1. Stop every writer and wait for the source PVC to unmount. Trigger each listed ReplicationSource once, require `latestMoverStatus.result=Successful`, a current snapshot, nonzero new data where applicable, and a repository check. Do not treat a recent scheduled `lastSyncTime` as final-backup evidence.
-2. Create a destination PVC with the original access mode, size, and `volumeMode`, on `lvms-vg1`, except both Knowhere data volumes and its mover cache, which use `lvms-knowhere`. Keep the workload scaled to zero.
+2. Create a destination PVC with the original access mode, size, and `volumeMode`, on `lvms-vg1`. Keep the workload scaled to zero. Knowhere projects is excluded from this production restore path: V03 is useful only as a disaster-recovery rehearsal on `lvms-vg1` scratch storage.
 3. Instantiate `templates/replicationdestination.yaml` with the matching repository Secret and `destinationPVC`, `copyMethod: Direct`, and a unique manual trigger. Use the B2 repository when available; otherwise use the verified local REST repository. Restore to the PVC root and preserve the original nested paths, especially `disk.img` for KubeVirt.
 4. Require mover success, then compare a pre-cutover manifest of relative paths, file counts, sizes, and checksums for representative files. Correct numeric ownership before starting the writer. Remove only the temporary restore objects during the later, authorized cleanup; leave backup repositories untouched.
 5. Do not blindly `chown -R` to root or to a UID copied from another namespace. Capture the consuming pod's intended `runAsUser`, `runAsGroup`, and `fsGroup`. OpenShift arbitrary UIDs and SELinux MCS categories are namespace-specific. Preserve numeric owners, modes, ACLs, xattrs, hard links, and sparse files; mount the destination under the intended SCC so its SELinux label is valid for the consumer rather than forcing the old namespace's MCS category onto it.
@@ -79,7 +80,17 @@ The nine affected CNPG databases are Gitea, Honcho, Ingestbuddy, LiteLLM, Paperl
 ### O: offline copies
 
 - For the six filesystem O volumes, stop the owning writer, wait for unmount, and copy to off-node storage with a tool equivalent to `rsync -aHAXS --numeric-ids` or a numeric-owner, xattr/ACL-preserving sparse tar. Record relative-path/file-count/size/checksum manifests. Restore into a newly bound PVC under the intended SCC, verify ownership and SELinux readability, and never trim history or run registry garbage collection as part of migration.
-- For `knowhere-rootdisk`, use the separately reviewed stopped-VM helper procedure: expose the stopped Block PVC only to the helper, create a sparse/qcow2 representation on off-node NFS, record a cryptographic checksum, and run `qemu-img check`. Recreate a Block target on `lvms-knowhere` without starting CDI's Ubuntu HTTP import or the VM, convert/write the image back, and repeat integrity checks before boot.
+- O01 sparse/qcow2 root-disk evidence may remain only as a separately approved backup-safety test. It is not a source, fallback, or rollback mechanism for either Knowhere migration leg, and no O01 activity may halt production Knowhere.
+
+### L: Knowhere live storage and compute migration
+
+The installed KubeVirt `VirtualMachineStorageMigrationPlan` API/controller and the required LiveUpdate/BlockMigration support are verified. Direct or same-node storage migration is impossible for this design; each storage leg is paired with the specified running-VM node migration.
+
+1. Before the first leg, configure and validate the `knowhere-lan` OVN localnet mapping on xandar. Preserve the VM's firmware/guest identity, disk serial `projectsdisk`, cloud-init, MAC/network identity, and guest configuration. Freeze Knowhere GitOps around every volume-reference change so reconciliation cannot restore stale PVC references. Complete B18 with a disposable VM before the corresponding production leg.
+2. Use one `VirtualMachineStorageMigrationPlan` containing **both** `knowhere-rootdisk` (Block) and `knowhere-projects` (Filesystem). Set `retentionPolicy: keepSource` and disable every automatic source-deletion path. Leg 1 migrates both disks from `lvms-vg1` to `synology-iscsi-storage` while the running VM migrates from altus to xandar. A brief migration pause is acceptable; shutdown, reboot, stopping production sessions, and restoring either production disk are not.
+3. After leg 1, point `projects-backup` at the active iSCSI projects PVC, use snapshot class `synology-snapshot`, and move its mover cache off `lvms-vg1`. Require a fresh successful backup from the active destination before proceeding. Any failed leg or acceptance check stops the rebuild and all later legs; cancellation after a completed migration is not rollback.
+4. Only after all first-leg and other rebuild gates pass, rebuild vg1 and create `lvms-knowhere`. Validate Filesystem and Block provisioning. Leg 2 uses one plan for both then-active iSCSI disks to `lvms-knowhere`, while the same still-running VM migrates from xandar to altus.
+5. After leg 2, point `projects-backup` at the active `lvms-knowhere` projects PVC, use snapshot class `lvms-knowhere`, set its cache to `lvms-knowhere`, and require another fresh successful backup. Keep the interim iSCSI sources for observation. Deletion of the old vg1 sources requires a separate review before teardown; no completed leg is rolled back by deleting or cancelling objects.
 
 ### R and I: intentional non-restores
 
@@ -90,18 +101,18 @@ The nine affected CNPG databases are Gitea, Honcho, Ingestbuddy, LiteLLM, Paperl
 
 ### Scale-down and final backup
 
-1. From outside Knowhere, pause ArgoCD parent auto-sync before children, pause CI and scheduled importers, suspend application CronJobs, and commit/push Knowhere work. Include the private-ops chain `cluster-private-manager` → `media`/`media-vpn` → their leaves and `qbittorrent`, recording each original sync policy. Prevent controllers from recreating writers while preserving database availability for dumps.
+1. From outside Knowhere, pause ArgoCD parent auto-sync before children for the halted V/D/O routes, pause CI and scheduled importers, and suspend application CronJobs. Include the private-ops chain `cluster-private-manager` → `media`/`media-vpn` → their leaves and `qbittorrent`, recording each original sync policy. Prevent controllers from recreating writers while preserving database availability for dumps. Separately freeze Knowhere GitOps only around its L-route volume-reference changes; do not scale or halt Knowhere.
 2. Stop consumers first: Gitea runners and active CI; Taxbuddy/Ingestbuddy/Vehicle workers and scheduled jobs; Taxbuddy Hermes; Paperless MCP; Qdrant crawl work; media download/automation writers. Drain Valkey queues completely before deleting their AOF volumes.
-3. Stop app frontends, halt both VMs, and stop monitoring/registry writers through their operator-safe maintenance path. Verify reconcilers do not scale them back. Then take logical dumps while DBs remain up, stop DBs, and wait for all source mounts to disappear.
-4. Take final V syncs for coordinated groups in the same writer-free window, then O copies. Finish with Jellystat/media/non-LVMS source backups needed for consistency. Verify every artifact before Gate C.
+3. Stop app frontends, halt only the KNX VM, and stop monitoring/registry writers through their operator-safe maintenance path. Verify reconcilers do not scale them back. Then take logical dumps while DBs remain up, stop DBs, and wait for all source mounts to disappear. Knowhere remains running and follows the L contract, not this quiescence sequence.
+4. Take final V syncs for coordinated groups in the same writer-free window, then the six O copies. Finish with Jellystat/media/non-LVMS source backups needed for consistency. Verify every artifact before Gate C. Knowhere instead requires its fresh successful projects backup after each live-migration leg.
 
 ### Restore and startup
 
-1. Restore storage classes and the internal registry; start Prometheus/Alertmanager after their history is restored. Restore databases and filesystem data while all writers remain down.
+1. Restore storage classes and the internal registry; start Prometheus/Alertmanager after their history is restored. Restore databases and filesystem data while all V/D/O writers remain down.
 2. Start CNPG/MariaDB/Immich PostgreSQL and import/validate; then start Gitea, LiteLLM, Nextcloud, Paperless, Qdrant, and other data owners. Start Gitea runners only after Gitea passes repository+DB checks. Start Paperless MCP, Ingestbuddy, Taxbuddy, Vehicle Pipeline, and Hermes only after their Paperless/Qdrant/LiteLLM/Honcho dependencies pass.
-3. Reimport managed OS images after the registry is healthy. Start Knowhere after Gitea/LiteLLM and network dependencies are available, but before resuming agent sessions. Start KNX only when its single USB dongle is free and both restored disks pass offline checks.
-4. Restore media and remaining apps, run real data validations, then re-enable scheduled jobs and ArgoCD auto-sync in the recorded safe order. Do not resume CI, crawls, ingestion, or agent sessions merely because pods are Ready.
-5. Reconcile all 104 original PVCs to a validated successor, empty recreation, or managed reimport. Remove no backup data. Require every ReplicationSource to have no leftover manual trigger, a re-armed schedule, a fresh successful post-restore backup, and the intended cache StorageClass (`lvms-knowhere` only for Knowhere). Confirm restored data survives one controlled application restart before closing the maintenance window.
+3. Reimport managed OS images after the registry is healthy. Start KNX only when its single USB dongle is free and both restored disks pass offline checks. There is no Knowhere boot/startup step: production Knowhere stays running through both L legs and the pool rebuild.
+4. Restore media and remaining apps, run real data validations, then re-enable scheduled jobs and ArgoCD auto-sync in the recorded safe order. Do not resume paused CI, crawls, ingestion, or non-Knowhere agent sessions merely because pods are Ready.
+5. Reconcile all 104 original PVCs to a validated successor, live-migrated active pair, empty recreation, or managed reimport. Remove no backup data. Require every ReplicationSource to have no leftover manual trigger, a re-armed schedule, a fresh successful post-restore or post-leg backup, and the intended cache StorageClass (`lvms-knowhere` only for final Knowhere). Confirm restored non-Knowhere data survives one controlled application restart before closing the maintenance window; Knowhere instead supplies continuous-availability and unchanged-boot evidence.
 
 ## Application-by-application matrix
 
@@ -153,27 +164,27 @@ Each row gives the local stop/start order in addition to the global dependency c
 
 ### Knowhere isolated pool
 
-| Namespace/app | Scale-down and final backup | PVC recreation, restore/import, and ownership | Startup and concrete validation |
+| Namespace/app | Live-migration preflight and per-leg backup | Two-leg disk migration and identity | Continuous validation |
 |---|---|---|---|
-| `knowhere` | Commit/push all work and run the Knowhere preflight; stop every agent/herdr session; halt the VM from outside Knowhere. Finally sync `projects-backup` and offline-copy the stopped Block root disk. Neither operation may expose the root disk to a second running VM. | Both disks and projects mover cache go to **`lvms-knowhere`**. Restore root with the O Block/qcow2 contract and projects with V/Direct to `disk.img`; the declarative blank Block DataVolume must not reimport an OS image over the restore. Enforce `disk.img` and restored project tree ownership **107:107** where KubeVirt requires it; preserve projects disk serial `projectsdisk`, cloud-init/network definitions, and all project data without trimming. | Offline root/projects integrity checks → boot VM → guest checks → Gitea/LiteLLM-backed agent checks. `qemu-img check` and checksum pass; guest boots without recovery; both disks and `/home/jonas/projects` mount; compare repo/path/file manifests and run `git fsck` on representative repos; networking, Tailscale, herdr, user units and `mise run knowhere:verify` pass; repositories are clean/pushed; one real `claude-vertex -p` session succeeds before general sessions resume. |
+| `knowhere` | Keep every production agent/herdr session and the VM running. Validate B18 and xandar's `knowhere-lan` OVN localnet mapping; freeze Knowhere GitOps around volume-reference changes. Take a running-VM crash-consistent root snapshot and validate its encrypted off-node copy and non-production restore before leg 1; do not attach the production source or call this application-consistent without verified guest filesystem freeze. After each leg, repoint `projects-backup` to the active projects PVC and require a fresh successful backup: interim snapshot class `synology-snapshot` with cache off `lvms-vg1`, final snapshot/cache class `lvms-knowhere`. | One `VirtualMachineStorageMigrationPlan` per leg contains both disks with `retentionPolicy: keepSource` and no automatic deletion. Leg 1: `lvms-vg1` → `synology-iscsi-storage`, running altus → xandar. Rebuild vg1/create `lvms-knowhere` only after first-leg gates pass. Leg 2: active iSCSI → `lvms-knowhere`, running xandar → altus. Preserve firmware/guest identity, `projectsdisk`, cloud-init, MAC/network identity, and all data. | Record unchanged guest boot identity and continuous network, disk, and application availability before/during/after both legs; only a brief migration pause is acceptable, never shutdown/reboot. Both disks and `/home/jonas/projects` remain active; compare project manifests and run `git fsck` on representative repos. Networking, Tailscale, herdr, user units, and `mise run knowhere:verify` pass without stopping sessions. Keep interim iSCSI sources for observation; old vg1 deletion needs separate review. Any failure stops the rebuild/next leg, and post-completion cancellation is not rollback. |
 
-## Mandatory pre-cutover restore tests
+## Mandatory restore tests and live-migration rehearsal
 
-Record date, source snapshot/dump ID, artifact size/checksum, restore duration, validation output, and operator for each test. A recent backup timestamp is not evidence. Do not proceed to Gate B with an untested preserved data class.
+Record date, source snapshot/dump or migration ID, artifact size/checksum where applicable, duration, validation output, and operator for each test. A recent backup timestamp is not evidence. Do not proceed to Gate B with an untested preserved data class. B18a is the pre-rebuild live-migration gate; B18b runs only after `lvms-knowhere` exists and before the production return leg, so the new class is not a circular pre-cutover prerequisite.
 
 1. **All 11 D routes:** import each current dump into an isolated instance/namespace with the production image/version and extensions. Include the CNPG drop-before-replay behavior, Immich vector extensions, and Nextcloud installed/app+DB checks. Compare schemas and the named table counts above. Also test Jellystat's dump even though its DB is not recreated.
 2. **Coordinated filesystem+DB sets:** test Gitea repositories+DB, Nextcloud app+DB+unchanged NFS data, Paperless data+media+DB, Vaultwarden config+DB, and Tymeslot app+DB. Do not validate each side independently and assume their recovery points match.
-3. **Other V routes:** restore Actual Budget, qBittorrent, Qdrant data+snapshots+progress, Taxbuddy Hermes, and Knowhere projects into throwaway PVCs; check manifests, ownership, and application reads. Qdrant must pass a real collection/point query, not only a file listing.
+3. **Other V routes:** restore Actual Budget, qBittorrent, Qdrant data+snapshots+progress, and Taxbuddy Hermes into throwaway PVCs; check manifests, ownership, and application reads. Qdrant must pass a real collection/point query, not only a file listing. V03 Knowhere projects remains a useful disaster-recovery restore to `lvms-vg1` scratch, including `/disk.img` and qemu ownership, but is never a production restore in the live-migration path.
 4. **KNX:** repeat the existing throwaway-namespace procedure or explicitly validate the successful 2026-10-11 test against the current repositories. Prove current `disk.img`, NVRAM, vTPM permall, 107:107 ownership, firmware UUID, Windows boot, and no BitLocker recovery. Never attach the production dongle to the test VM.
-5. **Knowhere root:** perform a non-production sparse/qcow2 backup, restore, `qemu-img check`, checksum comparison, and boot test before relying on this route. Also prove projects restore lands at `disk.img` on the pre-cutover `lvms-vg1` scratch volume with qemu ownership; selection of `lvms-knowhere` is a post-recreation acceptance check.
+5. **Knowhere B18:** use a disposable running VM with a 300Gi Block root and 136579960013-byte Filesystem projects disk. Rehearse both disks together through leg 1 (`lvms-vg1` → iSCSI, altus → xandar) and leg 2 (iSCSI → `lvms-knowhere`, xandar → altus), with `retentionPolicy: keepSource`, preserved disposable guest/network identity, per-leg VolSync changes and fresh backups. Validate continuous availability and unchanged boot identity; a brief migration pause is acceptable, shutdown/reboot is not. Production sessions and the production VM are not stopped for this rehearsal. O01 qcow2 evidence is optional only under separate backup-safety approval and is never a migration dependency or mechanism.
 6. **Six filesystem O routes:** exercise stopped-source or crash-consistent test-source archive/extract helpers for registry, both Prometheus instances, Alertmanager, Thanos Ruler, and Paperless MCP. Restore to throwaway PVCs and perform the same catalog/history/silence/OAuth checks. Final copies still require stopped writers; a pre-test does not make a live final copy consistent.
 7. **R/I assumptions:** document drained/empty queues and CI, cold model-cache rebuild, empty Redis startup, and VolSync mover-cache creation. Verify one managed image per source type can reimport into a throwaway target and that RHEL imports work after registry restoration.
-8. **Repository integrity:** run the appropriate restic check/read-data subset against every required repository without printing credentials. Confirm local REST/NAS and B2 capacity for complete preserved data plus Knowhere root and at least 25% margin.
+8. **Repository integrity and capacity:** run the appropriate restic check/read-data subset against every required repository without printing credentials. Confirm local REST/NAS and B2 capacity for complete preserved data with at least 25% margin. Separately reserve both source and destination capacity for each Knowhere leg; retained sources count against free space until their reviewed teardown.
 
 ## Open app-specific issues / evidence still required
 
 - **Nextcloud:** `nextcloud-restore.md` still says its dry run was not performed. The NFS data backup now exists, but that does not close the missing end-to-end app+DB+NFS restore evidence. The installed flag, uid-33 NFS behavior, and maintenance-mode consistency must pass before Gate B.
-- **Knowhere root:** the root DataVolume now declaratively uses a blank Block source, so no OS-image reimport can overwrite the restored disk. Offline encrypted backup/restore, read-only guest inspection, and non-production boot evidence remain required before Gate B.
+- **Knowhere live migration:** installed KubeVirt APIs/controller and LiveUpdate/BlockMigration support are verified, but xandar's `knowhere-lan` mapping, disposable B18 two-leg evidence, and running-production root snapshot/scratch recovery evidence remain gates. Record both-disk plan status, running node transitions, unchanged boot/guest/network identity, continuous availability, `retentionPolicy: keepSource`, and fresh active-PVC backups after each leg. V03 is DR-only; root safety snapshots never replace the live copy or justify halting production Knowhere.
 - **Offline copies:** registry, monitoring, and Paperless MCP have no VolSync fallback. Tested helper manifests, capacity estimates, exact stop/start ownership, and data-level restore evidence remain required. Monitoring must retain all history; no retention or WAL shortcut is acceptable.
 - **Database imports:** no evidence in the inspected runbooks establishes current isolated imports for all 11 affected databases. `pg_dumpall` role/error handling and exact row-count baselines must be rehearsed, including Immich extensions and CNPG's pre-created empty DB race.
 - **Gitea:** repository+DB consistency and a real post-restore CI job remain the acceptance test. Empty runner recreation also requires proving registration, overlay2, per-job MTU 1400, and no writes to the Altus root disk.

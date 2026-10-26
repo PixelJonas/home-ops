@@ -1,0 +1,18 @@
+# Required for Knowhere's live storage migration to Xandar. Maps the existing
+# knowhere-lan localnet onto Xandar's existing br-ex without changing its
+# interfaces, ports, or IP configuration.
+apiVersion: nmstate.io/v1
+kind: NodeNetworkConfigurationPolicy
+metadata:
+  name: knowhere-lan-bridge-mapping-xandar
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: xandar
+  desiredState:
+    ovn:
+      bridge-mappings:
+        - localnet: knowhere-lan
+          bridge: br-ex
+          state: present
