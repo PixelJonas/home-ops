@@ -3,12 +3,11 @@
 # (see backup/projects/), while the OS disk is fully reprovisionable from
 # stacks/knowhere/ansible/playbook.yml in infra-ops and doesn't need it.
 # Blank source — formatted and mounted by the project_disk Ansible role.
-# 120Gi against ~3.1TB free cluster-wide on lvms-vg1 at time of writing;
-# ~22GB of real project data today, sized generously since local NVMe/SSD
-# capacity here is cheap and headroom isn't a constraint.
+# 120Gi is sized generously against ~22GB of real project data at time of
+# writing, leaving ample headroom on the dedicated Knowhere NVMe.
 #
 # Explicit volumeMode: Filesystem — CDI otherwise defaults DataVolumes on
-# lvms-vg1 (TopoLVM, which advertises block support) to Block mode, same as
+# lvms-knowhere (TopoLVM, which advertises block support) to Block mode, same as
 # knowhere-rootdisk. That's fine for a disk only KubeVirt itself ever
 # touches, but VolSync's restic mover (see backup/projects/) bind-mounts the
 # source PVC via a plain volumeMount, which requires Filesystem mode —
@@ -44,4 +43,4 @@ spec:
     resources:
       requests:
         storage: 120Gi
-    storageClassName: lvms-vg1
+    storageClassName: lvms-knowhere

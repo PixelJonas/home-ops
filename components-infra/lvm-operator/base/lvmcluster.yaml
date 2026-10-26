@@ -35,6 +35,21 @@ spec:
         # treats that PV as removed.
         deviceSelector:
           paths:
-            - /dev/disk/by-id/nvme-WD_BLACK_SN770_2TB_230623476307 # nvme0n1, 2TB
-            - /dev/disk/by-id/nvme-CT1000P1SSD8_2030E2BAC0C0 # nvme1n1, 1TB
-            - /dev/disk/by-id/wwn-0x500a0751e60e12a0 # SATA SSD, not the root disk
+            - /dev/disk/by-id/nvme-WD_BLACK_SN770_2TB_230623476307  # nvme0n1, 2TB
+            - /dev/disk/by-id/wwn-0x500a0751e60e12a0  # SATA SSD, not the root disk
+      - name: knowhere
+        default: false
+        nodeSelector:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - altus
+        thinPoolConfig:
+          name: thin-pool-knowhere
+          overprovisionRatio: 10
+          sizePercent: 90
+        deviceSelector:
+          paths:
+            - /dev/disk/by-id/nvme-CT1000P1SSD8_2030E2BAC0C0  # nvme1n1, 1TB
