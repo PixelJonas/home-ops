@@ -1,7 +1,6 @@
-# Second disk, deliberately separate from knowhere-rootdisk: project data
-# under /home/jonas/projects is the only thing on this VM worth backing up
-# (see backup/projects/), while the OS disk is fully reprovisionable from
-# stacks/knowhere/ansible/playbook.yml in infra-ops and doesn't need it.
+# Second disk, deliberately separate from knowhere-rootdisk: project data is
+# backed up with VolSync (see backup/projects/), while the root disk is
+# preserved separately through the offline qcow2 backup/restore procedure.
 # Blank source — formatted and mounted by the project_disk Ansible role.
 # 120Gi is sized generously against ~22GB of real project data at time of
 # writing, leaving ample headroom on the dedicated Knowhere NVMe.

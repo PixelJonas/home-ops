@@ -28,13 +28,17 @@ evidence is still pending.
 - Run data movement sequentially, or at most two streams with explicit approval.
   Stop on sustained Altus root-disk utilization above 80%, host iowait above
   20%, or abnormal etcd WAL latency.
-- The NAS/restic targets must be independent of `vg1`. Confirm free space from
-  allocated data, not thin-PVC requests, with at least 25% margin. Include the
-  Knowhere qcow2 and all seven offline artifacts in that calculation.
+- The approved NAS/restic targets are independent of `vg1`. The offline-artifact
+  destination has 25.52TiB free, against a conservative current requirement of
+  296.645GiB, 370.807GiB with 25% margin, and a worst-case full-root budget of
+  604.357GiB. Reconcile allocated-data measurements again before the final copy.
 - Do not print, export, or copy Secret contents. Use the existing
   `ExternalSecret` resources and `doppler-cluster` ClusterSecretStore. Never use
   `oc get secret ... -o yaml`, `oc extract`, or decoded Secret output for this
   migration.
+- Plaintext O01–O07 artifacts are prohibited. O01 uses qcow2-LUKS; O02–O07
+  stream tar through GnuPG AES256 so plaintext never lands on NFS. Use separate
+  Doppler-owned high-entropy passphrases, each mounted as a 0400 Secret file.
 - Do not expose Knowhere's production root block device to a second VM. Only a
   stopped, read-only helper may read it. Restore tests use a new block PVC and
   no production VM network identity.
@@ -45,9 +49,92 @@ evidence is still pending.
 - Restic `lastSyncTime`, a successful dump Job, or a Ready pod alone is not
   restore evidence. Require a fresh artifact, nonzero size, checksum/repository
   check, and a demonstrated restore.
-- Local restic repositories are off-node but not necessarily off-site. The
-  local-only sources below need the NAS and its independent backup to remain
-  available throughout the migration.
+- Local restic repositories use direct NFS on `/volume1/configs`, independent of
+  `vg1`, and already have tailsafe protection. The new migration-artifact
+  directory does not; Gate A requires either protection or explicit risk
+  acceptance as described below.
+
+## Approved Gate A destination and encryption material
+
+The approved destination is `10.10.10.40:/volume1/pmb-backup`. All O01–O07
+helpers mount only the dedicated `/volume1/pmb-backup/altus-lvms-migration/`
+directory; do not write artifacts into the export root or `/volume1/configs`.
+The export uses `all_squash`, `anonuid=1024`, and `anongid=100`, so the dedicated
+directory must be writable by that identity. NFS-visible file ownership is
+therefore not application ownership: numeric application owners, modes, ACLs,
+xattrs, and SELinux labels remain inside the encrypted tar streams.
+
+Capacity is approved at the inventory checkpoint:
+
+| Measurement | Budget |
+|---|---:|
+| NFS free space | 25.52TiB |
+| Conservative current allocated-data need | 296.645GiB |
+| Current need plus 25% margin | 370.807GiB |
+| Worst case with the 300Gi root treated as fully allocated | 604.357GiB |
+
+The migration directory is **not currently tailsafe-covered**. Before Gate A is
+signed, either add and verify equivalent independent protection for this
+directory, or record explicit operator acceptance that these encrypted migration
+artifacts have only their NAS-resident copy during the migration/retention
+window. Existing restic tailsafe protection on `/volume1/configs` does not cover
+this new directory and must not be cited as evidence that it does.
+
+Create two independent, Doppler-owned, high-entropy passphrases. These are key
+names only; never place either value in this file, a Pod argument, shell
+environment dump, or the NFS evidence directory:
+
+- `ALTUS_LVMS_MIGRATION_KNOWHERE_ROOT_LUKS_PASSPHRASE`
+- `ALTUS_LVMS_MIGRATION_FILESYSTEM_GPG_PASSPHRASE`
+
+Materialize them with ExternalSecrets; do not copy existing Secret data. The
+Knowhere example targets the root secret, and the filesystem example is repeated
+in each O02–O07 namespace with target name `altus-lvms-filesystem-encryption`:
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: altus-lvms-knowhere-root-encryption
+  namespace: knowhere
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: altus-lvms-knowhere-root-encryption
+  data:
+    - secretKey: passphrase
+      remoteRef:
+        key: ALTUS_LVMS_MIGRATION_KNOWHERE_ROOT_LUKS_PASSPHRASE
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: altus-lvms-filesystem-encryption
+  namespace: openshift-monitoring
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: altus-lvms-filesystem-encryption
+  data:
+    - secretKey: passphrase
+      remoteRef:
+        key: ALTUS_LVMS_MIGRATION_FILESYSTEM_GPG_PASSPHRASE
+```
+
+Verify only `SecretSynced` and the mounted file metadata. The root secret mounts
+at `/run/secrets/migration/root-luks.passphrase`; the filesystem secret mounts at
+`/run/secrets/migration/filesystem-gpg.passphrase`. Both Secret volumes use
+`defaultMode: 0400` and a read-only mount. Loss of either Doppler value makes its
+artifacts unrestorable; confirm ownership/recovery responsibility before backup.
+
+The verified copy-tool image for all O01–O07 helpers is
+`registry.redhat.io/container-native-virtualization/virt-launcher-rhel9@sha256:2131d3d24616971b92d7e986635673b6dc731da3d43cae46540882993d36596f`.
+It provides qemu-img 10.1, GNU tar, and GnuPG. It does **not** contain guestfish;
+read-only guest inspection requires a separate pinned libguestfs helper.
 
 ## Exact 104-PVC routing inventory
 
@@ -133,13 +220,13 @@ Tymeslot V14+D09; Vaultwarden V15+D10.
 
 | ID | Namespace | Source PVC | Request / mode | Offline artifact and purpose |
 |---|---|---|---|---|
-| O01 | knowhere | knowhere-rootdisk | 322122547200 (300Gi), Block | Sparse qcow2 on off-node NFS; restore to `lvms-knowhere` Block target. |
-| O02 | openshift-image-registry | image-registry | 150Gi, Filesystem | Numeric-owner/xattr/ACL/SELinux/sparse tar; preserve complete registry content. |
-| O03 | openshift-monitoring | alertmanager-main-db-alertmanager-main-0 | 10Gi, Filesystem | Offline tar; preserve alerts, silences, and notification state. |
-| O04 | openshift-monitoring | prometheus-k8s-db-prometheus-k8s-0 | 40Gi, Filesystem | Offline tar; preserve all platform Prometheus history; do not trim. |
-| O05 | openshift-user-workload-monitoring | prometheus-user-workload-db-prometheus-user-workload-0 | 40Gi, Filesystem | Offline tar; preserve all UWM history; do not trim. |
-| O06 | openshift-user-workload-monitoring | thanos-ruler-user-workload-data-thanos-ruler-user-workload-0 | 40Gi, Filesystem | Offline tar; preserve rule state and local data. |
-| O07 | paperless-mcp | paperless-mcp-app | 1Gi, Filesystem | Offline tar; preserve OAuth DCR clients, signing keys, and proxy sessions/state. |
+| O01 | knowhere | knowhere-rootdisk | 322122547200 (300Gi), Block | Sparse qcow2-LUKS on approved NFS; restore to `lvms-knowhere` Block target. |
+| O02 | openshift-image-registry | image-registry | 150Gi, Filesystem | GnuPG-AES256-encrypted numeric-owner/xattr/ACL/SELinux/sparse tar stream; preserve complete registry content. |
+| O03 | openshift-monitoring | alertmanager-main-db-alertmanager-main-0 | 10Gi, Filesystem | GnuPG-AES256 encrypted tar stream; preserve alerts, silences, and notification state. |
+| O04 | openshift-monitoring | prometheus-k8s-db-prometheus-k8s-0 | 40Gi, Filesystem | GnuPG-AES256 encrypted tar stream; preserve all platform Prometheus history; do not trim. |
+| O05 | openshift-user-workload-monitoring | prometheus-user-workload-db-prometheus-user-workload-0 | 40Gi, Filesystem | GnuPG-AES256 encrypted tar stream; preserve all UWM history; do not trim. |
+| O06 | openshift-user-workload-monitoring | thanos-ruler-user-workload-data-thanos-ruler-user-workload-0 | 40Gi, Filesystem | GnuPG-AES256 encrypted tar stream; preserve rule state and local data. |
+| O07 | paperless-mcp | paperless-mcp-app | 1Gi, Filesystem | GnuPG-AES256 encrypted tar stream; preserve OAuth DCR clients, signing keys, and proxy sessions/state. |
 
 ### R: 65 recreations without data restore
 
@@ -266,13 +353,18 @@ For Knowhere and the offline archives, hash the complete artifact.
 - [ ] Current PV/PVC/DataVolume/VM and workload metadata exported without Secrets.
 - [ ] Baseline numeric ownership, file counts, sizes, and application-specific
       database table/row counts captured.
-- [ ] NAS and every required restic repository reachable; free capacity plus 25%
-      margin independently verified.
-- [ ] Off-node NFS export identity, write path, root-squash behavior, capacity,
-      and data-protection decision approved.
-- [ ] Tested/pinned helper image contains `qemu-img`, GNU tar with
-      xattr/ACL/SELinux/sparse support, `sha256sum`, and required read-only guest
-      inspection tools.
+- [ ] Approved NFS directory is writable by the all_squash identity 1024:100;
+      current measurements remain within the approved 370.807GiB budget or the
+      reviewed 604.357GiB worst-case full-root budget.
+- [ ] Every required restic repository on `/volume1/configs` is reachable and its
+      existing tailsafe protection is confirmed.
+- [ ] The migration directory's missing tailsafe coverage is closed by verified
+      independent protection, or explicit operator risk acceptance is recorded.
+- [ ] Both ExternalSecrets are `SecretSynced`; mounted passphrase files are 0400,
+      nonempty, readable only by the helper, and never logged.
+- [ ] The pinned virt-launcher digest provides qemu-img 10.1, GNU tar with
+      xattr/ACL/SELinux/sparse support, GnuPG AES256, and `sha256sum`; a separate
+      pinned libguestfs helper is selected for read-only guest inspection.
 - [ ] Encrypted off-node etcd backup completed under the separate storage plan.
 - [ ] No unresolved cluster degradation, CI activity, deployments, or active
       migration streams.
@@ -282,13 +374,14 @@ For Knowhere and the offline archives, hash the complete artifact.
 - [ ] Representative restic filesystem restores compared for content and ownership.
 - [ ] All 11 database dump types imported into isolated instances/namespaces and
       checked with real table/row counts and extension/application checks.
-- [ ] Knowhere qcow2 restored to a non-production block PVC; `qemu-img compare`
-      and read-only guest inspection passed. No production VM boot was used.
+- [ ] Knowhere qcow2-LUKS restored to a non-production block PVC; encrypted
+      `qemu-img compare` and separate-helper read-only guest inspection passed.
+      No production VM boot was used.
 - [ ] KNX restore evidence revalidated against the current backup, including
       firmware UUID, `disk.img`, swtpm permall state, and 107:107 ownership.
-- [ ] Offline filesystem archive extracted into scratch storage; file counts,
-      checksums, numeric owners, sparse allocation, and destination SELinux
-      accessibility checked.
+- [ ] Encrypted offline filesystem archives decrypted/extracted into scratch
+      storage; file counts, checksums, numeric owners, sparse allocation, and
+      destination SELinux accessibility checked.
 - [ ] Every required repository passed `restic check`; full or sampled read-data
       scope and result recorded.
 - [ ] Gate B evidence includes dates, artifact IDs, target PV names, command exit
@@ -438,11 +531,12 @@ time and NAS load permit.
 
 ### 4. Offline filesystem copy pattern
 
-Use one helper per O02–O07 volume. The source is mounted read-only; the NFS
-destination is a direct NFS volume, not a PVC backed by `vg1`. Substitute the
-approved NFS server/export without embedding credentials. Use a dedicated
-namespace/service account and only the SCC required for numeric-owner
-preservation; remove temporary RBAC during approved cleanup.
+Use one helper per O02–O07 volume. The source is mounted read-only and the NFS
+destination is the approved dedicated directory, never a PVC backed by `vg1`.
+Tar writes to stdout and GnuPG writes only ciphertext to NFS; no plaintext tar or
+temporary plaintext file is created. Use a dedicated namespace/service account
+and only the SCC required for numeric-owner preservation; remove temporary RBAC
+during approved cleanup.
 
 ```yaml
 apiVersion: v1
@@ -457,18 +551,26 @@ spec:
     runAsUser: 0
   containers:
     - name: copy
-      image: <PINNED_MIGRATION_TOOLS_IMAGE>
+      image: registry.redhat.io/container-native-virtualization/virt-launcher-rhel9@sha256:2131d3d24616971b92d7e986635673b6dc731da3d43cae46540882993d36596f
       command: ["/bin/bash", "-ec"]
       args:
         - |
+          set -o pipefail
+          umask 077
           test -n "${ARTIFACT:?}"
-          test ! -e "/backup/$ARTIFACT.tar"
+          test ! -e "/backup/$ARTIFACT.tar.gpg"
           tar --one-file-system --numeric-owner --sparse --xattrs --acls --selinux \
-            -cpf "/backup/$ARTIFACT.tar" -C /src .
-          test -s "/backup/$ARTIFACT.tar"
-          tar -tf "/backup/$ARTIFACT.tar" >/dev/null
-          sha256sum "/backup/$ARTIFACT.tar" > "/backup/$ARTIFACT.tar.sha256"
-          stat -c '%n %s bytes %b blocks' "/backup/$ARTIFACT.tar"
+            -cpf - -C /src . | \
+            gpg --batch --no-tty --pinentry-mode loopback \
+              --passphrase-file /run/secrets/migration/filesystem-gpg.passphrase \
+              --symmetric --cipher-algo AES256 \
+              --output "/backup/$ARTIFACT.tar.gpg"
+          test -s "/backup/$ARTIFACT.tar.gpg"
+          gpg --batch --no-tty --pinentry-mode loopback \
+            --passphrase-file /run/secrets/migration/filesystem-gpg.passphrase \
+            --decrypt "/backup/$ARTIFACT.tar.gpg" | tar -tf - >/dev/null
+          sha256sum "/backup/$ARTIFACT.tar.gpg" > "/backup/$ARTIFACT.tar.gpg.sha256"
+          stat -c '%n %s bytes %b blocks' "/backup/$ARTIFACT.tar.gpg"
           sync
       env:
         - name: ARTIFACT
@@ -479,6 +581,9 @@ spec:
           readOnly: true
         - name: backup
           mountPath: /backup
+        - name: encryption
+          mountPath: /run/secrets/migration
+          readOnly: true
   volumes:
     - name: source
       persistentVolumeClaim:
@@ -486,29 +591,43 @@ spec:
         readOnly: true
     - name: backup
       nfs:
-        server: <APPROVED_NFS_SERVER>
-        path: <APPROVED_OFF_NODE_EXPORT>
+        server: 10.10.10.40
+        path: /volume1/pmb-backup/altus-lvms-migration
+    - name: encryption
+      secret:
+        secretName: altus-lvms-filesystem-encryption
+        defaultMode: 0400
+        items:
+          - key: passphrase
+            path: filesystem-gpg.passphrase
 ```
 
 Create a fresh artifact path for each run; never overwrite the last good copy.
 The manifest is the O04 example; substitute the exact O02/O03/O05/O06/O07 claim,
-namespace, and artifact ID. Do not use `kubectl cp`, which is unsuitable for
-sparse files, ownership, xattrs, and large streams.
+namespace, and artifact ID. Both pipelines use `pipefail`, so a tar, GnuPG,
+decryption, or listing failure fails the helper. Do not use `kubectl cp`, which
+is unsuitable for sparse files, ownership, xattrs, and large streams.
 
 Restore into a new, unmounted PVC with the same access mode and at least the
-original requested size. Mount it at `/dst` in a new helper with the same NFS
-volume, then:
+original requested size. Mount it at `/dst` in a new helper using the same pinned
+image, approved NFS mount, and 0400 filesystem-encryption Secret mount, then:
 
 ```bash
+set -euo pipefail
+umask 077
 test -z "$(find /dst -mindepth 1 -maxdepth 1 -print -quit)"
-sha256sum -c /backup/O04-prometheus-k8s-final-YYYYMMDDTHHMMSSZ.tar.sha256
-tar --numeric-owner --same-owner --sparse --xattrs --acls --selinux \
-  -xpf /backup/O04-prometheus-k8s-final-YYYYMMDDTHHMMSSZ.tar -C /dst
+sha256sum -c /backup/O04-prometheus-k8s-final-YYYYMMDDTHHMMSSZ.tar.gpg.sha256
+gpg --batch --no-tty --pinentry-mode loopback \
+  --passphrase-file /run/secrets/migration/filesystem-gpg.passphrase \
+  --decrypt /backup/O04-prometheus-k8s-final-YYYYMMDDTHHMMSSZ.tar.gpg | \
+  tar --numeric-owner --same-owner --sparse --xattrs --acls --selinux \
+    -xpf - -C /dst
 find /dst -xdev -printf '%P\t%u:%g\t%m\t%y\t%s\n' | sort > /backup/owners-after.txt
 diff -u /backup/owners-before.txt /backup/owners-after.txt
 # Compare file manifests and representative/full checksums as scoped in evidence.
 ```
 
+The decrypted bytes exist only in the pipeline and destination PVC, not on NFS.
 Restore in the original namespace so the namespace's SELinux MCS allocation is
 unchanged. Let the kubelet apply the destination volume context; do not blindly
 copy a different namespace's MCS label in a scratch test. If `tar` cannot restore
@@ -516,18 +635,20 @@ SELinux xattrs, stop and resolve context with the installed policy/tooling rathe
 than starting a workload with an unreadable volume. Verify both `stat` numeric
 ownership and `ls -Z` accessibility from the eventual workload security context.
 
-## Knowhere 300Gi Block root: offline qcow2 design
+## Knowhere 300Gi Block root: offline qcow2-LUKS design
 
 ### Backup
 
-O01 is a raw 300Gi block PVC. The backup is a self-contained qcow2 with no
-backing file. Zero/unallocated blocks remain sparse on the NFS target; do not
-`dd` a full 300Gi stream. Compression is optional and should be decided by the
-tested throughput/CPU baseline; sparseness and integrity are mandatory.
+O01 is a raw 300Gi block PVC. The backup is a self-contained qcow2-LUKS image
+with no backing file. Zero/unallocated blocks remain sparse on the NFS target;
+do not `dd` a full 300Gi stream. Compression is optional and should be decided
+by the tested throughput/CPU baseline; sparseness, LUKS encryption, and integrity
+are mandatory. Only ciphertext is written to NFS.
 
-Use a pinned image with `qemu-img`. The helper needs a `volumeDevice`, not a
-`volumeMount`, and runs only after the Knowhere VMI and source attachment are
-gone.
+The helper needs a `volumeDevice`, not a `volumeMount`, and runs only after the
+Knowhere VMI and source attachment are gone. `QCOW2_OPTS` describes the already
+created encrypted image for check/info/compare; `--image-opts` cannot be combined
+with `-f`, so the raw second input is identified with `-F raw`.
 
 ```yaml
 apiVersion: v1
@@ -542,21 +663,26 @@ spec:
     runAsUser: 0
   containers:
     - name: qemu
-      image: <PINNED_QEMU_TOOLS_IMAGE>
+      image: registry.redhat.io/container-native-virtualization/virt-launcher-rhel9@sha256:2131d3d24616971b92d7e986635673b6dc731da3d43cae46540882993d36596f
       command: ["/bin/bash", "-ec"]
       args:
         - |
+          umask 077
           test -b /dev/source
           test -n "${ARTIFACT:?}"
           test ! -e "/backup/$ARTIFACT.qcow2"
-          qemu-img convert -p -f raw -O qcow2 \
-            -o cluster_size=2M,preallocation=off \
+          qemu-img --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            convert -p -f raw -O qcow2 \
+            -o cluster_size=2M,preallocation=off,encrypt.format=luks,encrypt.key-secret=rootkey \
             /dev/source "/backup/$ARTIFACT.qcow2"
           test -s "/backup/$ARTIFACT.qcow2"
-          qemu-img check -f qcow2 "/backup/$ARTIFACT.qcow2"
-          qemu-img info --backing-chain "/backup/$ARTIFACT.qcow2"
-          qemu-img compare -p -f raw -F qcow2 \
-            /dev/source "/backup/$ARTIFACT.qcow2"
+          QCOW2_OPTS="driver=qcow2,file.driver=file,file.filename=/backup/$ARTIFACT.qcow2,encrypt.format=luks,encrypt.key-secret=rootkey"
+          qemu-img --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            check --image-opts "$QCOW2_OPTS"
+          qemu-img --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            info --backing-chain --image-opts "$QCOW2_OPTS"
+          qemu-img --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            compare -p --image-opts -F raw "$QCOW2_OPTS" /dev/source
           sha256sum "/backup/$ARTIFACT.qcow2" > "/backup/$ARTIFACT.qcow2.sha256"
           stat -c '%n apparent=%s allocated-blocks=%b' "/backup/$ARTIFACT.qcow2"
           du -h "/backup/$ARTIFACT.qcow2"
@@ -570,6 +696,9 @@ spec:
       volumeMounts:
         - name: backup
           mountPath: /backup
+        - name: encryption
+          mountPath: /run/secrets/migration
+          readOnly: true
   volumes:
     - name: source
       persistentVolumeClaim:
@@ -577,21 +706,31 @@ spec:
         readOnly: true
     - name: backup
       nfs:
-        server: <APPROVED_NFS_SERVER>
-        path: <APPROVED_OFF_NODE_EXPORT>
+        server: 10.10.10.40
+        path: /volume1/pmb-backup/altus-lvms-migration
+    - name: encryption
+      secret:
+        secretName: altus-lvms-knowhere-root-encryption
+        defaultMode: 0400
+        items:
+          - key: passphrase
+            path: root-luks.passphrase
 ```
 
 `qemu-img compare` is intentionally a complete read-back verification even
-though it adds time. A nonzero exit, corrupt qcow2 metadata, backing-file
-reference, missing checksum, or unexpected 300Gi virtual size fails Gate C.
-There is no filesystem ownership to `chown` inside this raw block backup.
+though it adds time. A nonzero exit, corrupt qcow2 metadata, missing/incorrect
+LUKS encryption, backing-file reference, missing checksum, or unexpected 300Gi
+virtual size fails Gate C. There is no filesystem ownership to `chown` inside
+this raw block backup.
 
 ### Non-production restore test
 
 Perform this before the original pool is touched. Use a scratch namespace and a
 **non-production target StorageClass approved for the test**, with at least
 300Gi virtual capacity and enough real allocation. Do not use a running VM, a
-production DataVolume name, a production MAC, or the old block PV.
+production DataVolume name, a production MAC, or the old block PV. Materialize
+`altus-lvms-knowhere-root-encryption` in the scratch namespace with an
+ExternalSecret referencing the same root Doppler key; do not copy Secret data.
 
 ```yaml
 apiVersion: v1
@@ -619,43 +758,58 @@ spec:
     runAsUser: 0
   containers:
     - name: qemu
-      image: <PINNED_QEMU_TOOLS_IMAGE>
+      image: registry.redhat.io/container-native-virtualization/virt-launcher-rhel9@sha256:2131d3d24616971b92d7e986635673b6dc731da3d43cae46540882993d36596f
       command: ["/bin/bash", "-ec"]
       args:
         - |
+          umask 077
           test -b /dev/target
-          sha256sum -c /backup/O01-knowhere-root-final-YYYYMMDDTHHMMSSZ.qcow2.sha256
-          qemu-img check -f qcow2 /backup/O01-knowhere-root-final-YYYYMMDDTHHMMSSZ.qcow2
-          qemu-img convert -p -f qcow2 -O raw -S 4k \
-            /backup/O01-knowhere-root-final-YYYYMMDDTHHMMSSZ.qcow2 /dev/target
-          qemu-img compare -p -f qcow2 -F raw \
-            /backup/O01-knowhere-root-final-YYYYMMDDTHHMMSSZ.qcow2 /dev/target
-          # With the tested read-only guest-inspection tool, verify the expected
-          # partition table, boot/root filesystems, and a known non-secret file.
-          # Never mount the restored filesystem read-write in this helper.
+          ARTIFACT=O01-knowhere-root-final-YYYYMMDDTHHMMSSZ
+          sha256sum -c "/backup/$ARTIFACT.qcow2.sha256"
+          QCOW2_OPTS="driver=qcow2,file.driver=file,file.filename=/backup/$ARTIFACT.qcow2,encrypt.format=luks,encrypt.key-secret=rootkey"
+          qemu-img --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            check --image-opts "$QCOW2_OPTS"
+          qemu-img --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            convert -p --image-opts -O raw -S 4k "$QCOW2_OPTS" /dev/target
+          qemu-img --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            compare -p --image-opts -F raw "$QCOW2_OPTS" /dev/target
+          # In the separate pinned libguestfs helper, inspect the restored raw
+          # target read-only: partition table, boot/root filesystems, and a known
+          # non-secret file. Never mount the restored filesystem read-write.
       volumeDevices:
         - name: target
           devicePath: /dev/target
       volumeMounts:
         - name: backup
           mountPath: /backup
+        - name: encryption
+          mountPath: /run/secrets/migration
+          readOnly: true
   volumes:
     - name: target
       persistentVolumeClaim:
         claimName: knowhere-root-restore-test
     - name: backup
       nfs:
-        server: <APPROVED_NFS_SERVER>
-        path: <APPROVED_OFF_NODE_EXPORT>
+        server: 10.10.10.40
+        path: /volume1/pmb-backup/altus-lvms-migration
+    - name: encryption
+      secret:
+        secretName: altus-lvms-knowhere-root-encryption
+        defaultMode: 0400
+        items:
+          - key: passphrase
+            path: root-luks.passphrase
 ```
 
-A read-only guest inspection may use `guestfish --ro`/`virt-filesystems` if the
-pinned image provides them. Do not make the scratch PVC sparse-file guarantees a
-substitute for content comparison. Record the restored PV, virtual size,
-comparison exit status, inspected partitions/filesystems, and known-file result.
-A boot test, if separately approved, must use a throwaway VM with isolated
-networking and no production agents/services; it is not required for this
-block-restore proof.
+The verified virt-launcher image does not provide `guestfish` or
+`virt-filesystems`; use a separate pinned libguestfs helper with `guestfish --ro`
+for the inspection step. Do not make scratch sparse-file guarantees a substitute
+for content comparison. Record the restored PV, virtual size, comparison exit
+status, inspected partitions/filesystems, and known-file result. The mandatory
+B18 boot proof additionally uses a throwaway VM with isolated networking and no
+production agents/services; passing the block comparison alone does not close
+Gate B.
 
 ### Production restore after pool recreation
 
@@ -868,11 +1022,13 @@ Require one signed evidence row for every V/D/O route:
   identity/time, repository check, restore-test reference, ownership baseline.
 - D01–D11: new dump Job, nonzero `backup.sql`, byte size and SHA-256, fresh
   dump-PVC sync(s), repository check, isolated import and row-count evidence.
-- O01: stopped/detached proof, qcow2 virtual size 300Gi, no backing file,
-  `qemu-img check`, full source/archive compare, SHA-256, allocated/apparent
-  sizes, and non-production restore/compare evidence.
-- O02–O07: stopped/detached proof, tar listing success, SHA-256, apparent and
-  allocated size, scratch extraction comparison, ownership/SELinux evidence.
+- O01: stopped/detached proof, qcow2-LUKS virtual size 300Gi, confirmed
+  `encrypt.format=luks`, no backing file, encrypted `qemu-img check`, full
+  encrypted-archive/source compare, ciphertext SHA-256, allocated/apparent sizes,
+  and non-production restore/compare evidence.
+- O02–O07: stopped/detached proof, GnuPG decrypt-and-tar-list success with
+  `pipefail`, ciphertext SHA-256, apparent and allocated size, scratch extraction
+  comparison, and ownership/SELinux evidence; no plaintext `.tar` on NFS.
 - R01–R65 and I01–I06: explicitly reviewed as recreation/reimport; no backup
   artifact is required.
 
@@ -903,36 +1059,33 @@ Do not cross the storage point of no return with any missing or failed row.
 
 ## Unresolved safety questions / required Gate A–B decisions
 
-1. **NFS destination:** which exact off-node export is approved, what are its
-   allocated-capacity and throughput limits, and does root-squash affect the
-   chosen artifact ownership? Prove it is not dependent on `vg1`.
-2. **Artifact confidentiality:** restic is encrypted, but the qcow2 and tar
-   patterns are plaintext inside their artifacts. Confirm the NFS share's access
-   controls and at-rest/independent-backup protection are acceptable for the VM
-   root, registry, monitoring, and OAuth state. If not, add a reviewed encryption
-   design using ExternalSecret-injected key material before any copy.
-3. **Helper image/RBAC:** select and pin tested images containing the required
-   qemu/tar/read-only guest tools. Validate the minimum SCC/RBAC in the scratch
-   namespace; do not default to privileged helpers.
-4. **Monitoring quiescence:** validate the exact operator pause/scale sequence
+1. **Migration-artifact independent protection:** the approved
+   `/volume1/pmb-backup/altus-lvms-migration/` directory is not currently
+   tailsafe-covered. Add and verify equivalent independent protection, or record
+   explicit operator acceptance of the NAS-resident-only risk for the defined
+   migration/retention window. Existing `/volume1/configs` tailsafe coverage does
+   not protect these new O01–O07 artifacts.
+2. **Helper RBAC and libguestfs:** validate the minimum SCC/RBAC for the pinned
+   virt-launcher helper in scratch and production namespaces; do not default to
+   privileged helpers. Select and pin a separate libguestfs image and prove
+   read-only guest inspection, because the verified qemu/tar/GPG image lacks
+   guestfish.
+3. **Monitoring quiescence:** validate the exact operator pause/scale sequence
    against the installed Cluster Monitoring Operator and UWM versions, including
    who recreates pods and how original management/replica state is restored.
-5. **Registry quiescence:** approve the `Managed` → `Unmanaged` → scale-down
+4. **Registry quiescence:** approve the `Managed` → `Unmanaged` → scale-down
    sequence and confirm no image-pruner/writer remains during the copy.
-6. **Database globals:** prove the full `pg_dumpall` role/database restore behavior
+5. **Database globals:** prove the full `pg_dumpall` role/database restore behavior
    for each CNPG version and Immich's custom PostgreSQL image. Record expected
    duplicate-object diagnostics and fail criteria before the final import.
-7. **Restore-test class:** choose non-production storage with 300Gi virtual block
-   capacity and sufficient real space; measure full qcow2 compare duration and
-   host/etcd impact. The documentation task did not run this test.
-8. **SELinux/sparse support:** prove archive extraction preserves numeric owners,
-   ACLs/xattrs and sparse allocation, and that final-namespace volume relabeling
-   leaves each workload able to read its data. A scratch namespace has a
-   different MCS label and must not be compared byte-for-byte for SELinux context.
-9. **Local-only repositories:** Gitea data, Knowhere projects, KNX, Qdrant,
-   Taxbuddy-Hermes, and Vaultwarden config have only the local restic leg in this
-   inventory. Confirm the NAS's independent backup/availability is sufficient
-   for the migration risk window.
-10. **Current-state drift:** this is a point-in-time inventory. Any new/missing
-    PVC, changed size/mode/class, changed ReplicationSource, or new writer
-    requires a reviewed routing-table update, not an ad-hoc restore decision.
+6. **Restore-test class:** choose non-production storage with 300Gi virtual block
+   capacity and sufficient real space; measure full encrypted qcow2 compare
+   duration and host/etcd impact. The documentation task did not run this test.
+7. **SELinux/sparse support:** prove encrypted archive extraction preserves
+   numeric owners, ACLs/xattrs and sparse allocation, and that final-namespace
+   volume relabeling leaves each workload able to read its data. A scratch
+   namespace has a different MCS label and must not be compared byte-for-byte for
+   SELinux context.
+8. **Current-state drift:** this is a point-in-time inventory. Any new/missing
+   PVC, changed size/mode/class, changed ReplicationSource, new writer, or changed
+   allocated-data budget requires a reviewed update, not an ad-hoc decision.
