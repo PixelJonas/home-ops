@@ -454,10 +454,18 @@ on 2026-10-27, so no independent tailsafe coverage is being added for the
 migration directory under that decision. Initial duplicate keys in
 `infra-ops/prd` remain pending separate deletion review.
 
+The OpenShift 4.22.15 etcd backup completed without stopping Knowhere.
+`altus-etcd-20261027T060937Z.tgz.gpg` contains one 186,597,408-byte snapshot and
+static resources, passed decrypt-and-tar-list verification, and has matching
+local/NAS SHA-256 `e44781dd83b4b3652edb6b51e23992f93eb68de8059b33a25eb57bc0b7a15722`.
+Only GPG ciphertext was written off Altus; the exact temporary plaintext
+directory on Altus was removed after remote verification. No cluster upgrade is
+permitted between this backup and the migration.
+
 This checkpoint does **not** close Gate A: application/file/database baselines,
-all-repository/tailsafe checks, GitOps freeze ownership, encrypted etcd backup,
-and final activity/degradation checks remain open. No B00–B24 batch or
-production migration has run.
+all-repository/tailsafe checks, GitOps freeze ownership, and final
+activity/degradation checks remain open. No B00–B24 batch or production
+migration has run.
 
 ### Gate A: preparation
 
@@ -494,7 +502,8 @@ production migration has run.
 - [ ] Knowhere GitOps freeze/unfreeze owners and exact VM/DataVolume/PVC/VolSync
       reference changes are reviewed. Interim VolSync uses `synology-snapshot`
       and a cache off `lvms-vg1`; final uses `lvms-knowhere` for snapshot/cache.
-- [ ] Encrypted off-node etcd backup completed under the separate storage plan.
+- [x] Encrypted off-node etcd backup completed under the separate storage plan;
+      OpenShift 4.22.15 artifact and NAS checksum verified on 2026-10-27.
 - [ ] No unresolved cluster degradation, CI activity, deployments, or active
       migration streams.
 
