@@ -101,6 +101,12 @@ artifacts have only their NAS-resident copy during the migration/retention
 window. Existing restic tailsafe protection on `/volume1/configs` does not cover
 this new directory and must not be cited as evidence that it does.
 
+**Operator decision, 2026-10-27:** the operator explicitly accepted the
+NAS-only risk for this migration/retention window. The migration directory will
+not receive independent tailsafe protection under this acceptance; encrypted
+artifacts may therefore have only their NAS-resident copy. This is a recorded
+risk acceptance, not evidence of independent protection.
+
 Create the Doppler-owned, high-entropy filesystem passphrase for O02–O07. Create
 the independent root passphrase for the mandatory running-production root
 safety copy and for optional O01 DR work if separately approved. These are key
@@ -109,6 +115,11 @@ environment dump, or the NFS evidence directory:
 
 - `ALTUS_LVMS_MIGRATION_KNOWHERE_ROOT_LUKS_PASSPHRASE`
 - `ALTUS_LVMS_MIGRATION_FILESYSTEM_GPG_PASSPHRASE`
+
+On 2026-10-27 both values were created in **Doppler `homelab/home`**, which is
+the project visible to the cluster's `doppler-cluster` store. Initial duplicate
+entries in `infra-ops/prd` were created during project discovery and are retained
+for a separate deletion review; they are not the ESO source of truth.
 
 Materialize required values with ExternalSecrets; do not copy existing Secret
 data. The Knowhere example targets the running-root safety secret (also used
@@ -433,10 +444,19 @@ All 52 ReplicationSources reported `Successful`, including Knowhere's
 `projects-backup`; this is a baseline only, not restore evidence. The Knowhere
 and nmstate ArgoCD Applications remain Healthy/Synced with automated
 self-heal/prune enabled, so their deliberate freeze is still pending.
+
+Both migration passphrases were created in Doppler `homelab/home`; all five
+ExternalSecrets reached `Ready/SecretSynced`, and temporary helper pods verified
+nonempty mounted files with mode `0400` (using `stat -L` for the Secret symlink).
+The pods were removed; only the namespaced helper ServiceAccounts/RoleBindings
+remain for later tests. The operator explicitly accepted NAS-only artifact risk
+on 2026-10-27, so no independent tailsafe coverage is being added for the
+migration directory under that decision. Initial duplicate keys in
+`infra-ops/prd` remain pending separate deletion review.
+
 This checkpoint does **not** close Gate A: application/file/database baselines,
-all-repository/tailsafe checks, independent protection for the migration
-directory, encryption ExternalSecrets, GitOps freeze ownership, encrypted etcd
-backup, and final activity/degradation checks remain open. No B00–B24 batch or
+all-repository/tailsafe checks, GitOps freeze ownership, encrypted etcd backup,
+and final activity/degradation checks remain open. No B00–B24 batch or
 production migration has run.
 
 ### Gate A: preparation
@@ -451,9 +471,10 @@ production migration has run.
       reviewed 604.357GiB worst-case full-root budget if optional O01 is approved.
 - [ ] Every required restic repository on `/volume1/configs` is reachable and its
       existing tailsafe protection is confirmed.
-- [ ] The migration directory's missing tailsafe coverage is closed by verified
-      independent protection, or explicit operator risk acceptance is recorded.
-- [ ] Required ExternalSecrets are `SecretSynced`; mounted passphrase files are
+- [x] The migration directory's missing tailsafe coverage is covered by explicit
+      operator NAS-only risk acceptance dated 2026-10-27; it is not independently
+      protected.
+- [x] Required ExternalSecrets are `SecretSynced`; mounted passphrase files are
       0400, nonempty, readable only by the helper, and never logged. The root LUKS
       Secret is required for the running-production root safety copy and for
       separately approved optional O01 DR work.
