@@ -544,6 +544,16 @@ off-node recovery artifact through the observation period. This safety evidence
 is required before production leg 1, but it is not a continuous migration copy
 and must never be used to replace the running production root.
 
+Root-safety templates are `altus-lvms-root-safety-support.yaml`,
+`altus-lvms-root-safety-backup.yaml`,
+`altus-lvms-root-recovery-restore.yaml`,
+`altus-lvms-root-recovery-inspect.yaml`, and
+`altus-lvms-root-recovery-vm.yaml` in this directory. Use them only in the
+approved Gate B window with a unique artifact ID and reviewed scratch identity.
+The recovery VM has `autoattachPodInterface: false`, empty interfaces/networks,
+and no production PVC, MAC, IP, cloud-init Secret, or firmware UUID. Use
+`.status.guestOSInfo` from the VMI rather than requiring `virtctl`.
+
 ### Preflight and identity
 
 1. Record the verified installed `VirtualMachineStorageMigrationPlan` API and
@@ -567,6 +577,14 @@ and must never be used to replace the running production root.
    firmware UUID, MAC/IP, cloud-init, and guest hostname. Disable production
    agent/Tailscale enrollment. Record this identity and the guest boot ID. After
    this initial boot, no shutdown or reboot is permitted during either leg.
+
+Executable templates are `docs/runbooks/altus-lvms-b18-initial.yaml`,
+`docs/runbooks/altus-lvms-b18-leg1.yaml`, and
+`docs/runbooks/altus-lvms-b18-leg2.yaml`. They are deliberately separate apply
+files; never apply all three together. The retained scratch NAD is referenced,
+not replaced. Before B18a, approve and record a numeric maximum acceptable
+migration pause in seconds. Without that threshold, the continuous probes cannot
+produce a defensible PASS.
 
 Start independent one-second network and guest-application probes before leg 1
 and leave them running through leg 2. A guest writer must append and fsync a
@@ -596,7 +614,8 @@ must remain unchanged. A plan reporting success without these checks is a fail.
    rollback. Preserve source/destination evidence and require a separately
    reviewed recovery action rather than automatic reversal.
 
-The B18a resources have this exact shape; substitute only the disposable
+The B18a resources have this exact shape; the apply file is
+`docs/runbooks/altus-lvms-b18-leg1.yaml`. Substitute only the disposable
 namespace and reviewed destination names after checking for collisions:
 
 ```yaml
@@ -641,6 +660,9 @@ final snapshot class. This is the boundary between B18a and B18b, not a circular
 requirement to create `lvms-knowhere` before the old pool can be removed.
 
 ### B18b: active iSCSI to lvms-knowhere, xandar to altus
+
+The apply file is `docs/runbooks/altus-lvms-b18-leg2.yaml`; use it only after
+B18a, the rebuild, and final storage-class/provisioning checks pass.
 
 1. With the same disposable VM still running on xandar, create one plan for
    **both then-active iSCSI PVCs**, targeting `lvms-knowhere`, with `retentionPolicy: keepSource`

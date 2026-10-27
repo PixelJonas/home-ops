@@ -1,0 +1,65 @@
+# Isolated recovery boot. No guest NIC, production identity, or production disk.
+# The scratch projects disk is required for normal Knowhere userspace. This template
+# assumes V03 is restored but the B18 VM has not booted; otherwise use a distinct
+# recovery projects disk, never production or an active B18 disk.
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: knowhere-root-recovery-test
+  namespace: gb18-knowhere
+  labels:
+    lvms-migration-test: gate-b
+    consistency: crash-consistent
+spec:
+  runStrategy: Halted
+  template:
+    metadata:
+      labels:
+        kubevirt.io/domain: knowhere-root-recovery-test
+        lvms-migration-test: gate-b
+    spec:
+      architecture: amd64
+      hostname: knowhere-root-recovery-test
+      domain:
+        cpu:
+          cores: 6
+        resources:
+          requests:
+            memory: 18Gi
+          limits:
+            memory: 18Gi
+        firmware:
+          uuid: REPLACE_WITH_SCRATCH_UUID
+        devices:
+          autoattachPodInterface: false
+          interfaces: []
+          disks:
+            - name: rootdisk
+              bootOrder: 1
+              disk:
+                bus: virtio
+            - name: projectsdisk
+              disk:
+                bus: virtio
+              serial: projectsdisk
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+      networks: []
+      volumes:
+        - name: rootdisk
+          persistentVolumeClaim:
+            claimName: knowhere-root-recovery
+        - name: projectsdisk
+          persistentVolumeClaim:
+            claimName: knowhere-projects
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              hostname: knowhere-root-recovery-test
+              preserve_hostname: false
+              manage_etc_hosts: true
+              ssh_deletekeys: true
+              ssh_genkeytypes: [ed25519, rsa, ecdsa]
+              ssh_pwauth: false

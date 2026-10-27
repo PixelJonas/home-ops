@@ -1,0 +1,64 @@
+# Read-only inspection of the restored recovery Block PVC. No production disk is attached.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: knowhere-root-recovery-inspect
+  namespace: gb18-knowhere
+  labels:
+    lvms-migration-test: gate-b
+spec:
+  restartPolicy: Never
+  serviceAccountName: lvms-migration-helper
+  automountServiceAccountToken: false
+  securityContext:
+    runAsUser: 0
+  containers:
+    - name: guestfish
+      image: registry.redhat.io/container-native-virtualization/libguestfs-tools-rhel9@sha256:de17d73c4ce0f55a360e60ff9f477abab69dbe8765b0ce3e4339a3ed8dc14ce8
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+      env:
+        - name: LIBGUESTFS_BACKEND
+          value: direct
+        - name: LIBGUESTFS_PATH
+          value: /usr/local/lib/guestfs/appliance
+        - name: LIBGUESTFS_BACKEND_SETTINGS
+          value: force_tcg
+        - name: LIBGUESTFS_TMPDIR
+          value: /tmp
+        - name: LIBGUESTFS_CACHEDIR
+          value: /tmp
+        - name: TMPDIR
+          value: /tmp
+        - name: HOME
+          value: /tmp
+      command: ["/bin/bash", "-ec"]
+      args:
+        - |
+          test -b /dev/target
+          guestfish --ro --format=raw -a /dev/target -i <<'GUESTFISH'
+          inspect-os
+          list-filesystems
+          mounts
+          cat /etc/os-release
+          umount-all
+          GUESTFISH
+      volumeDevices:
+        - name: target
+          devicePath: /dev/target
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: var-tmp
+          mountPath: /var/tmp
+  volumes:
+    - name: target
+      persistentVolumeClaim:
+        claimName: knowhere-root-recovery
+        readOnly: true
+    - name: tmp
+      emptyDir: {}
+    - name: var-tmp
+      emptyDir: {}

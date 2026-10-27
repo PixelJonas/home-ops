@@ -1,0 +1,68 @@
+# Root-safety scratch support objects. Apply only in the approved Gate B window.
+# Complete any V03 mover before installing the default-deny policy.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lvms-migration-helper
+  namespace: gb18-knowhere
+  labels:
+    lvms-migration-test: gate-b
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lvms-migration-helper-anyuid
+  namespace: gb18-knowhere
+  labels:
+    lvms-migration-test: gate-b
+subjects:
+  - kind: ServiceAccount
+    name: lvms-migration-helper
+    namespace: gb18-knowhere
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: altus-lvms-knowhere-root-encryption
+  namespace: gb18-knowhere
+  labels:
+    lvms-migration-test: gate-b
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: altus-lvms-knowhere-root-encryption
+  data:
+    - secretKey: passphrase
+      remoteRef:
+        key: ALTUS_LVMS_MIGRATION_KNOWHERE_ROOT_LUKS_PASSPHRASE
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knowhere-root-safety-default-deny
+  namespace: gb18-knowhere
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knowhere-root-safety-nas-egress
+  namespace: gb18-knowhere
+spec:
+  podSelector:
+    matchLabels:
+      app: knowhere-root-recovery-restore
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.10.10.40/32

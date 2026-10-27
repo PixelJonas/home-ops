@@ -1,0 +1,117 @@
+# Running-production root snapshot and encrypted copy. Never attach production
+# knowhere-rootdisk to this helper. Substitute a unique ARTIFACT run ID.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: knowhere-root-safety-snap
+  namespace: knowhere
+  labels:
+    lvms-migration-test: gate-b
+    consistency: crash-consistent
+spec:
+  volumeSnapshotClassName: lvms-vg1
+  source:
+    persistentVolumeClaimName: knowhere-rootdisk
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knowhere-root-safety-source
+  namespace: knowhere
+  labels:
+    lvms-migration-test: gate-b
+    consistency: crash-consistent
+spec:
+  accessModes: [ReadWriteOnce]
+  volumeMode: Block
+  storageClassName: lvms-vg1
+  resources:
+    requests:
+      storage: 322122547200
+  dataSource:
+    apiGroup: snapshot.storage.k8s.io
+    kind: VolumeSnapshot
+    name: knowhere-root-safety-snap
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: knowhere-root-safety-backup
+  namespace: knowhere
+  labels:
+    lvms-migration-test: gate-b
+    consistency: crash-consistent
+spec:
+  restartPolicy: Never
+  serviceAccountName: lvms-migration-helper
+  automountServiceAccountToken: false
+  securityContext:
+    runAsUser: 0
+  containers:
+    - name: qemu
+      image: registry.redhat.io/container-native-virtualization/virt-launcher-rhel9@sha256:2131d3d24616971b92d7e986635673b6dc731da3d43cae46540882993d36596f
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+      command: ["/bin/bash", "-ec"]
+      args:
+        - |
+          set -o pipefail
+          umask 077
+          test -b /dev/source
+          test -n "${ARTIFACT:?}"
+          test ! -e "/backup/$ARTIFACT.qcow2"
+          qemu-img convert \
+            --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            -p -f raw -O qcow2 \
+            -o cluster_size=2M,preallocation=off,encrypt.format=luks,encrypt.key-secret=rootkey \
+            /dev/source "/backup/$ARTIFACT.qcow2"
+          test -s "/backup/$ARTIFACT.qcow2"
+          QCOW2_OPTS="driver=qcow2,file.driver=file,file.filename=/backup/$ARTIFACT.qcow2,encrypt.format=luks,encrypt.key-secret=rootkey"
+          qemu-img check \
+            --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            --image-opts "$QCOW2_OPTS"
+          qemu-img info \
+            --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            --backing-chain --image-opts "$QCOW2_OPTS"
+          qemu-img compare \
+            --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
+            -p --image-opts "$QCOW2_OPTS" \
+            "driver=raw,file.driver=host_device,file.filename=/dev/source"
+          sha256sum "/backup/$ARTIFACT.qcow2" > "/backup/$ARTIFACT.qcow2.sha256"
+          stat -c '%n apparent=%s allocated-blocks=%b' "/backup/$ARTIFACT.qcow2"
+          du -h "/backup/$ARTIFACT.qcow2"
+          sync
+      env:
+        - name: ARTIFACT
+          value: B18-knowhere-root-safety-YYYYMMDDTHHMMSSZ
+      volumeDevices:
+        - name: source
+          devicePath: /dev/source
+      volumeMounts:
+        - name: backup
+          mountPath: /backup
+        - name: encryption
+          mountPath: /run/secrets/migration
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: source
+      persistentVolumeClaim:
+        claimName: knowhere-root-safety-source
+        readOnly: true
+    - name: backup
+      nfs:
+        server: 10.10.10.40
+        path: /volume1/pmb-backup/altus-lvms-migration
+    - name: encryption
+      secret:
+        secretName: altus-lvms-knowhere-root-encryption
+        defaultMode: 0400
+        items:
+          - key: passphrase
+            path: root-luks.passphrase
+    - name: tmp
+      emptyDir: {}

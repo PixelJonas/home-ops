@@ -1,0 +1,35 @@
+# B18a only: both disposable disks lvms-vg1 -> synology-iscsi-storage,
+# running VM Altus -> Xandar. Apply only after B00-B17 and preflight pass.
+apiVersion: migrations.kubevirt.io/v1alpha1
+kind: VirtualMachineStorageMigrationPlan
+metadata:
+  name: gb18-leg1
+  namespace: gb18-knowhere
+spec:
+  retentionPolicy: keepSource
+  virtualMachines:
+    - name: knowhere-live-migration-test
+      targetMigrationPVCs:
+        - volumeName: rootdisk
+          destinationPVC:
+            name: knowhere-rootdisk-iscsi
+            storageClassName: synology-iscsi-storage
+            volumeMode: Block
+            accessModes:
+              - ReadWriteOnce
+        - volumeName: projectsdisk
+          destinationPVC:
+            name: knowhere-projects-iscsi
+            storageClassName: synology-iscsi-storage
+            volumeMode: Filesystem
+            accessModes:
+              - ReadWriteOnce
+---
+apiVersion: migrations.kubevirt.io/v1alpha1
+kind: VirtualMachineStorageMigration
+metadata:
+  name: gb18-leg1
+  namespace: gb18-knowhere
+spec:
+  virtualMachineStorageMigrationPlanRef:
+    name: gb18-leg1

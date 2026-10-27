@@ -1,0 +1,35 @@
+# B18b only: the same running VM and both then-active iSCSI disks ->
+# lvms-knowhere, Xandar -> Altus. Apply only after the rebuild and all B18a/rebuild gates pass.
+apiVersion: migrations.kubevirt.io/v1alpha1
+kind: VirtualMachineStorageMigrationPlan
+metadata:
+  name: gb18-leg2
+  namespace: gb18-knowhere
+spec:
+  retentionPolicy: keepSource
+  virtualMachines:
+    - name: knowhere-live-migration-test
+      targetMigrationPVCs:
+        - volumeName: rootdisk
+          destinationPVC:
+            name: knowhere-rootdisk-lvms
+            storageClassName: lvms-knowhere
+            volumeMode: Block
+            accessModes:
+              - ReadWriteOnce
+        - volumeName: projectsdisk
+          destinationPVC:
+            name: knowhere-projects-lvms
+            storageClassName: lvms-knowhere
+            volumeMode: Filesystem
+            accessModes:
+              - ReadWriteOnce
+---
+apiVersion: migrations.kubevirt.io/v1alpha1
+kind: VirtualMachineStorageMigration
+metadata:
+  name: gb18-leg2
+  namespace: gb18-knowhere
+spec:
+  virtualMachineStorageMigrationPlanRef:
+    name: gb18-leg2
