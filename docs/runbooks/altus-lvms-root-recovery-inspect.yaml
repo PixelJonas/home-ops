@@ -38,9 +38,11 @@ spec:
       args:
         - |
           test -b /dev/target
-          guestfish --ro --format=raw -a /dev/target -i <<'GUESTFISH'
+          guestfish --ro --format=raw -a /dev/target <<'GUESTFISH'
+          run
           inspect-os
           list-filesystems
+          mount_ro /dev/sda1 /
           mounts
           cat /etc/os-release
           umount-all

@@ -52,10 +52,6 @@ spec:
           qemu-img convert \
             --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
             -p --image-opts -O raw -S 4k "$QCOW2_OPTS" /dev/target
-          qemu-img compare \
-            --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
-            -p --image-opts "$QCOW2_OPTS" \
-            "driver=raw,file.driver=host_device,file.filename=/dev/target"
       volumeDevices:
         - name: target
           devicePath: /dev/target

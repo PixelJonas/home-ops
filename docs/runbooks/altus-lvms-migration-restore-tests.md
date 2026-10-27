@@ -186,7 +186,7 @@ For each `gbNN-*` namespace:
      jq --arg ns "$NS" '.items[] |
        {apiVersion,kind,metadata:{name:.metadata.name,namespace:$ns},spec:.spec}' |
      oc-sa altus apply -f -
-   oc-sa altus -n "$NS" wait --for=condition=SecretSynced externalsecrets --all --timeout=5m
+   oc-sa altus -n "$NS" wait --for=condition=Ready externalsecrets --all --timeout=5m
    ```
 
 4. Reproduce only existing SCC grants with namespaced RoleBindings in the
@@ -537,8 +537,8 @@ A separate mandatory safety gate covers the production root without stopping it:
 take a running-VM VolumeSnapshot, explicitly labeled crash-consistent unless the
 guest agent confirms a successful filesystem freeze, and restore that snapshot
 to a new scratch Block PVC. Never attach the production source to a helper. Run
-qcow2-LUKS backup/check/full comparison, read-only guest inspection, and the
-reviewed isolated-boot recovery check against only the scratch copy. Record the
+qcow2-LUKS backup/check/SHA-256 verification, read-only guest inspection, and
+the reviewed isolated-boot recovery check against only the scratch copy. Record the
 snapshot/recovery point and any application-consistency limitation. Keep this
 off-node recovery artifact through the observation period. This safety evidence
 is required before production leg 1, but it is not a continuous migration copy

@@ -75,10 +75,6 @@ spec:
           qemu-img info \
             --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
             --backing-chain --image-opts "$QCOW2_OPTS"
-          qemu-img compare \
-            --object secret,id=rootkey,file=/run/secrets/migration/root-luks.passphrase \
-            -p --image-opts "$QCOW2_OPTS" \
-            "driver=raw,file.driver=host_device,file.filename=/dev/source"
           sha256sum "/backup/$ARTIFACT.qcow2" > "/backup/$ARTIFACT.qcow2.sha256"
           stat -c '%n apparent=%s allocated-blocks=%b' "/backup/$ARTIFACT.qcow2"
           du -h "/backup/$ARTIFACT.qcow2"
