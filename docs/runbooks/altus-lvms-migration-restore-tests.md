@@ -33,6 +33,14 @@ claim Tailscale or migrated-guest identity evidence. Both guests and their
 temporary key material were removed; the scratch namespace/NAD remains for the
 later B18 rehearsal. No production VM, PVC, or Secret was touched.
 
+## Execution checkpoint: 2026-10-27 initial Gate B batches
+
+- B00 passed all 52 Restic repository checks, including full `--read-data` for every high-value local-only source. InfluxDB snapshot `3af9bd7a` was independently verified after the successful manual backup. Its scheduled replication remains temporarily paused pending the separate mover `spc_t` review.
+- The running-production root safety test passed encrypted NAS copy, qcow2 check and SHA-256 verification, scratch iSCSI restore, read-only Ubuntu 24.04.4 filesystem inspection, and an isolated boot with `AgentConnected=True`. The scratch VM, disks, helpers and snapshot were removed; the encrypted artifact and evidence remain on the NAS.
+- Top-level B08 passed with approximately 80 MB/s direct writes, 90 MB/s direct reads, 2.8–3.8 ms flush latency, and 26 TiB NAS free space. B09's Knowhere ArgoCD automated sync/prune/selfHeal freeze is active and non-secret metadata was exported.
+- Batch B01 Actual Budget passed the pinned `f6d988b1` restore, full file and SHA-256 comparison, UID/GID 1001 read/write checks, real budget/API reads covering 4,575 transactions, and a scratch-only save/re-read. Scratch cleanup and PV claimRef checks passed.
+- B02–B24 and the numeric maximum-pause approval for B18a remain open unless separately recorded below. Production Knowhere stayed Running throughout all completed checks.
+
 ## Safety and completion contract
 
 - Execute from outside Knowhere. Run one batch at a time and require its evidence
