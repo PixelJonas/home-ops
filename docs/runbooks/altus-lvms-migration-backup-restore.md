@@ -102,16 +102,18 @@ window. Existing restic tailsafe protection on `/volume1/configs` does not cover
 this new directory and must not be cited as evidence that it does.
 
 Create the Doppler-owned, high-entropy filesystem passphrase for O02–O07. Create
-the independent root passphrase only if optional O01 DR work is separately
-approved. These are key names only; never place either value in this file, a Pod
-argument, shell environment dump, or the NFS evidence directory:
+the independent root passphrase for the mandatory running-production root
+safety copy and for optional O01 DR work if separately approved. These are key
+names only; never place either value in this file, a Pod argument, shell
+environment dump, or the NFS evidence directory:
 
 - `ALTUS_LVMS_MIGRATION_KNOWHERE_ROOT_LUKS_PASSPHRASE`
 - `ALTUS_LVMS_MIGRATION_FILESYSTEM_GPG_PASSPHRASE`
 
 Materialize required values with ExternalSecrets; do not copy existing Secret
-data. The Knowhere example targets the optional DR root secret, and the
-filesystem example is repeated in each O02–O07 namespace with target name
+data. The Knowhere example targets the running-root safety secret (also used
+for optional O01 DR), and the filesystem example is repeated in each O02–O07
+namespace with target name
 `altus-lvms-filesystem-encryption`:
 
 ```yaml
@@ -412,6 +414,31 @@ count/size manifest at final backup. Hash all small configuration/state volumes
 and each complete offline archive. Hash optional O01 only under its separate DR
 approval; live M01/M02 use migration and continuous-I/O evidence instead.
 
+### Gate A execution checkpoint: 2026-10-27
+
+The non-secret inventory/metadata baseline was captured and reconciled by name
+against all 104 documented route IDs: 104 live `lvms-vg1` PVCs, all Bound, with
+zero missing or unexpected names. Knowhere remained Running/Ready on Altus with
+`StorageLiveMigratable=True` and `BlockMigration`; the migration API/controller
+checks passed. The NAS `/volume1` reported 28,045,274,341,376 bytes available
+(about 26 TiB), and the dedicated migration directory passed a
+write/readback/cleanup probe. TopoLVM reported 2,739.088 GiB physical thin-pool
+free, so LVMS has headroom for its half of B18; this is not a substitute for
+per-batch allocated-data checks.
+
+The metadata archive `altus-gate-a-inventory-20261027.tar.gz` was scanned with
+gitleaks, uploaded to the approved migration directory, and verified with
+SHA-256 `102c3955970db7659de2bc08d949eb202514bbf4e2e40e0b99200a70c729ed92`.
+All 52 ReplicationSources reported `Successful`, including Knowhere's
+`projects-backup`; this is a baseline only, not restore evidence. The Knowhere
+and nmstate ArgoCD Applications remain Healthy/Synced with automated
+self-heal/prune enabled, so their deliberate freeze is still pending.
+This checkpoint does **not** close Gate A: application/file/database baselines,
+all-repository/tailsafe checks, independent protection for the migration
+directory, encryption ExternalSecrets, GitOps freeze ownership, encrypted etcd
+backup, and final activity/degradation checks remain open. No B00–B24 batch or
+production migration has run.
+
 ### Gate A: preparation
 
 - [ ] Live inventory reconciled by name to all 104 production route IDs; all
@@ -428,7 +455,8 @@ approval; live M01/M02 use migration and continuous-I/O evidence instead.
       independent protection, or explicit operator risk acceptance is recorded.
 - [ ] Required ExternalSecrets are `SecretSynced`; mounted passphrase files are
       0400, nonempty, readable only by the helper, and never logged. The root LUKS
-      Secret is required only for separately approved optional O01 DR work.
+      Secret is required for the running-production root safety copy and for
+      separately approved optional O01 DR work.
 - [ ] The pinned virt-launcher digest provides qemu-img 10.1, GNU tar with
       xattr/ACL/SELinux/sparse support, GnuPG AES256, and `sha256sum`; the separate
       pinned libguestfs helper passed synthetic read-only inspection and write
