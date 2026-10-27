@@ -487,18 +487,35 @@ was uploaded only as encrypted
 and NAS SHA-256 `4874e06e9be46c4ca636a755144d25c77640ab8c32d7aa2e4cb35303203a086d`.
 No plaintext Knowhere manifest archive was uploaded.
 
-This checkpoint does **not** close Gate A: the remaining snapshot/helper
-filesystem baselines, GitOps freeze ownership, and final activity/degradation
-checks remain open. No B00–B24 batch or production migration has run.
+GitOps freeze ownership and ordering are reviewed: this migration session owns
+the parent-first/child-second freeze and must record every affected Application.
+Auto-sync remains enabled during read-only baselines and will be frozen only for
+controlled volume-reference changes, then restored after final reconciliation.
+
+All nine detached/snapshot/helper baselines completed with scratch cleanup in
+NAS-verified `altus-gate-a-filesystem-helpers-20261027.tar.gz` (SHA-256
+`6081e5c9b15f4788d342004802ab1ecfcd5643fcd0063ac3ebda2af957d307b5`).
+V06 required its restored `s0:c45,c1004` label; O03–O05 required read-only
+`spc_t` for unlabeled filesystems. The three coordinated Nextcloud NFS, Immich
+library, and Paperless export baselines completed in
+`altus-gate-a-filesystem-additional-20261027.tar.gz` (SHA-256
+`85145cdba5a71bd56e72e387f764d6976aa3092a1686f2c001f73c7f2a79e350`);
+Nextcloud's direct scan used the application UID/GID 33 without changing access.
+
+The baseline set is complete, but Gate A remains open on final activity: the
+pre-existing `influxdb3/volsync-src-data-backup` mover has been stuck in
+`CreateContainerError` with `RST_STREAM ... CANCEL` since its scheduled run.
+This is outside the migration PVC set and was not restarted or modified by the
+migration work. No B00–B24 batch or production migration has run.
 
 ### Gate A: preparation
 
-- [ ] Live inventory reconciled by name to all 104 production route IDs; all
+- [x] Live inventory reconciled by name to all 104 production route IDs; all
       source PVCs Bound. M01/M02 are live routes; V03/O01 are DR-only coverage.
-- [ ] Current PV/PVC/DataVolume/VM and workload metadata exported without Secrets.
-- [ ] Baseline numeric ownership, file counts, sizes, and application-specific
-      database table/row counts captured.
-- [ ] Approved NFS directory is writable by the all_squash identity 1024:100;
+- [x] Current PV/PVC/DataVolume/VM and workload metadata exported without Secrets.
+- [x] Baseline numeric ownership, file counts, sizes, and application-specific
+      database table/row counts captured, including coordinated NFS/library/export data.
+- [x] Approved NFS directory is writable by the all_squash identity 1024:100;
       current measurements remain within the approved 370.807GiB budget or the
       reviewed 604.357GiB worst-case full-root budget if optional O01 is approved.
 - [x] Every required restic repository on `/volume1/configs` passed sequential
@@ -511,22 +528,23 @@ checks remain open. No B00–B24 batch or production migration has run.
       0400, nonempty, readable only by the helper, and never logged. The root LUKS
       Secret is required for the running-production root safety copy and for
       separately approved optional O01 DR work.
-- [ ] The pinned virt-launcher digest provides qemu-img 10.1, GNU tar with
+- [x] The pinned virt-launcher digest provides qemu-img 10.1, GNU tar with
       xattr/ACL/SELinux/sparse support, GnuPG AES256, and `sha256sum`; the separate
       pinned libguestfs helper passed synthetic read-only inspection and write
       denial using the environment and writable mounts recorded above.
-- [ ] The `knowhere-lan` OVN localnet mapping is configured and validated on
+- [x] The `knowhere-lan` OVN localnet mapping is configured and validated on
       xandar before any first-leg plan is created. A disposable VMI on xandar has
       proven the expected VLAN, addressing, routes and peer connectivity without
       using Knowhere's production network identity.
-- [ ] Knowhere reports `StorageLiveMigratable=True` and `BlockMigration`;
+- [x] Knowhere reports `StorageLiveMigratable=True` and `BlockMigration`;
       Altus/xandar CPU, scheduling, storage and network prerequisites pass.
       Ordinary `LiveMigratable=False` from local RWO PVCs is expected and is not
       a storage-migration failure. Both plans name M01 and M02 together, use
       unique destination PVCs, and explicitly set `retentionPolicy: keepSource`.
-- [ ] Knowhere GitOps freeze/unfreeze owners and exact VM/DataVolume/PVC/VolSync
+- [x] Knowhere GitOps freeze/unfreeze owners and exact VM/DataVolume/PVC/VolSync
       reference changes are reviewed. Interim VolSync uses `synology-snapshot`
       and a cache off `lvms-vg1`; final uses `lvms-knowhere` for snapshot/cache.
+      Freeze activates only for controlled volume-reference changes, not read-only baselines.
 - [x] Encrypted off-node etcd backup completed under the separate storage plan;
       OpenShift 4.22.15 artifact and NAS checksum verified on 2026-10-27.
 - [ ] No unresolved cluster degradation, CI activity, deployments, or active

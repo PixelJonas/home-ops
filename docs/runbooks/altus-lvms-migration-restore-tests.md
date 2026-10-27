@@ -707,10 +707,19 @@ spec:
 ```
 
 Wait for the named snapshot's `.status.readyToUse=true`, record its
-`.status.creationTime` and bound snapshot content, then wait for the restored
-PVC to be Bound. Mount `gb20-o04-source` read-only in the archive helper. The
-scratch extraction target is a separate empty PVC on `synology-iscsi-storage`;
-do not use the snapshot-restored source as the extraction destination.
+`.status.creationTime` and bound snapshot content, then create the restored PVC
+and its read-only helper. `lvms-vg1` uses `WaitForFirstConsumer`, so waiting for
+the restored PVC to bind before creating its consumer deadlocks; instead require
+the helper/PVC to become Ready/Bound together. Mount `gb20-o04-source` read-only
+in the archive helper. The scratch extraction target is a separate empty PVC on
+`synology-iscsi-storage`; do not use the snapshot-restored source as the
+extraction destination.
+
+For metadata helpers, record process and source SELinux labels before traversal.
+The V06 restored root required `s0:c45,c1004`; O03–O05 were `unlabeled_t:s0` and
+required read-only `spc_t`. These are narrow helper contexts, not privileged SCC
+grants or permission to relabel production data. Scratch application validation
+must still use the target workload's own security context.
 
 Archive each source to a fresh off-node artifact
 `ONN-gbNN-YYYYMMDDTHHMMSSZ.tar.gpg` using the Gate A streaming tar → GnuPG
