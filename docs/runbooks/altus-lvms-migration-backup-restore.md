@@ -413,7 +413,7 @@ necessary:
 ```bash
 # Inside the helper; /src is the source mount. Numeric IDs, modes, sparse
 # allocation, and SELinux labels are evidence, not values to guess later.
-find /src -xdev -printf '%P\t%u:%g\t%m\t%y\t%s\n' | sort > /backup/owners-before.txt
+find /src -xdev -printf '%P\t%U:%G\t%m\t%y\t%s\n' | sort > /backup/owners-before.txt
 find /src -xdev -type f -printf '%P\t%s\t%b\n' | sort > /backup/files-before.txt
 stat -c '%n %s bytes %b blocks %u:%g %a' /src/disk.img 2>/dev/null || true
 ls -Zd /src /src/disk.img 2>/dev/null || true
@@ -462,10 +462,34 @@ Only GPG ciphertext was written off Altus; the exact temporary plaintext
 directory on Altus was removed after remote verification. No cluster upgrade is
 permitted between this backup and the migration.
 
-This checkpoint does **not** close Gate A: application/file/database baselines,
-all-repository/tailsafe checks, GitOps freeze ownership, and final
-activity/degradation checks remain open. No B00–B24 batch or production
-migration has run.
+All 52 repositories passed sequential `restic snapshots --latest=1` reachability
+checks with current snapshots. The evidence archive
+`altus-gate-a-repository-reachability-20261027.tar.gz` is NAS-verified with
+SHA-256 `b4b92a27a5613b2782b3084c50c69d724e3fac9a8cb3cd9f4767b02b94e1b251`.
+Tailsafe is running and mounts the local restic repository read-only. These are
+reachability/protection checks, not B00 integrity or restore passes.
+
+All 11 database schema/table/count baselines completed sequentially and are in
+NAS-verified `altus-gate-a-db-baselines-20261027.tar.gz` (SHA-256
+`90a49986f826a34150c605d46499fdb6ceb754637f4e16c005269566e17d5d3d`).
+Eleven direct filesystem manifests also completed with numeric ownership,
+allocation, inode, and sparse-file metadata in
+`altus-gate-a-filesystem-direct-20261027.tar.gz` (SHA-256
+`015f46ffdb7c6a8442b22ab98378354099b75d73755dc78d12dc1308d44419f8`).
+GNU `find` ownership formats in this runbook use `%U:%G`; `stat` continues to
+use `%u:%g` for numeric IDs.
+
+Knowhere's live root, projects, and PVC-wrapper manifests also completed without
+guest interruption. Because the root path manifest produced 126 generic
+API-key-pattern findings (duplicated in raw/sorted copies), the complete evidence
+was uploaded only as encrypted
+`altus-gate-a-knowhere-filesystem-20261027.tar.gz.gpg`, with verified decryption
+and NAS SHA-256 `4874e06e9be46c4ca636a755144d25c77640ab8c32d7aa2e4cb35303203a086d`.
+No plaintext Knowhere manifest archive was uploaded.
+
+This checkpoint does **not** close Gate A: the remaining snapshot/helper
+filesystem baselines, GitOps freeze ownership, and final activity/degradation
+checks remain open. No B00–B24 batch or production migration has run.
 
 ### Gate A: preparation
 
@@ -477,8 +501,9 @@ migration has run.
 - [ ] Approved NFS directory is writable by the all_squash identity 1024:100;
       current measurements remain within the approved 370.807GiB budget or the
       reviewed 604.357GiB worst-case full-root budget if optional O01 is approved.
-- [ ] Every required restic repository on `/volume1/configs` is reachable and its
-      existing tailsafe protection is confirmed.
+- [x] Every required restic repository on `/volume1/configs` passed sequential
+      reachability/latest-snapshot checks; the existing tailsafe container is
+      running and mounts the local repository read-only. B00 integrity remains separate.
 - [x] The migration directory's missing tailsafe coverage is covered by explicit
       operator NAS-only risk acceptance dated 2026-10-27; it is not independently
       protected.
@@ -798,7 +823,7 @@ gpg --batch --no-tty --pinentry-mode loopback \
   --decrypt /backup/O04-prometheus-k8s-final-YYYYMMDDTHHMMSSZ.tar.gpg | \
   tar --numeric-owner --same-owner --sparse --xattrs --acls --selinux \
     -xpf - -C /dst
-find /dst -xdev -printf '%P\t%u:%g\t%m\t%y\t%s\n' | sort > /backup/owners-after.txt
+find /dst -xdev -printf '%P\t%U:%G\t%m\t%y\t%s\n' | sort > /backup/owners-after.txt
 diff -u /backup/owners-before.txt /backup/owners-after.txt
 # Compare file manifests and representative/full checksums as scoped in evidence.
 ```

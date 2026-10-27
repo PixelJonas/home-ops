@@ -504,6 +504,10 @@ PVC names above in the scratch namespace. Set the state PVC label
 use MAC `02:e7:4f:bd:a6:38`, and retain firmware serial and UUID
 `b73ae2a8-c599-45f0-9830-33e50088fae3` byte-identical. Use only a namespaced
 `anyuid` grant for the ownership helper; no privileged SCC or production dongle.
+The 2026-10-27 read-only V04/V05 baseline also required the exact mixed source
+MCS set `s0:c0,c35,c190,c439`: `/src` used `c0,c35`, while nested state used
+`c190,c439`. Inspect restored labels and use the minimal matching category set;
+never relabel production data or substitute a privileged SCC.
 
 Before boot, chown only the two restored trees to 107:107 and require:
 
