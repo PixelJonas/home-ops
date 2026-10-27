@@ -13,6 +13,26 @@ Gates A/C. A passed crash-consistent rehearsal does not make a live-writer final
 copy acceptable. Knowhere instead uses B18's disposable two-leg live-migration
 rehearsal; production Knowhere and its sessions remain running throughout.
 
+## Execution checkpoint: 2026-10-27 network gate
+
+The Xandar `knowhere-lan-bridge-mapping-xandar` NNCP was applied manually from
+this branch after a server dry-run and prior-state capture. It reached
+`Available=True`, `Degraded=False`, and `1/1 nodes successfully configured`.
+The Xandar NodeNetworkState diff contained only the added
+`knowhere-lan: br-ex` mapping; the existing `physnet` mapping, `br-ex` uplink,
+`br0` storage bridge, and Knowhere's Running/Ready/AgentConnected state remained
+unchanged. The policy is not merged into the GitOps source yet.
+
+Two isolated Fedora container-disk guests used the scratch `gb18-knowhere`
+namespace and `gb18-knowhere-lan` NAD, with separate MACs, hostnames, firmware
+UUIDs, and a disposable SSH key. The Altus guest obtained `10.42.4.75/21` and
+the Xandar guest obtained `10.42.4.76/21`. Both passed SSH, DNS, default-route,
+and LAN-gateway checks; cross-node ICMP and 1472-byte payload (1500-byte MTU)
+checks passed. Neither guest enrolled in Tailscale, so this checkpoint does not
+claim Tailscale or migrated-guest identity evidence. Both guests and their
+temporary key material were removed; the scratch namespace/NAD remains for the
+later B18 rehearsal. No production VM, PVC, or Secret was touched.
+
 ## Safety and completion contract
 
 - Execute from outside Knowhere. Run one batch at a time and require its evidence
