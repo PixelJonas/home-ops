@@ -536,11 +536,17 @@ migration work. No B00–B24 batch or production migration has run.
       xandar before any first-leg plan is created. A disposable VMI on xandar has
       proven the expected VLAN, addressing, routes and peer connectivity without
       using Knowhere's production network identity.
-- [x] Knowhere reports `StorageLiveMigratable=True` and `BlockMigration`;
-      Altus/xandar CPU, scheduling, storage and network prerequisites pass.
-      Ordinary `LiveMigratable=False` from local RWO PVCs is expected and is not
-      a storage-migration failure. Both plans name M01 and M02 together, use
-      unique destination PVCs, and explicitly set `retentionPolicy: keepSource`.
+- [ ] Knowhere reports `StorageLiveMigratable=True` and `BlockMigration`, but
+      the Altus/xandar CPU prerequisite currently **FAILS**. Production uses
+      `host-model`; Xandar genuinely lacks five required CPU features and cannot
+      host the expanded Altus model. CPU model is not live-updatable, and editing
+      the VM template would require a controlled reboot and can block subsequent
+      live updates. With only these two nodes, zero-reboot production migration
+      is impossible; do not start M01/M02, fabricate labels or stage a CPU change.
+      A future controlled reboot to a common named model such as
+      `Skylake-Client-noTSX-IBRS`, or a fully compatible target node, is required.
+      Ordinary `LiveMigratable=False` from local RWO PVCs remains expected. Both
+      plans must name M01 and M02 together and use `retentionPolicy: keepSource`.
 - [x] Knowhere GitOps freeze/unfreeze owners and exact VM/DataVolume/PVC/VolSync
       reference changes are reviewed. Interim VolSync uses `synology-snapshot`
       and a cache off `lvms-vg1`; final uses `lvms-knowhere` for snapshot/cache.
