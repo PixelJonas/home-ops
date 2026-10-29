@@ -1,0 +1,173 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: happier-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: happier
+    server: "https://kubernetes.default.svc"
+  project: cluster-apps
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.2.1
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            # restricted-v2 friendly: no runAsUser/fsGroup pinned. The SCC
+            # assigns an arbitrary UID plus the namespace's fsGroup, which
+            # makes the /data PVC writable. OnRootMismatch skips the
+            # recursive chown on every restart once ownership is right.
+            #
+            # Fallback if the image's own (non-group-writable) dirs break
+            # under an arbitrary UID (upstream happier-dev/happier#211):
+            # grant anyuid to the `happier-app` ServiceAccount (see
+            # components-apps/actual-budget/anyuid-rolebinding.yaml), pin
+            # the image's `happier` user's UID/GID here, and give the volsync
+            # movers a matching moverSecurityContext (see taxbuddy-hermes).
+            fsGroupChangePolicy: "OnRootMismatch"
+
+        controllers:
+          happier:
+            replicas: 1
+            # SQLite on a RWO volume: never run two pods at once.
+            strategy: Recreate
+            containers:
+              happier:
+                image:
+                  repository: ghcr.io/happier-dev/relay-server
+                  tag: stable@sha256:f7f1301ad3b0b8f7ed91897ac320942584d09079055e1c9ab779afef0c9644a7
+                  pullPolicy: IfNotPresent
+                ports:
+                  - name: http
+                    containerPort: 3005
+                    protocol: TCP
+                env:
+                  TZ: Europe/Berlin
+                  # Light flavor (image default): SQLite + local files.
+                  HAPPIER_SERVER_LIGHT_DATA_DIR: /data
+                  # URL embedded in QR codes / deep links; must be reachable
+                  # from the phone. LAN-only name served by the NAS Caddy
+                  # (split-horizon DNS), which proxies to the Route below
+                  # (infra-ops docs/agents/happier-knowhere-eval-plan-2026-10-29.md, D1).
+                  HAPPIER_PUBLIC_SERVER_URL: https://happier.app.janz.digital
+                  # Cluster network CIDR (network.config/cluster). The
+                  # HostNetwork router reaches pods from the nodes'
+                  # ovn-k8s-mp0 address inside this range. Only affects the
+                  # client IP used for rate limiting; a hop count fails
+                  # startup, so it must be an address/CIDR.
+                  HAPPIER_SERVER_TRUST_PROXY: 10.128.0.0/14
+                  # Anonymous device-key signup. Flip to "false" once the
+                  # first account exists (phone created + knowhere daemon
+                  # paired) — existing-key logins, token refresh and CLI
+                  # pairing keep working; only new account creation is
+                  # blocked.
+                  AUTH_ANONYMOUS_SIGNUP_ENABLED: "true"
+                  HANDY_MASTER_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: happier-credentials
+                        key: HANDY_MASTER_SECRET
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                      - ALL
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 256Mi
+                  limits:
+                    memory: 1Gi
+                # Generous timeouts: altus etcd stalls make tight probes flap
+                # (.claude/rules/kubernetes-argocd.md "Altus control plane").
+                # Startup allows 30 x 5s = 150s for SQLite migrations.
+                probes:
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 3005
+                      periodSeconds: 5
+                      timeoutSeconds: 5
+                      failureThreshold: 30
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 3005
+                      periodSeconds: 15
+                      timeoutSeconds: 10
+                      failureThreshold: 6
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /ready
+                        port: 3005
+                      periodSeconds: 10
+                      timeoutSeconds: 10
+                      failureThreshold: 6
+
+        service:
+          happier:
+            controller: happier
+            # Service `happier` -> in-cluster URL
+            # http://happier.happier.svc.cluster.local:3005 (without it
+            # app-template names the lone Service after the release,
+            # `happier-app`).
+            forceRename: happier
+            ports:
+              http:
+                port: 3005
+
+        ingress:
+          happier:
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+              # Socket.IO WebSocket at /v1/updates (15s ping, 45s timeout):
+              # keep idle tunnels open well beyond the server heartbeat.
+              haproxy.router.openshift.io/timeout-tunnel: 1h
+            hosts:
+              - host: happier.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: happier
+                      port: http
+
+        persistence:
+          data:
+            # Explicit suffix so the PVC is `happier-app-data`, matching the
+            # volsync backup sourcePVC (app-template v5 otherwise names a
+            # lone PVC after the release).
+            suffix: data
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            globalMounts:
+              - path: /data
+            size: 5Gi
+          tmp:
+            # Writable scratch in case the server or its Node runtime
+            # writes to /tmp (unverified, see upstream #211).
+            type: emptyDir
+            globalMounts:
+              - path: /tmp
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
