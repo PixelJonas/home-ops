@@ -193,7 +193,7 @@ For V03-class sparse images, compare apparent and allocated bytes. Root-safety r
 
 ### O03–O06 monitoring history and rules
 
-Monitoring recovery must prove retained history and behavior, not merely TSDB files. B21 matched 10,212 user-metric points over seven days and 95 `VolSyncBackupStale` points over 48 hours after WAL replay, with no WAL deletion or history trimming. Thanos Ruler restored local state and evaluated all four rules in two groups without notification egress. Use production images and UID/GID 65534:65534, disable scraping/remote write/notifications in scratch, and compare production retention/spec/CVO state after cleanup.
+Monitoring recovery must prove retained history and behavior, not merely TSDB files. B20 preserved all four Alertmanager silences and the notification-log hash, all 25 platform Prometheus TSDB blocks, checkpoint and every WAL segment, with exact historical `kube_node_info`/`node_load1` samples at four timestamps. B21 matched 10,212 user-metric points over seven days and 95 `VolSyncBackupStale` points over 48 hours after WAL replay, with no WAL deletion or history trimming. Thanos Ruler restored local state and evaluated all four rules in two groups without notification egress. Use production images and UID/GID 65534:65534, disable scraping/remote write/notifications/admin APIs in scratch, and compare production retention/spec/CVO state after cleanup.
 
 ### Empty cache recreation
 
