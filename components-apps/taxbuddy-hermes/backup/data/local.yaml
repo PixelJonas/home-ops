@@ -16,11 +16,11 @@
   value: lvms-vg1
 
 # /opt/data is owned by the hermes user (uid/gid 10000) with mode 0700, so
-# the mover must run as that uid to read it. The mover ServiceAccount
-# (volsync-src-data-backup) is granted anyuid in ../../anyuid-rolebinding.yaml.
+# the mover runs as that uid without fsGroup changing the source metadata.
+# The mover ServiceAccount is granted anyuid in ../../anyuid-rolebinding.yaml.
 - op: add
   path: /spec/restic/moverSecurityContext
   value:
     runAsUser: 10000
     runAsGroup: 10000
-    fsGroup: 10000
+    runAsNonRoot: true

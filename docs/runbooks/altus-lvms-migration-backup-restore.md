@@ -252,7 +252,7 @@ restore must never replace M02 in the production route.
 | V10 | qdrant | cosmere-knowledge-index-progress | 1Gi | crawl-progress-backup / restic-config-crawl-progress | Local; preserve crawl progress with V11/V12. |
 | V11 | qdrant | qdrant-app-data | 10Gi | data-backup / restic-config-data | Local; preserve collection data; pod fsGroup 1001090000 at this checkpoint. |
 | V12 | qdrant | qdrant-app-snapshots | 5Gi | snapshots-backup / restic-config-snapshots | Local; restore snapshots as well as live data. |
-| V13 | taxbuddy-hermes | taxbuddy-hermes-app | 5Gi | data-backup / restic-config-data | Local; destination mover must use runAsUser/runAsGroup/fsGroup 10000. |
+| V13 | taxbuddy-hermes | taxbuddy-hermes-app | 5Gi | data-backup / restic-config-data | Local; mover must use runAsUser/runAsGroup 10000 and runAsNonRoot without fsGroup. |
 | V14 | tymeslot | tymeslot-app | 5Gi | data-backup / restic-config-data; data-backup-b2 / restic-config-data-b2 | Local+B2; coordinated with D09; app runs as root at this checkpoint. |
 | V15 | vaultwarden | vaultwarden-app-config | 1Gi | config-backup / restic-config-config | Local; coordinated with D10. |
 
@@ -1231,14 +1231,14 @@ spec:
     copyMethod: Direct
 ```
 
-For V13 only, add the existing mover context:
+For V13 only, add the existing mover context. Omit `fsGroup` and
+`fsGroupChangePolicy` so the mover does not rewrite restored metadata:
 
 ```yaml
     moverSecurityContext:
       runAsUser: 10000
       runAsGroup: 10000
       runAsNonRoot: true
-      fsGroup: 10000
 ```
 
 Wait for `.status.latestMoverStatus.result: Successful` on the specific restore,
