@@ -55,7 +55,7 @@ later B18 rehearsal. No production VM, PVC, or Secret was touched.
 - Batch B15 Qdrant is **PASS after reviewed closure**. Controller-created helpers with dedicated ServiceAccounts and `required-scc` eliminated the direct cluster-admin caller's SCC union; all 23 captured admissions were compliant. Exact source-derived per-path corrections restored every path's content and metadata before startup, including roots `0:1001090000:2777`, with no recursive writes or content changes. Exact collections/counts, known-vector results, five snapshots and 7,744 resume entries passed without a crawl. Independent acceptance review confirmed that five runtime file changes `0664→0644` and two directory changes `0775→02755` are non-blocking application-managed drift; the original contract does not require post-startup metadata immutability. Closure evidence is SHA-archived as `b15-qdrant-metadata-closure-evidence.tar.gz`, with the initial failure and uncorrected-stop archives retained.
 - Batch B16 Taxbuddy Hermes is **PASS after reviewed closure**. The mover used UID/GID 10000 and `runAsNonRoot` without fsGroup; all 14 helper admissions were controller-created and limited to approved `anyuid`/`nonroot-v2`. Exact per-path corrections restored 80,087 nested modes without recursive writes or content changes; all 80,425 entries and 3.16 GB then matched Gate A, including root `10000:10000:0700` and required config/session/SSH/Moshi/tools state. Read-only `quick_check` passed for all eight SQLite databases and dashboard-only existing chat/Kanban reads passed with no external services or metadata drift. Cleanup passed with 104 Bound production LVMS PVCs and unchanged production Hermes/Knowhere. SHA-verified evidence is archived as `b16-taxbuddy-hermes-closure-evidence.tar.gz`; earlier failures remain archived. The V13 source/restore templates now omit fsGroup.
 - Batch B17 KNX is **PASS** under the revised stopped-VM backup/isolated-restore contract. Fresh coordinated V04 snapshot `8e7bb8ab` and V05 snapshot `3a65d8ef` were captured on 2026-10-29 while production remained Stopped/Halted with no VMI or source attachments. Both full Restic read-data checks and exact Direct restores passed. Exact Gate A mixed per-path metadata, unchanged NVRAM/vTPM hashes, UID/GID 107 read-only access and destination SELinux labels passed; the reviewed current `disk.img` size is 64063799296 bytes. Non-boot exact restore validation was sufficient under the user's acceptance decision; the earlier isolated Windows boot also passed without BitLocker recovery. All nine fresh helper admissions were controller-created with no forbidden SCC. Scratch cleanup passed, production KNX remained stopped, and Knowhere stayed Running/Ready/AgentConnected. Evidence and per-file hashes are archived in `b17-knx-ets-cold-backup-20261029/` with manifest SHA-256 `b3dbc1a06d36a2eac76bf625395ffa6963f6da55b2b03e85b7202c2f981979b2`; earlier technical evidence is retained as `b17-knx-ets-closure-evidence.tar.gz`.
-- Batch B19 is **FAIL closed pending diagnosis**. O02 encrypted archive/extract, 122-entry metadata, 44 full hashes, sparse maps, ACL/xattr and normalized SELinux checks passed, and scratch `_catalog` loaded. The required restored-blob pull failed because all three current RHEL amd64 manifests reference config/layer blobs absent from the snapshot; scratch fell through to upstream, so this is not proof of restored data. I04–I06 and scratch push were not run. Cleanup passed with no B19 resources remaining, production registry 1/1 Managed/Ready and unchanged, KNX stopped and Knowhere healthy. Artifact `O02-gb19-20261029T145003Z.tar.gpg` is retained with SHA-256 `2ed0b4050a6096e67070b6f0d63e9e8b2b7ba7aac2b8244e960274a066628789`; evidence archive `b19-image-registry-evidence.tar.gz` has SHA-256 `edba60bd684ef26be08a656aa78e026d6d6069b82ed68a8dfe8baf5c826bcd60`.
+- Batch B19 initially **failed closed** at the restored RHEL blob gate. Diagnosis proved the assumption invalid: all three DataImportCrons use `pullMethod: node` with direct `registry.redhat.io` sources, `referencePolicy: Source` and `lookupPolicy.local=false`, so those blobs were never cached internally. Gate A and B19 source inventories were identical, imports completed months earlier, and production DataVolumes/DataSources were healthy; snapshot loss and production corruption are not supported. O02 archive/extract, metadata, hashes, sparse/ACL/xattr/SELinux and cleanup passed. The corrected closure uses fully cached `qdrant/cosmere-knowledge-index` content with upstream disabled for O02 and separate recorded-digest upstream imports for I04–I06. Original artifact `O02-gb19-20261029T145003Z.tar.gpg` has SHA-256 `2ed0b4050a6096e67070b6f0d63e9e8b2b7ba7aac2b8244e960274a066628789`; failure and diagnosis evidence archives are retained, including `b19-image-registry-diagnosis-evidence.tar.gz` SHA-256 `2a699532c25f13043c8bd1d43bce25d4abd8e2a2d2b681e1ab11f1f4b43460df`.
 - B18–B24, B09's production queue-deletion review, B06's deferred external completion, live shared D-route backup rollout/capture validation, and B02's optional runner proof remain open unless separately recorded below. The B18a maximum pause is approved at 30 seconds per leg with a target of at most 10 seconds and applies only to disposable Knowhere rehearsals, not KNX. Production Knowhere stayed Running throughout all completed checks.
 
 ## Safety and completion contract
@@ -798,7 +798,7 @@ the source namespace's MCS label in scratch.
 
 | Batch/type | Source namespace/PVC, request | Scratch target PVC | Real application evidence |
 |---|---|---|---|
-| B19/O02 registry | `openshift-image-registry` / `image-registry`, 150Gi | `image-registry`, 150Gi | Full repository/blob/upload manifest; `_catalog`; known tag manifest digest unchanged; pull; disposable scratch push/pull; no GC/dedup |
+| B19/O02 registry | `openshift-image-registry` / `image-registry`, 150Gi | `image-registry`, 150Gi | Full repository/blob/upload manifest; `_catalog`; fully cached `qdrant/cosmere-knowledge-index` manifest digest and all linked blobs unchanged; real pull with upstream disabled; disposable scratch push/pull; no GC/dedup |
 | B20/O03 Alertmanager | `openshift-monitoring` / `alertmanager-main-db-alertmanager-main-0`, 10Gi | same name, 10Gi | Silence IDs/expiry and notification state match; known silence loads; no notifications sent |
 | B20/O04 platform Prometheus | `openshift-monitoring` / `prometheus-k8s-db-prometheus-k8s-0`, 40Gi | same name, 40Gi | TSDB blocks/WAL and min/max times; known metric at oldest retained and several pre-cutover timestamps; exact samples match |
 | B21/O05 UWM Prometheus | `openshift-user-workload-monitoring` / `prometheus-user-workload-db-prometheus-user-workload-0`, 40Gi | same name, 40Gi | Oldest/newest known user metric, >26h `VolSyncBackupStale` range, no 7d trimming or WAL deletion |
@@ -1082,19 +1082,17 @@ hash-suffixed PVC expectations, set 30Gi Block/RWO on the scratch class, and
 record source and resolved digest. Import and clean up one at a time.
 
 - **B19 after registry passes:** expose the scratch registry only as ClusterIP
-  Service `image-registry` port 5000 in `gb19-image-registry`. For I04/I05/I06,
-  use respectively
-  `docker://image-registry.gb19-image-registry.svc:5000/openshift-virtualization-os-images/rhel10-guest:latest`,
-  `docker://image-registry.gb19-image-registry.svc:5000/openshift-virtualization-os-images/rhel9-guest:latest`,
-  and
-  `docker://image-registry.gb19-image-registry.svc:5000/openshift-virtualization-os-images/rhel8-guest:latest`,
-  pinned to the recorded digest. This proves
-  restored blobs and CDI registry imports without altering shared ImageStreams.
-  Import `import-i04`, `import-i05`, then `import-i06`. Require DataVolume
-  Succeeded, 30Gi Block Bound PVC, correct image size/format and digest. Boot
-  each changed RHEL family in a throwaway isolated VM; no production network
-  identity. Because an isolated registry cannot be substituted into the shared
-  ImageStream/DataImportCron path without a production mutation, the actual
+  Service `image-registry` port 5000 in `gb19-image-registry`. Prove O02 with a
+  fully cached `qdrant/cosmere-knowledge-index` revision: require the unchanged
+  manifest digest and every linked config/layer blob, and disable upstream
+  fallback for the real pull. The RHEL DataImportCrons use `pullMethod: node`
+  and direct `registry.redhat.io` sources, so their blobs were never cached in
+  O02. For I04/I05/I06, clone the recorded RHEL10/RHEL9/RHEL8 upstream digest
+  URLs from their DataImportCron templates; do not route them through scratch
+  O02 or claim these imports prove restored registry blobs. Import `import-i04`,
+  `import-i05`, then `import-i06`. Require DataVolume Succeeded, 30Gi Block Bound
+  PVC, correct image size/format and digest. Boot each changed RHEL family in a
+  throwaway isolated VM with no production network identity. The actual
   `rhel*-image-cron` → DataSource path remains a required post-restore check.
 - **B24:** import I01 `centos-stream10-image-cron` from
   `docker://quay.io/containerdisks/centos-stream:10`, I02

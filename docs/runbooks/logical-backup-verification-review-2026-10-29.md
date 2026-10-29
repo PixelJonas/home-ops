@@ -191,6 +191,10 @@ Preserve Gate A's mixed ownership exactly; blanket normalization to 107:107 woul
 
 For V03-class sparse images, compare apparent and allocated bytes. Root-safety recovery passed content and boot checks, but allocation grew from about 37 GB to nearly the full 127.86 GB. Capacity planning must tolerate full allocation even when apparent content is unchanged.
 
+### O02 registry content versus recreatable OS images
+
+Do not assume every ImageStream tag implies locally stored registry blobs. B19 initially failed because the RHEL DataImportCrons use `pullMethod: node`, direct `registry.redhat.io` URLs, `referencePolicy: Source`, and `lookupPolicy.local=false`; their config/layer blobs were never cached internally. Gate A and B19 had identical source inventories, the imports completed months earlier, and production DataVolumes/DataSources were healthy, ruling out snapshot loss and providing no evidence of corruption or pruning. Validate O02 with fully cached content such as `qdrant/cosmere-knowledge-index`, including every linked config/layer blob and upstream-disabled pulls. Test I04–I06 separately as fresh imports from recorded upstream digests; do not count upstream fallback as restored-data proof or preload production merely to satisfy an invalid assumption.
+
 ## OpenShift SCC and metadata lessons
 
 The SCC authorization root cause is established: helper Pods created directly through `oc-sa` inherit the direct cluster-admin caller's SCC eligibility in addition to their own ServiceAccount's eligibility. The binding `claude-admin-cluster-admin-binding` therefore made `volsync-privileged-mover` available even when a dedicated ServiceAccount had only an `anyuid` RoleBinding. Controller-created Pods consider only their ServiceAccount, so Jobs/Deployments with dedicated ServiceAccounts and pod-template `openshift.io/required-scc` provide the deterministic boundary.
