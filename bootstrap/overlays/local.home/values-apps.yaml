@@ -46,6 +46,11 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/actual-budget
+  happier:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/happier
   resilio-sync:
     annotations:
       argocd.argoproj.io/sync-wave: "300"
