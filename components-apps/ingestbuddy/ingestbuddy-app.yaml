@@ -30,6 +30,14 @@ spec:
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
+                  # ingestbuddy#60/#101 (ADR-0007): plugin enable flags and the
+                  # PLUGINS_<NAME>_<KEY> names below sit alongside the old flat
+                  # names until the config loader (#102) ships; the old names
+                  # go in #108. INGESTBUDDY_CONFIG stays unset (image default
+                  # /app/ingestbuddy.yaml); PLUGINS_QDRANT_ENABLED defaults true.
+                  PLUGINS_TAX_ENABLED: "true"
+                  PLUGINS_TAXBUDDY_ENABLED: "true"
+                  PLUGINS_VEHICLE_ENABLED: "true"
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
@@ -52,12 +60,23 @@ spec:
                         name: ingestbuddy-credentials
                         key: LITELLM_API_KEY
                   PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
+                  PLUGINS_PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
                   PAPERLESS_API_TOKEN:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: PAPERLESS_API_TOKEN
+                  PLUGINS_PAPERLESS_API_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_API_TOKEN
                   PAPERLESS_PUBLIC_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_PUBLIC_URL
+                  PLUGINS_PAPERLESS_PUBLIC_URL:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
@@ -68,6 +87,11 @@ spec:
                   # paperless-workflows-apply Job injects into the
                   # "pipeline:eingang intake" workflow's webhook header.
                   PAPERLESS_WEBHOOK_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_WEBHOOK_SECRET
+                  PLUGINS_PAPERLESS_WEBHOOK_SECRET:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
@@ -107,7 +131,13 @@ spec:
                     "midgard.unavailable_for", "midgard.available"],
                     "enabled": true}]
                   QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
+                  PLUGINS_QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
                   QDRANT_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: QDRANT_API_KEY
+                  PLUGINS_QDRANT_API_KEY:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
@@ -154,6 +184,14 @@ spec:
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
+                  # ingestbuddy#60/#101 (ADR-0007): plugin enable flags and the
+                  # PLUGINS_<NAME>_<KEY> names below sit alongside the old flat
+                  # names until the config loader (#102) ships; the old names
+                  # go in #108. INGESTBUDDY_CONFIG stays unset (image default
+                  # /app/ingestbuddy.yaml); PLUGINS_QDRANT_ENABLED defaults true.
+                  PLUGINS_TAX_ENABLED: "true"
+                  PLUGINS_TAXBUDDY_ENABLED: "true"
+                  PLUGINS_VEHICLE_ENABLED: "true"
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
@@ -179,7 +217,13 @@ spec:
                   # on the first job — process_document itself would raise
                   # RuntimeError without them, not just the dispatch step.
                   PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
+                  PLUGINS_PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
                   PAPERLESS_API_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_API_TOKEN
+                  PLUGINS_PAPERLESS_API_TOKEN:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
@@ -189,8 +233,19 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: PAPERLESS_PUBLIC_URL
+                  PLUGINS_PAPERLESS_PUBLIC_URL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: PAPERLESS_PUBLIC_URL
                   QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
+                  PLUGINS_QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
                   QDRANT_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: QDRANT_API_KEY
+                  PLUGINS_QDRANT_API_KEY:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
@@ -207,7 +262,13 @@ spec:
                   # are recorded per-bundle as failed SinkDispatches, not
                   # worker crashes.
                   TAXBUDDY_INTAKE_URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/intake/ingestbuddy
+                  PLUGINS_TAXBUDDY_INTAKE_URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/intake/ingestbuddy
                   TAXBUDDY_WEBHOOK_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: TAXBUDDY_WEBHOOK_SECRET
+                  PLUGINS_TAXBUDDY_WEBHOOK_SECRET:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
@@ -223,6 +284,11 @@ spec:
                   # VEHICLE_TAGS mirrors components-apps/vehicle-pipeline's
                   # value; keep the two in sync until the legacy poll retires.
                   MYGARAGE_VEHICLES:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: MYGARAGE_VEHICLES
+                  PLUGINS_VEHICLE_REGISTRY:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
