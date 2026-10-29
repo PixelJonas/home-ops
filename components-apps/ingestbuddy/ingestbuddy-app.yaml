@@ -296,6 +296,11 @@ spec:
                   VEHICLE_TAGS: >-
                     {"multivan": ["Fahrzeug:Multivan", "Fahrzeug:Multivan-auto"],
                     "id4": ["Fahrzeug:ID4", "Fahrzeug:ID4-auto"]}
+                  # ingestbuddy#106: the vehicle plugin reads its tag map from
+                  # PLUGINS_VEHICLE_TAGS; VEHICLE_TAGS stays until #108's cleanup.
+                  PLUGINS_VEHICLE_TAGS: >-
+                    {"multivan": ["Fahrzeug:Multivan", "Fahrzeug:Multivan-auto"],
+                    "id4": ["Fahrzeug:ID4", "Fahrzeug:ID4-auto"]}
                 probes:
                   # The RQ worker has no HTTP listener — exec
                   # pipeline_worker.healthcheck instead. liveness is
