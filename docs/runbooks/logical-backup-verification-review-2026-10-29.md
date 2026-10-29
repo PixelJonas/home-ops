@@ -191,6 +191,10 @@ Preserve Gate A's mixed ownership exactly; blanket normalization to 107:107 woul
 
 For V03-class sparse images, compare apparent and allocated bytes. Root-safety recovery passed content and boot checks, but allocation grew from about 37 GB to nearly the full 127.86 GB. Capacity planning must tolerate full allocation even when apparent content is unchanged.
 
+### O03–O06 monitoring history and rules
+
+Monitoring recovery must prove retained history and behavior, not merely TSDB files. B21 matched 10,212 user-metric points over seven days and 95 `VolSyncBackupStale` points over 48 hours after WAL replay, with no WAL deletion or history trimming. Thanos Ruler restored local state and evaluated all four rules in two groups without notification egress. Use production images and UID/GID 65534:65534, disable scraping/remote write/notifications in scratch, and compare production retention/spec/CVO state after cleanup.
+
 ### Empty cache recreation
 
 Test cold caches as real workloads, not as empty-PVC existence checks. B23 proved Docling could start under its arbitrary UID with no old cache, download its model/tokenizer, and convert a known PDF to expected text and chunks. A separate isolated VolSync repository proved cache provisioning on `synology-iscsi-storage` with generated credentials and no production snapshots. Keep the later `lvms-knowhere` cache probe as a post-recreation gate, and exclude credentials/raw failed-mover diagnostics from evidence.
