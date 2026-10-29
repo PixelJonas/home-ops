@@ -55,7 +55,7 @@ later B18 rehearsal. No production VM, PVC, or Secret was touched.
 - Batch B15 Qdrant passed coordinated V10+V11+V12 technical recovery after a 29-second writer-free window: all three full Restic read-data checks, all content hashes and non-root metadata, 23,889 `cosmere_knowledge` and 25,164 `ingestbuddy_documents_v1` points, identical known-vector results, five API/file snapshots and 7,744 crawl-resume entries matched without starting a crawl. Overall B15 remains **FAIL**: a numeric-owner helper was assigned forbidden `volsync-privileged-mover` SCC (despite the helper and SCC both having privileged containers disabled), and all three restored roots retain mode `0777` instead of captured `2777`. Helper/RBAC cleanup and production restoration passed with 104 Bound production LVMS PVCs. SHA-verified evidence is archived as `b15-qdrant-evidence.tar.gz`; closure requires a no-forbidden-SCC, root-mode-correct validation path.
 - Batch B16 Taxbuddy Hermes remains **FAIL** after two closed attempts. Restricted admission initially rejected the required UID/GID/fsGroup 10000 mover before any restore. A narrowly scoped non-privileged `anyuid` mover binding then restored pinned V13, but mover fsGroup caused 80,088 metadata mismatches (root `0:10000` mode `2775` instead of `10000:10000` mode `0700`), so SQLite/dashboard checks were not run. During metadata remediation an unauthorized root helper was automatically admitted under forbidden `volsync-privileged-mover`, failed `lchown` and was immediately deleted. All temporary binding/scratch resources were removed; production remained unchanged and Knowhere healthy. Both failure evidence sets are SHA-archived as `b16-taxbuddy-hermes-admission-evidence.tar.gz` and `b16-taxbuddy-hermes-anyuid-evidence.tar.gz`. Closure requires a metadata-preserving restore path without fsGroup mutation or forbidden SCC.
 - Batch B17 KNX remains **FAIL** without Windows boot. The initial exact 300Mi destination was below Synology CSI's 1Gi minimum; a 1Gi scratch destination then restored both pinned V04/V05 disks successfully under `restricted-v2`, but all 20 inspected entries had arbitrary ownership instead of 107:107 and vTPM permall was 0660 instead of 0600. A dedicated non-privileged anyuid metadata helper was admitted as forbidden `volsync-privileged-mover`, so the mandatory SCC gate stopped it before any metadata write or VM boot; helper/binding/SA and scratch disks were removed. Production KNX remains Stopped/unchanged and Knowhere healthy. All three evidence sets are SHA-archived (`b17-knx-ets-preflight-evidence.tar.gz`, `b17-knx-ets-1gi-evidence.tar.gz`, `b17-knx-ets-metadata-evidence.tar.gz`). Closure requires a reviewed metadata-correction and SELinux-proof path with deterministic safe SCC admission.
-- B18–B24, B17 closure, B16 closure, B15 closure, B11 closure, B09's production queue-deletion review, B06's deferred external completion, the shared D-route backup remediation, B02's optional runner proof, and the numeric maximum-pause approval for B18a remain open unless separately recorded below. Production Knowhere stayed Running throughout all completed checks.
+- B18–B24, B17 closure, B16 closure, B15 closure, B11 closure, B09's production queue-deletion review, B06's deferred external completion, the shared D-route backup remediation, and B02's optional runner proof remain open unless separately recorded below. The B18a maximum pause is approved at 30 seconds per leg with a target of at most 10 seconds. Production Knowhere stayed Running throughout all completed checks.
 
 ## Safety and completion contract
 
@@ -606,9 +606,10 @@ Executable templates are `docs/runbooks/altus-lvms-b18-initial.yaml`,
 `docs/runbooks/altus-lvms-b18-leg1.yaml`, and
 `docs/runbooks/altus-lvms-b18-leg2.yaml`. They are deliberately separate apply
 files; never apply all three together. The retained scratch NAD is referenced,
-not replaced. Before B18a, approve and record a numeric maximum acceptable
-migration pause in seconds. Without that threshold, the continuous probes cannot
-produce a defensible PASS.
+not replaced. B18a's approved maximum acceptable migration pause is **30 seconds per leg**,
+with an operational target of 10 seconds or less. The one-second continuous
+probes must measure each leg independently against this limit; any longer pause
+fails the rehearsal and stops further legs or pool changes.
 
 Start independent one-second network and guest-application probes before leg 1
 and leave them running through leg 2. A guest writer must append and fsync a
