@@ -185,7 +185,7 @@ Require exact UID/GID and modes, preserved SSH host keys/pairing/tools home, SQL
 
 ### V04/V05 KNX and large VM images
 
-Use at least 1 Gi for a Synology CSI scratch V04 destination even though the source request is 300 Mi. Validate disk identity, NVRAM/vTPM hashes, ownership, modes, SELinux accessibility, and isolated Windows boot before claiming recovery. B17 closure restored all 18 Gate A entries with exact mixed ownership, proved UID/GID 107 read access and destination SELinux labels, and booted Windows 11 to the normal logon screen without BitLocker recovery or external network access. On 2026-10-29 the user accepted stopped-VM backup and isolated restore as sufficient; interactive ETS authentication and KNX live migration are outside the recovery contract. A fresh stopped-VM backup/restore is still required, and preflight must verify the VMI is absent because `runStrategy=Always` can leave or return the VM to `Running`.
+Use at least 1 Gi for a Synology CSI scratch V04 destination even though the source request is 300 Mi. Validate disk identity, NVRAM/vTPM hashes, ownership, modes, and SELinux accessibility. B17 closure restored all 18 Gate A entries with exact mixed ownership, proved UID/GID 107 read access and destination SELinux labels, and booted Windows 11 to the normal logon screen without BitLocker recovery or external network access. On 2026-10-29 the user accepted stopped-VM backup and isolated restore as sufficient; interactive ETS authentication and KNX live migration are outside the recovery contract. Fresh V04 `8e7bb8ab` and V05 `3a65d8ef` cold backups then passed full Restic read-data checks, exact Direct restores, mixed-metadata/NVRAM/vTPM verification and UID/GID 107 read-only validation. Non-boot exact restore validation was sufficient for this fresh pair. Preflight must verify the VMI and attachments are absent rather than inferring stopped state from `runStrategy`.
 
 Preserve Gate A's mixed ownership exactly; blanket normalization to 107:107 would be a transformation, not preservation. Treat source MCS categories as facts, not scratch destination requirements.
 
@@ -253,5 +253,6 @@ Key NAS evidence archives:
 - `b15-qdrant-metadata-closure-evidence.tar.gz`
 - `b16-taxbuddy-hermes-closure-evidence.tar.gz`
 - `b17-knx-ets-closure-evidence.tar.gz`
+- `b17-knx-ets-cold-backup-20261029/` (fresh cold backup/restore evidence with per-file SHA-256 manifest)
 
 Earlier rejected captures and diagnostic archives are retained alongside these files. Use the successful archives for proven acceptance patterns and the failure archives to understand why the controls exist.
