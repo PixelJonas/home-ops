@@ -191,13 +191,17 @@ Preserve Gate A's mixed ownership exactly; blanket normalization to 107:107 woul
 
 For V03-class sparse images, compare apparent and allocated bytes. Root-safety recovery passed content and boot checks, but allocation grew from about 37 GB to nearly the full 127.86 GB. Capacity planning must tolerate full allocation even when apparent content is unchanged.
 
+### Empty cache recreation
+
+Test cold caches as real workloads, not as empty-PVC existence checks. B23 proved Docling could start under its arbitrary UID with no old cache, download its model/tokenizer, and convert a known PDF to expected text and chunks. A separate isolated VolSync repository proved cache provisioning on `synology-iscsi-storage` with generated credentials and no production snapshots. Keep the later `lvms-knowhere` cache probe as a post-recreation gate, and exclude credentials/raw failed-mover diagnostics from evidence.
+
 ### O07 Paperless MCP OAuth state
 
 Validate logical database content, not only file hashes. B22 preserved one DCR client, 11 access sessions and 11 refresh sessions by bbolt SHA-256, plus signing-key/HMAC hashes and JWKS. Health/metadata and unauthenticated rejection checks passed without exposing tokens or keys. Existing-client interactive login, existing authorized-session use and authenticated Paperless search remain a separate acceptance layer requiring securely supplied Authelia credentials or an existing OAuth bearer token; never bypass authentication or place bearer tokens in evidence.
 
 ### O02 registry content versus recreatable OS images
 
-Do not assume every ImageStream tag implies locally stored registry blobs. B19 initially failed because the RHEL DataImportCrons use `pullMethod: node`, direct `registry.redhat.io` URLs, `referencePolicy: Source`, and `lookupPolicy.local=false`; their config/layer blobs were never cached internally. Gate A and B19 had identical source inventories, the imports completed months earlier, and production DataVolumes/DataSources were healthy, ruling out snapshot loss and providing no evidence of corruption or pruning. Validate O02 with fully cached content such as `qdrant/cosmere-knowledge-index`, including every linked config/layer blob and upstream-disabled pulls. Test I04–I06 separately as fresh imports from recorded upstream digests; do not count upstream fallback as restored-data proof or preload production merely to satisfy an invalid assumption.
+Do not assume every ImageStream tag implies locally stored registry blobs. B19 initially failed because the RHEL DataImportCrons use `pullMethod: node`, direct `registry.redhat.io` URLs, `referencePolicy: Source`, and `lookupPolicy.local=false`; their config/layer blobs were never cached internally. Gate A and B19 had identical source inventories, the imports completed months earlier, and production DataVolumes/DataSources were healthy, ruling out snapshot loss and providing no evidence of corruption or pruning. Validate O02 with fully cached content such as `qdrant/cosmere-knowledge-index`, including every linked config/layer blob and upstream-disabled pulls. Test I04–I06 separately as fresh imports from recorded upstream digests; do not count upstream fallback as restored-data proof or preload production merely to satisfy an invalid assumption. B24 separately passed fresh CentOS Stream 10/9 and Fedora imports with raw 30Gi Block PVCs and isolated CentOS/Fedora boot checks. Record both manifest-list and platform-child digests so representation differences are not misreported as unexpected source-version drift.
 
 ## OpenShift SCC and metadata lessons
 
