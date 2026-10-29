@@ -3,47 +3,54 @@
 Date of read-only inventory: 2026-10-26
 
 This is the backup/restore companion to the Altus LVMS rebuild and Knowhere
-isolation plan. It covers every PVC that used `lvms-vg1` at the inventory
-checkpoint. Knowhere is the exception to the offline workflow: its two active
-disks move together in two live storage-migration legs while the same running VM
-moves Altus → xandar → Altus. Knowhere must remain running and available for the
-entire process. Direct/same-node migration from local LVMS storage is impossible.
+isolation plan. It covers every production PVC that used `lvms-vg1` at the
+current inventory checkpoint. Knowhere uses the approved coordinated cold route:
+Asgard is the single writer, the guest is gracefully stopped and both source
+disks detach, fresh O01 qcow2-LUKS root and V03 projects backups are captured,
+and paired cold B18C isolated restore/boot rehearsal proves the recovery set.
+The old pool is rebuilt only under separate authorization. Both Knowhere disks
+are then restored to `lvms-knowhere` under their original names, a final VolSync
+backup succeeds, and exactly one fresh production boot is expected with CPU
+model `Skylake-Client-noTSX-IBRS`.
 
-The old pool must not be recreated until the first Knowhere leg and disposable
-B18a rehearsal plus their checks complete, and every other preserved production
-row has a fresh, verified backup and required restore test. After the rebuild
-creates `lvms-knowhere`, B18b must pass before the production return leg. V03 and
-O01 remain backup/disaster-recovery IDs only; neither is a production restore
+The old pool must not be recreated until the cold O01+V03 backup set, B18C, and
+every other preserved production row's fresh verified backup and required
+restore test pass. Historical B18 live-migration attempts are retained below as
+superseded evidence; they are not prerequisites or an alternate production
 route.
 
 **Preparation status:** no production backup jobs, restores, workload stops,
-deletions, or live storage migrations were run. Synthetic scratch helper tests
-were executed and cleaned up without touching production PVCs. The commands
-below are instructions for separately approved maintenance and test windows,
-not a record that those actions have happened. Gate B and Gate C evidence is
-still pending. The synthetic qcow2/GPG and libguestfs helper evidence below
-passed; B18 has not passed and remains pending.
+deletions, or live storage migrations were run while preparing the original
+plan. Synthetic scratch helper tests were executed and cleaned up without
+touching production PVCs. The commands below are instructions for separately
+approved maintenance and test windows, not a record that those actions have
+happened. The synthetic qcow2/GPG and libguestfs helper evidence passed. The
+historical B18 attempts did not establish a production route and are superseded
+by the pending cold B18C rehearsal.
 
 ## Non-negotiable safety rules
 
-- Run final migration operations from outside Knowhere, but do not stop Knowhere,
-  its guest, its agent sessions, or its services at any point. Continuous
-  availability is a requirement, not a best-effort target.
+- Run final migration operations from outside Knowhere. Asgard is the single
+  writer for the cold Knowhere route. Coordinate one graceful guest shutdown and
+  agent/session stop; verify the VMI and both source attachments are absent
+  before either backup helper starts. Do not start Knowhere again until its two
+  final restored disks and GitOps/VolSync references are ready for the one
+  expected fresh boot.
 - Pause ArgoCD auto-sync on affected parents first and children second. Record
   every changed Application. Otherwise a scale-down, PVC, DataVolume, or helper
-  can be reconciled away or recreated unexpectedly. Freeze Knowhere GitOps around
-  each volume-reference change; reconcile the VM, DataVolume/PVC and VolSync
-  references deliberately before unfreezing.
-- Never run a final backup against an active writer. Except for M01/M02, stop
-  applications before their databases, halt KNX, and verify source volumes are
-  detached before an offline copy. The only other exception is the logical
-  database dump itself, taken while its database is available and all application
-  writers are stopped. Do not halt Knowhere for a backup, copy, test, or cutover.
-- Each Knowhere `VirtualMachineStorageMigrationPlan` must include both active
-  disks and set `spec.retentionPolicy: keepSource`. No migration step may
-  automatically delete a source PVC/PV/DataVolume. A failed leg stops all rebuild
-  work. Cancellation is valid only while a migration is in progress; cancelling
-  or deleting resources after `Completed` is not rollback.
+  can be reconciled away or recreated unexpectedly. Keep Knowhere GitOps frozen
+  through shutdown, cold backup, separately authorized rebuild, final restore,
+  CPU-model reconciliation, and final VolSync validation; reconcile deliberately
+  before unfreezing.
+- Never run a final backup against an active writer. Stop applications before
+  their databases, halt KNX and Knowhere, and verify source volumes are detached
+  before an offline copy. The only exception is the logical database dump itself,
+  taken while its database is available and all application writers are stopped.
+- O01 and V03 are one cold Knowhere recovery set. Record both recovery points,
+  artifact/snapshot IDs, checksums and validation together; a root backup without
+  its paired projects backup (or vice versa) does not satisfy Gate B or Gate C.
+  No step may automatically delete a source PVC/PV/DataVolume. Any source or
+  scratch deletion requires its own explicit, named authorization.
 - Run data movement sequentially, or at most two streams with explicit approval.
   Stop on sustained Altus root-disk utilization above 80%, host iowait above
   20%, or abnormal etcd WAL latency.
@@ -55,14 +62,14 @@ passed; B18 has not passed and remains pending.
   `ExternalSecret` resources and `doppler-cluster` ClusterSecretStore. Never use
   `oc get secret ... -o yaml`, `oc extract`, or decoded Secret output for this
   migration.
-- Plaintext O01–O07 artifacts are prohibited. Optional O01 DR artifacts use
-  qcow2-LUKS; O02–O07 stream tar through GnuPG AES256 so plaintext never lands on
-  NFS. Use separate Doppler-owned high-entropy passphrases, each mounted as a
-  0400 Secret file.
-- Do not expose Knowhere's production root block device to a second VM or helper
-  during this live migration. Any future optional O01 DR helper requires separate
-  approval and must not become a production migration mechanism. Restore tests
-  use a new block PVC and no production VM network identity.
+- Plaintext O01–O07 artifacts are prohibited. Mandatory O01 uses qcow2-LUKS;
+  O02–O07 stream tar through GnuPG AES256 so plaintext never lands on NFS. Use
+  separate Doppler-owned high-entropy passphrases, each mounted as a 0400 Secret
+  file.
+- Expose the detached production root block device only to the approved O01
+  backup helper. B18C and later restore tests use new block/filesystem PVCs and
+  no production VM network identity. Never attach a production source disk to a
+  second VM.
 - Numeric ownership is part of the data. Capture it before stopping workloads;
   do not recursively `chown` an entire application volume to a guessed UID.
   Known exceptions are KubeVirt's `disk.img`/swtpm files (`107:107`) and the
@@ -108,8 +115,9 @@ artifacts may therefore have only their NAS-resident copy. This is a recorded
 risk acceptance, not evidence of independent protection.
 
 Create the Doppler-owned, high-entropy filesystem passphrase for O02–O07. Create
-the independent root passphrase for the mandatory running-production root
-safety copy and for optional O01 DR work if separately approved. These are key
+the independent root passphrase for the mandatory cold O01 qcow2-LUKS backup and
+restore. The earlier running-production safety copy used the same key, but is
+historical supporting evidence rather than the final cold artifact. These are key
 names only; never place either value in this file, a Pod argument, shell
 environment dump, or the NFS evidence directory:
 
@@ -122,8 +130,8 @@ entries in `infra-ops/prd` were created during project discovery and are retaine
 for a separate deletion review; they are not the ESO source of truth.
 
 Materialize required values with ExternalSecrets; do not copy existing Secret
-data. The Knowhere example targets the running-root safety secret (also used
-for optional O01 DR), and the filesystem example is repeated in each O02–O07
+data. The Knowhere example targets the root-encryption Secret required for cold
+O01 backup/restore, and the filesystem example is repeated in each O02–O07
 namespace with target name
 `altus-lvms-filesystem-encryption`:
 
@@ -195,15 +203,22 @@ GnuPG required a writable 0700 `GNUPGHOME` under `/tmp`. These tests validate th
 helper commands and approved NFS path only; they are not Knowhere B18 evidence
 and used no production PVC or Secret.
 
-## Exact 104-PVC routing inventory
+## Exact 107-PVC production routing inventory
 
-The production route IDs are disjoint and complete: **M01–M02 = two live
-Knowhere storage migrations, V01/V02/V04–V15 = 14 VolSync restores, D01–D11 =
-11 logical database dump/imports, O02–O07 = six offline copies, R01–R65 = 65
-recreations, and I01–I06 = six managed image reimports**. The exact total is
-**M2 + V14 + D11 + O6 + R65 + I6 = 104**. V03 (`knowhere-projects`) and O01
-(`knowhere-rootdisk`) remain backup/disaster-recovery and DR-test IDs, but M02
-and M01 are their only production migration routes.
+The current live inventory is **110 `lvms-vg1` PVCs: 107 production claims plus
+three `gb18-knowhere` scratch claims**. Production route IDs are disjoint and
+complete: **V01–V16 = 16 VolSync restores, D01–D11 = 11 logical database
+dump/imports, O01–O07 = seven offline copies, R01–R67 = 67 recreations, and
+I01–I06 = six managed image reimports**. The exact production total is
+**V16 + D11 + O7 + R67 + I6 = 107**. Knowhere V03 and O01 form one mandatory cold
+recovery set and restore to `lvms-knowhere` under their original names.
+
+The separate scratch set is `gb18-knowhere/knowhere-rootdisk` (300Gi Block),
+`gb18-knowhere/knowhere-projects` (136579960013 bytes Filesystem), and
+`gb18-knowhere/volsync-dst-restore-v03-cache` (1Gi). These are retained evidence
+from superseded B18 attempts, not production rows. Track and authorize their
+cleanup separately; never count the two interim iSCSI scratch PVCs as LVMS or
+production inventory.
 
 Sizes are the live requests, not allocated data. Byte-valued requests are kept
 exact where useful for target validation. Immediately before maintenance,
@@ -220,29 +235,25 @@ oc-sa altus get pvc -A -o json | jq -r '
 
 oc-sa altus get pvc -A -o json |
   jq '[.items[] | select(.spec.storageClassName == "lvms-vg1")] | length'
-# Expected at this checkpoint: 104. Do not proceed on count alone; reconcile names.
+# Expected at this checkpoint: 110 total = 107 production + 3 gb18-knowhere scratch.
+# Do not proceed on count alone; reconcile production and scratch names separately.
 ```
 
-### M: two live Knowhere disk migrations
-
-| ID | Namespace | Initial source PVC | Request / mode | Production route |
-|---|---|---|---:|---|
-| M01 | knowhere | knowhere-rootdisk | 322122547200 (300Gi), Block | With M02, live `lvms-vg1` → `synology-iscsi-storage` on Altus → xandar, then live iSCSI → `lvms-knowhere` on xandar → Altus. |
-| M02 | knowhere | knowhere-projects | 136579960013 (~127.19Gi), Filesystem | With M01 in both plans; never split the disks across plans or stop the VM. Update VolSync to the active projects PVC after each leg. |
-
-### V: 14 production VolSync filesystem restores plus V03 DR coverage
+### V: 16 production VolSync filesystem restores
 
 Restore each production V source with `copyMethod: Direct` into a new, unmounted
 destination PVC. “Local+B2” means run and verify both final backups; B2 is the
 preferred disaster-recovery source, while either verified repository may be used
-for this pool rebuild. V03 is retained below only as DR backup/test coverage; its
-restore must never replace M02 in the production route.
+for this pool rebuild. V03 is both a B18C scratch restore and the production
+projects restore after the separately authorized rebuild. Its final destination
+is `lvms-knowhere`, original name `knowhere-projects`, exact request
+136579960013 bytes, paired with O01 before the single fresh boot.
 
 | ID | Namespace | Source PVC | Request | ReplicationSource / repository | Restore and ownership notes |
 |---|---|---|---:|---|---|
 | V01 | actual-budget | actual-budget-app-data | 5Gi | data-backup / restic-config-data; data-backup-b2 / restic-config-data-b2 | Local+B2; preserve application ownership, expected pod UID/GID/fsGroup 1001. |
 | V02 | gitea | gitea-shared-storage | 20Gi | data-backup / restic-config-data | Local; coordinated with D01. Preserve existing numeric ownership; do not force 1000. |
-| V03 | knowhere | knowhere-projects | 136579960013 (~127.19Gi) | projects-backup / restic-config-projects | **DR test only, not production migration:** isolated restore; exact `/disk.img` path, then `chown 107:107 /disk.img`. |
+| V03 | knowhere | knowhere-projects | 136579960013 (~127.19Gi) | projects-backup / restic-config-projects | **Cold production route:** fresh stopped-writer sync paired with O01; B18C isolated restore/boot, then final `lvms-knowhere` restore under original name; exact `/disk.img`, then `chown 107:107 /disk.img`. |
 | V04 | knx-ets | persistent-state-for-windows-11-virtio-ets | 300Mi | persistent-state-backup / restic-config-persistent-state | Local; coordinated with V05; swtpm/NVRAM state; `chown -R 107:107`. |
 | V05 | knx-ets | windows-11-virtio-ets-volume | 64Gi | volume-backup / restic-config-volume | Local; coordinated with V04; exact `/disk.img`; `chown -R 107:107`. |
 | V06 | media-vpn | qbittorrent-config | 5Gi | qbittorrent-backup / restic-config-qbittorrent; qbittorrent-backup-b2 / restic-config-qbittorrent-b2 | Local+B2; preserve numeric ownership and current fsGroup behavior. |
@@ -255,12 +266,13 @@ restore must never replace M02 in the production route.
 | V13 | taxbuddy-hermes | taxbuddy-hermes-app | 5Gi | data-backup / restic-config-data | Local; mover must use runAsUser/runAsGroup 10000 and runAsNonRoot without fsGroup. |
 | V14 | tymeslot | tymeslot-app | 5Gi | data-backup / restic-config-data; data-backup-b2 / restic-config-data-b2 | Local+B2; coordinated with D09; app runs as root at this checkpoint. |
 | V15 | vaultwarden | vaultwarden-app-config | 1Gi | config-backup / restic-config-config | Local; coordinated with D10. |
+| V16 | happier | happier-app-data | 5Gi | data-backup / restic-config-data; data-backup-b2 / restic-config-data-b2 | Local+B2; preserve current application numeric ownership and validate existing data after restore. |
 
 ### D: 11 logical database dump/import PVCs
 
 These are database data PVCs on `lvms-vg1`; their `database-syno-db-backup`
 staging PVCs are not on this storage class and therefore are not extra rows in
-the 104-PVC inventory. Recreate each data PVC empty, restore the staging dump
+the 107-PVC production inventory. Recreate each data PVC empty, restore the staging dump
 with VolSync Direct, initialize only the database, import with no application
 writers, and validate before application startup.
 
@@ -287,16 +299,16 @@ library backup; Nextcloud V07+D06 plus its separate NFS user-data backup;
 Paperless V08+V09+D07; Taxbuddy D08 plus its non-persistent queue dependencies;
 Tymeslot V14+D09; Vaultwarden V15+D10.
 
-### O: six production offline copies plus optional O01 DR coverage
+### O: seven production offline copies
 
-O01 is **not** part of this production migration or its mandatory test gates. It
-may remain only as an optional, separately approved disaster-recovery backup;
-M01 is the sole production root-disk route. Do not halt production Knowhere to
-create O01 or to rehearse this migration.
+O01 is the mandatory Knowhere root production route, paired with V03. Capture it
+only after Asgard has gracefully stopped the guest and both disks are detached.
+B18C must restore and boot the O01+V03 set before the separately authorized
+rebuild; final O01 restoration to `lvms-knowhere` uses the original name.
 
 | ID | Namespace | Source PVC | Request / mode | Offline artifact and purpose |
 |---|---|---|---|---|
-| O01 | knowhere | knowhere-rootdisk | 322122547200 (300Gi), Block | **Optional DR only:** sparse qcow2-LUKS on approved NFS; isolated DR restore test, never production migration. |
+| O01 | knowhere | knowhere-rootdisk | 322122547200 (300Gi), Block | **Cold production route:** sparse self-contained qcow2-LUKS on approved NFS; full source comparison, B18C isolated restore/boot with V03, then raw restore to original-name `knowhere-rootdisk` on `lvms-knowhere`. |
 | O02 | openshift-image-registry | image-registry | 150Gi, Filesystem | GnuPG-AES256-encrypted numeric-owner/xattr/ACL/SELinux/sparse tar stream; preserve complete registry content. |
 | O03 | openshift-monitoring | alertmanager-main-db-alertmanager-main-0 | 10Gi, Filesystem | GnuPG-AES256 encrypted tar stream; preserve alerts, silences, and notification state. |
 | O04 | openshift-monitoring | prometheus-k8s-db-prometheus-k8s-0 | 40Gi, Filesystem | GnuPG-AES256 encrypted tar stream; preserve all platform Prometheus history; do not trim. |
@@ -304,13 +316,12 @@ create O01 or to rehearse this migration.
 | O06 | openshift-user-workload-monitoring | thanos-ruler-user-workload-data-thanos-ruler-user-workload-0 | 40Gi, Filesystem | GnuPG-AES256 encrypted tar stream; preserve rule state and local data. |
 | O07 | paperless-mcp | paperless-mcp-app | 1Gi, Filesystem | GnuPG-AES256 encrypted tar stream; preserve OAuth DCR clients, signing keys, and proxy sessions/state. |
 
-### R: 65 recreations without data restore
+### R: 67 recreations without data restore
 
 Do not copy these claims. Recreate them from GitOps after the replacement
-StorageClasses are Ready. The 48 VolSync cache claims are disposable mover
-caches; use the intended destination cache class. Knowhere's cache moves off
-`lvms-vg1` for the interim iSCSI leg and finally to `lvms-knowhere`; audit that
-no other application's final cache lands on `lvms-knowhere`.
+StorageClasses are Ready. The 50 VolSync cache claims are disposable mover
+caches; use the intended destination cache class. Knowhere's cache finally uses
+`lvms-knowhere`; audit that no other application's final cache lands there.
 
 | ID | Namespace | PVC | Request | Recreation reason |
 |---|---|---|---:|---|
@@ -323,7 +334,7 @@ no other application's final cache lands on `lvms-knowhere`.
 | R07 | immich | volsync-src-database-backup-cache | 1Gi | VolSync cache |
 | R08 | ingestbuddy | volsync-src-database-backup-cache | 1Gi | VolSync cache |
 | R09 | jellystat | volsync-src-database-backup-cache | 1Gi | VolSync cache; database itself is outside lvms-vg1 |
-| R10 | knowhere | volsync-src-projects-backup-cache | 1Gi | VolSync cache; interim off `lvms-vg1`, final `lvms-knowhere` |
+| R10 | knowhere | volsync-src-projects-backup-cache | 1Gi | VolSync cache; final `lvms-knowhere` |
 | R11 | knx-ets | volsync-src-persistent-state-backup-cache | 1Gi | VolSync cache |
 | R12 | knx-ets | volsync-src-volume-backup-cache | 1Gi | VolSync cache |
 | R13 | litellm | volsync-src-database-backup-cache | 1Gi | VolSync cache |
@@ -379,6 +390,8 @@ no other application's final cache lands on `lvms-knowhere`.
 | R63 | honcho | honcho-app | 10Gi | Recreate model/runtime cache; persistent data is D02 |
 | R64 | ingestbuddy | ingestbuddy-app | 1Gi | Recreate runtime cache; persistent data is D04 |
 | R65 | taxbuddy | taxbuddy-app | 1Gi | Recreate runtime cache; persistent data is D08 |
+| R66 | happier | volsync-src-data-backup-b2-cache | 1Gi | VolSync cache; persistent data is V16 |
+| R67 | happier | volsync-src-data-backup-cache | 1Gi | VolSync cache; persistent data is V16 |
 
 ### I: six DataImportCron reimports
 
@@ -422,8 +435,8 @@ ls -Zd /src /src/disk.img 2>/dev/null || true
 For large data sets, do not hash every file repeatedly during the final outage.
 Create a representative checksum manifest before the outage and a full file
 count/size manifest at final backup. Hash all small configuration/state volumes
-and each complete offline archive. Hash optional O01 only under its separate DR
-approval; live M01/M02 use migration and continuous-I/O evidence instead.
+and each complete offline archive. Mandatory cold O01 requires ciphertext SHA-256
+plus a complete `qemu-img compare` against its detached source and restored target.
 
 ### Gate A execution checkpoint: 2026-10-27
 
@@ -510,14 +523,19 @@ migration work. No B00–B24 batch or production migration has run.
 
 ### Gate A: preparation
 
-- [x] Live inventory reconciled by name to all 104 production route IDs; all
-      source PVCs Bound. M01/M02 are live routes; V03/O01 are DR-only coverage.
-- [x] Current PV/PVC/DataVolume/VM and workload metadata exported without Secrets.
+- [x] Historical 2026-10-27 inventory reconciled by name to the then-current 104
+      production route IDs; all source PVCs were Bound. This is a dated baseline,
+      not the current 107-production/110-total inventory.
+- [ ] Current inventory reconciled to all 107 production route IDs plus exactly
+      three separate `gb18-knowhere` LVMS scratch claims, including Happier V16,
+      R66 and R67. Any drift blocks execution.
+- [x] Current PV/PVC/DataVolume/VM and workload metadata exported without Secrets;
+      refresh for Happier and any later drift before the final window.
 - [x] Baseline numeric ownership, file counts, sizes, and application-specific
       database table/row counts captured, including coordinated NFS/library/export data.
 - [x] Approved NFS directory is writable by the all_squash identity 1024:100;
       current measurements remain within the approved 370.807GiB budget or the
-      reviewed 604.357GiB worst-case full-root budget if optional O01 is approved.
+      reviewed 604.357GiB worst-case full-root budget for mandatory O01.
 - [x] Every required restic repository on `/volume1/configs` passed sequential
       reachability/latest-snapshot checks; the existing tailsafe container is
       running and mounts the local repository read-only. B00 integrity remains separate.
@@ -526,66 +544,45 @@ migration work. No B00–B24 batch or production migration has run.
       protected.
 - [x] Required ExternalSecrets are `SecretSynced`; mounted passphrase files are
       0400, nonempty, readable only by the helper, and never logged. The root LUKS
-      Secret is required for the running-production root safety copy and for
-      separately approved optional O01 DR work.
+      Secret is required for the mandatory cold O01 backup and restore.
 - [x] The pinned virt-launcher digest provides qemu-img 10.1, GNU tar with
       xattr/ACL/SELinux/sparse support, GnuPG AES256, and `sha256sum`; the separate
       pinned libguestfs helper passed synthetic read-only inspection and write
       denial using the environment and writable mounts recorded above.
-- [x] The `knowhere-lan` OVN localnet mapping is configured and validated on
-      xandar before any first-leg plan is created. A disposable VMI on xandar has
-      proven the expected VLAN, addressing, routes and peer connectivity without
-      using Knowhere's production network identity.
-- [ ] Knowhere reports `StorageLiveMigratable=True` and `BlockMigration`, but
-      the Altus/xandar CPU prerequisite currently **FAILS**. Production uses
-      `host-model`; Xandar genuinely lacks five required CPU features and cannot
-      host the expanded Altus model. CPU model is not live-updatable, and editing
-      the VM template would require a controlled reboot and can block subsequent
-      live updates. With only these two nodes, zero-reboot production migration
-      is impossible; do not start M01/M02, fabricate labels or stage a CPU change.
-      A future controlled reboot to a common named model such as
-      `Skylake-Client-noTSX-IBRS`, or a fully compatible target node, is required.
-      Ordinary `LiveMigratable=False` from local RWO PVCs remains expected. Both
-      plans must name M01 and M02 together and use `retentionPolicy: keepSource`.
+- [ ] Knowhere cold runbook, graceful-stop ownership on Asgard, paired O01+V03
+      recovery-set procedure, and B18C isolated boot are reviewed. Final GitOps
+      selects `domain.cpu.model: Skylake-Client-noTSX-IBRS`; no compatibility
+      label fabrication or live-migration API is involved. Exactly one fresh
+      production boot is expected after both final restores and final VolSync.
 - [x] Knowhere GitOps freeze/unfreeze owners and exact VM/DataVolume/PVC/VolSync
-      reference changes are reviewed. Interim VolSync uses `synology-snapshot`
-      and a cache off `lvms-vg1`; final uses `lvms-knowhere` for snapshot/cache.
-      Freeze activates only for controlled volume-reference changes, not read-only baselines.
+      reference changes are reviewed. Final VolSync uses original-name
+      `knowhere-projects` and `lvms-knowhere` for snapshot/cache. Freeze covers
+      the entire cold stop/backup/rebuild/restore window, not read-only baselines.
 - [x] Encrypted off-node etcd backup completed under the separate storage plan;
       OpenShift 4.22.15 artifact and NAS checksum verified on 2026-10-27.
 - [ ] No unresolved cluster degradation, CI activity, deployments, or active
       migration streams.
 
-### Gate B: restore tests and staged live rehearsal
+### Gate B: restore tests and cold Knowhere rehearsal
 
-- [ ] Representative restic filesystem restores compared for content and ownership.
+- [ ] Representative restic filesystem restores compared for content and ownership,
+      including Happier V16 and its existing application state/read-write checks.
 - [ ] All 11 database dump types imported into isolated instances/namespaces and
       checked with real table/row counts and extension/application checks.
-- [ ] **Running-production root safety passed:** a crash-consistent root
-      VolumeSnapshot, or a documented guest-filesystem-frozen snapshot, was
-      restored only to scratch, copied to encrypted off-node qcow2, compared in
-      full, and passed read-only inspection plus the reviewed isolated recovery
-      boot. Production Knowhere never stopped and its source was never attached
-      to a helper or second VM.
-- [ ] **B18a passed before rebuild:** a disposable VM with one 300Gi Block root and
-      one 136579960013-byte Filesystem projects disk completed one two-disk live
-      plan from `lvms-vg1` to `synology-iscsi-storage` while moving Altus → xandar.
-      `retentionPolicy: keepSource` retained both sources; interim VolSync active-PVC,
-      `synology-snapshot`, non-vg1 cache and fresh successful sync were proven.
-- [ ] **B18b passed after rebuild and before production leg 2:** the same
-      still-running disposable VM moved both active iSCSI disks together to
-      `lvms-knowhere` while moving xandar → Altus, retained interim sources, and
-      proved final active-PVC/snapshot/cache changes plus a fresh successful sync.
-      B18b cannot be required before `lvms-knowhere` exists.
-- [ ] Across B18a/B18b, continuous console/SSH, application, network and
-      root/projects I/O probes remained within the approved brief-live-migration-
-      pause budget, with no shutdown, reboot, unexplained gap, duplicate or corrupt
-      write. Guest boot identity, mounts and projects data stayed unchanged. The
-      rehearsal used no production VM/PVC/MAC and caused no production downtime.
-- [ ] V03 projects restore evidence is isolated DR-test evidence only. It is not a
-      production restore route and cannot substitute for B18. Optional O01 qcow2
-      DR restore/compare evidence, if separately approved, likewise cannot
-      substitute for B18 or M01. No halted-production Knowhere test is permitted.
+- [ ] **Fresh cold O01+V03 set passed:** Asgard coordinated the graceful stop,
+      VMI and both attachments were absent, O01 qcow2-LUKS check/full comparison/
+      SHA-256 passed, and the paired V03 sync/current snapshot/full repository
+      check plus project manifests passed. The earlier running-root safety test
+      is historical supporting evidence, not a substitute.
+- [ ] **B18C passed before rebuild:** both artifacts from the same cold set were
+      restored to new scratch PVCs, root comparison/read-only inspection passed,
+      projects `/disk.img` content/metadata and 107:107 ownership passed, and one
+      isolated two-disk boot using `Skylake-Client-noTSX-IBRS` proved the guest
+      root/projects mounts and read-only project checks without production identity.
+- [ ] B18C evidence explicitly records that it does not authorize rebuild or
+      deletion. Historical B18a/B18b live attempts are superseded evidence only;
+      no Xandar, continuous-availability, storage-migration-plan, or interim-iSCSI
+      gate applies to the cold route.
 - [x] KNX restore evidence revalidated on 2026-10-29 against fresh V04
       `8e7bb8ab` and V05 `3a65d8ef` backups taken while production was
       Stopped/Halted with no VMI or source attachments. Full Restic read-data,
@@ -599,10 +596,10 @@ migration work. No B00–B24 batch or production migration has run.
       destination SELinux accessibility checked.
 - [ ] Every required repository passed `restic check`; full or sampled read-data
       scope and result recorded.
-- [ ] Gate B evidence includes dates, artifact IDs, migration/plan names, source
-      and target PV names, node transitions, continuous-availability logs, command
+- [ ] Gate B evidence includes dates, snapshot/dump/artifact IDs, source and
+      target PV names/classes, cold stop/detach and isolated-boot logs, command
       exit statuses, and operator sign-off. The synthetic helper tests are helper
-      evidence only; B18 and production root safety evidence are still pending.
+      evidence only; fresh cold O01+V03 and B18C evidence are still pending.
 
 ## Final backup sequence (maintenance window)
 
@@ -611,7 +608,7 @@ migration work. No B00–B24 batch or production migration has run.
 1. Pause CI and deployments. Disable affected ArgoCD auto-sync parent-first.
 2. Scale non-Knowhere application Deployments/StatefulSets to zero in dependency
    order: application workers first, databases last. Keep a database available
-   only for its final logical dump. Knowhere has no scale-down step and stays up.
+   only for its final logical dump. Stop Happier before its final V16 syncs.
 3. Gitea: stop runners and Gitea writers; dump D01 and back up V02 before
    stopping `gitea-db`.
 4. Nextcloud: enable maintenance mode, dump D06, complete V07 and the separate
@@ -629,9 +626,12 @@ migration work. No B00–B24 batch or production migration has run.
    remains. Restore `Managed` only after data validation.
 8. Paperless-mcp: scale its app-template controller to zero and verify both MCP
    and proxy containers are gone.
-9. KNX only: halt the VM and wait for its VMI to disappear. Never rely on a guest
-   shutdown request alone. Knowhere follows the live M01/M02 procedure instead;
-   do not stop it or attach its active production disks to offline helpers.
+9. KNX: halt the VM and wait for its VMI to disappear. Never rely on a guest
+   shutdown request alone.
+10. Knowhere: from Asgard, stop agent/herdr sessions and gracefully shut down the
+    guest. Wait for its VMI and both source attachments to disappear. Only then
+    attach the root source to the O01 helper and run the final V03 sync. Keep the
+    guest stopped through B18C, rebuild and both final restores.
 
 Read-only proof before each offline helper starts:
 
@@ -640,9 +640,9 @@ oc-sa altus get pods -A -o wide | grep -E 'knowhere|windows-11|prometheus|alertm
 oc-sa altus get volumeattachments.storage.k8s.io
 oc-sa altus get vm,vmi -n knowhere
 oc-sa altus get vm,vmi -n knx-ets
-# The relevant non-Knowhere writer and attachment must be absent. Inspect any
-# match; do not treat an empty grep exit status as a failed preflight. Knowhere's
-# running VMI is expected and is never an offline-helper source in this process.
+# The relevant writer and attachment must be absent. Inspect any match; do not
+# treat an empty grep exit status as a failed preflight. For cold O01/V03, no
+# Knowhere VMI or source attachment may remain before the helpers start.
 ```
 
 ### 2. Take final logical database dumps
@@ -866,17 +866,17 @@ SELinux xattrs, stop and resolve context with the installed policy/tooling rathe
 than starting a workload with an unreadable volume. Verify both `stat` numeric
 ownership and `ls -Z` accessibility from the eventual workload security context.
 
-## Knowhere 300Gi Block root: optional O01 DR-only qcow2-LUKS reference
+## Knowhere 300Gi Block root: mandatory cold O01 qcow2-LUKS backup
 
-This section is retained only for a future, separately approved disaster-recovery
-backup. It is not an executable step in the live migration, not a Gate B/C
-requirement, and never a production migration mechanism. Do not halt production
-Knowhere to create this artifact or to test this process. M01 and the B18 live
-rehearsal are the production root-disk route and its required proof.
+This is the executable production root route and a Gate B/C requirement. From
+Asgard, gracefully stop Knowhere and prove the VMI and both source attachments
+are absent before starting the helper. Pair the resulting artifact with the fresh
+V03 projects backup, then prove both together in B18C before requesting the
+separately authorized rebuild.
 
-### Optional, separately approved DR backup
+### Mandatory stopped-writer backup
 
-O01 is a raw 300Gi block PVC. The DR backup is a self-contained qcow2-LUKS image
+O01 is a raw 300Gi block PVC. Its backup is a self-contained qcow2-LUKS image
 with no backing file. Zero/unallocated blocks remain sparse on the NFS target;
 do not `dd` a full 300Gi stream. Compression is optional and should be decided
 by the tested throughput/CPU baseline; sparseness, LUKS encryption, and integrity
@@ -959,16 +959,16 @@ spec:
 `qemu-img compare` is intentionally a complete read-back verification even
 though it adds time. A nonzero exit, corrupt qcow2 metadata, missing/incorrect
 LUKS encryption, backing-file reference, missing checksum, or unexpected 300Gi
-virtual size fails the optional DR backup. There is no filesystem ownership to
-`chown` inside this raw block backup.
+virtual size fails the mandatory cold backup. There is no filesystem ownership
+to `chown` inside this raw block backup.
 
-### Optional isolated DR restore test
+### B18C isolated root restore, paired with V03
 
-If O01 is separately approved, test only an existing DR artifact in a scratch
-namespace; never halt production to create a test input. Use a
-**non-production target StorageClass approved for the test**, with at least
-300Gi virtual capacity and enough real allocation. Do not use a running VM, a
-production DataVolume name, a production MAC, or the old block PV. Materialize
+Test the exact fresh cold O01 artifact in the B18C scratch namespace together
+with its paired V03 projects restore. Use a **non-production target StorageClass
+approved for the test**, with at least 300Gi virtual capacity and enough real
+allocation. Do not use a running production VM, production DataVolume/PVC,
+production MAC/network identity, or old block PV. Materialize
 `altus-lvms-knowhere-root-encryption` in the scratch namespace with an
 ExternalSecret referencing the same root Doppler key; do not copy Secret data.
 
@@ -1045,152 +1045,88 @@ spec:
 
 The verified virt-launcher image does not provide `guestfish` or
 `virt-filesystems`; use the separate pinned libguestfs helper with `guestfish --ro`
-for the optional DR inspection step. Its synthetic runtime test passed with the
+for the B18C inspection step. Its synthetic runtime test passed with the
 direct-backend environment and writable mounts recorded above. Do not make scratch
 sparse-file guarantees a substitute for content comparison. Record the restored
 PV, virtual size, comparison exit status, inspected partitions/filesystems, and
-known-file result if this DR test is approved. Passing it does not close B18 or
-Gate B: B18 requires the disposable two-leg live rehearsal with continuous
-availability.
+known-file result. B18C closes only when this root restore and its paired V03
+restore also pass the isolated two-disk boot with
+`Skylake-Client-noTSX-IBRS`; root-only evidence is insufficient.
 
-## Knowhere production execution: two live storage-migration legs
+## Knowhere production execution: coordinated cold backup and restore
 
-Gate A, the other required Gate B tests, and B18a must pass before production leg
-1; B18b must pass after rebuild and before production leg 2. There is no
-production halt, blank-root DataVolume restore, V03 production restore, or
-same-node/direct migration step.
-The same running Knowhere VM and guest remain available throughout. Record the
-VMI UID/start time, guest boot ID, active DataVolume/PVC names, volume names,
-node, projects mount, network and a real agent/session probe before starting.
-Run continuous timestamped console/SSH, application, network, root/projects I/O
-and availability probes until final validation ends, using B18's approved brief
-live-migration-pause budget. Any guest stop/restart, unexplained availability
-gap, or probe failure beyond that budget stops the process and blocks rebuild.
+Gate A, all other required Gate B tests, the fresh cold O01+V03 set, and paired
+B18C must pass before requesting the rebuild. The production VM stays stopped
+from its graceful shutdown through both final restores and final VolSync. There
+are no storage-migration plans, compute migrations, interim production PVCs, or
+continuous-availability gates. Exactly one fresh production boot is expected.
 
-Freeze Knowhere GitOps before each leg and keep it frozen while the migration
-controller changes VM volume references. Review and apply the corresponding VM,
-DataVolume/PVC and VolSync reference changes as one deliberate reconciliation;
-do not let ArgoCD restore an old reference or prune a retained source. GitOps
-confirms the VM volume names `rootdisk` and `projectsdisk`; revalidate them for
-drift before applying either plan. Preserve the `projectsdisk` serial and all
-network/cloud-init identity.
+Freeze Knowhere GitOps for the entire cold window. Record the original VM,
+DataVolume/PVC, VolSync and guest/network identity before shutdown, then
+reconcile changes deliberately so ArgoCD neither restarts the guest nor restores
+stale storage references. Preserve VM volume names `rootdisk` and `projectsdisk`,
+the `projectsdisk` serial, firmware UUID, cloud-init and network identity.
 
-### Leg 1: both disks to iSCSI; running VM Altus → xandar
+### 1. Asgard shutdown and fresh paired backup
 
-1. Complete Gate A's xandar `knowhere-lan` OVN localnet configuration and
-   disposable-network validation. Reconfirm storage-live-migratability, capacity
-   and continuous probes. Require the fresh running-production root safety
-   snapshot/scratch recovery evidence and a fresh projects sync before leg 1.
-   A missing/invalid xandar mapping or stale safety artifact blocks leg 1.
-2. Create one plan containing **both** M01 and M02, with unique interim PVC names
-   and `synology-iscsi-storage`. `retentionPolicy: keepSource` is mandatory even
-   if it is the controller default:
+1. From Asgard, coordinate the maintenance window as single writer. End
+   agent/herdr sessions and gracefully shut down the guest. Require the VMI and
+   both source VolumeAttachments to disappear; a guest shutdown request or a VM
+   spec alone is not detach evidence.
+2. Capture O01 from the detached raw root using the mandatory qcow2-LUKS helper
+   above. Require clean check, no backing file, 300Gi virtual size, complete
+   comparison, ciphertext SHA-256 and apparent/allocated size.
+3. Trigger V03 `projects-backup` after detach with Snapshot copy mode. Require a
+   fresh successful sync/current snapshot, full repository read-data check,
+   `/disk.img` metadata and scoped project manifests. Record O01 and V03 IDs and
+   recovery times as one cold set; do not mix recovery points.
+4. Run paired B18C from the restore-test runbook against new scratch PVCs and an
+   isolated VM with `Skylake-Client-noTSX-IBRS`. Full root comparison, read-only
+   inspection, exact projects restore and one isolated two-disk boot must pass.
+   The earlier running-root safety artifact and historical B18 attempts are
+   supporting evidence only and cannot replace this fresh cold set or rehearsal.
 
-   ```yaml
-   apiVersion: migrations.kubevirt.io/v1alpha1
-   kind: VirtualMachineStorageMigrationPlan
-   metadata:
-     name: knowhere-live-leg1
-     namespace: knowhere
-   spec:
-     retentionPolicy: keepSource
-     virtualMachines:
-       - name: knowhere
-         targetMigrationPVCs:
-           - volumeName: rootdisk
-             destinationPVC:
-               name: knowhere-rootdisk-iscsi
-               storageClassName: synology-iscsi-storage
-               volumeMode: Block
-               accessModes: [ReadWriteOnce]
-           - volumeName: projectsdisk
-             destinationPVC:
-               name: knowhere-projects-iscsi
-               storageClassName: synology-iscsi-storage
-               volumeMode: Filesystem
-               accessModes: [ReadWriteOnce]
-   ```
+### 2. Separately authorized rebuild
 
-3. Start that plan with a `VirtualMachineStorageMigration`; the plan alone does
-   not execute:
+Only after Gate C's required backup/restore rows and B18C pass may the operator
+request and then execute the separately authorized storage rebuild that creates
+`lvms-knowhere`. Backup/test success is not rebuild or deletion approval. The
+rebuild's reviewed teardown must explicitly name every old production and
+scratch object authorized for deletion; no controller or runbook step deletes
+sources automatically. Preserve all off-pool backups and recovery evidence.
+Validate Block and Filesystem provisioning and the final snapshot class before
+production restoration.
 
-   ```yaml
-   apiVersion: migrations.kubevirt.io/v1alpha1
-   kind: VirtualMachineStorageMigration
-   metadata:
-     name: knowhere-live-leg1
-     namespace: knowhere
-   spec:
-     virtualMachineStorageMigrationPlanRef:
-       name: knowhere-live-leg1
-   ```
+### 3. Restore both original-name disks and perform one fresh boot
 
-4. Watch the storage migration, underlying VMIM, VM/VMI, DataVolumes and PVCs.
-   Require `Completed`, both active disk references on the interim iSCSI PVCs,
-   the running VMI on xandar, and unchanged guest boot identity. Verify
-   `knowhere-lan`, projects mount and application/agent probes. Do not proceed if
-   only one disk migrated or the VM stopped. Keep both original `lvms-vg1`
-   sources; there is no automatic deletion.
-5. While GitOps remains frozen, update its active projects volume reference to
-   `knowhere-projects-iscsi`, the projects ReplicationSource `spec.sourcePVC` to
-   that same active PVC, `spec.restic.volumeSnapshotClassName` to
-   `synology-snapshot`, and `spec.restic.cacheStorageClassName`/R10 to an approved
-   class off `lvms-vg1`. Keep `copyMethod: Snapshot` so the mover does not mount
-   and relabel the live projects filesystem. Reconcile deliberately, trigger a new
-   manual projects sync, and require a fresh `lastSyncTime` plus
-   `latestMoverStatus.result=Successful`. Record snapshot/repository evidence and
-   remove only the manual trigger. Do not continue to rebuild until this backup
-   and all other Gate C rows pass.
-
-Any failed or incomplete leg stops the rebuild. Deleting the migration object to
-cancel is permitted only before completion and its outcome must be verified; after
-`Completed`, cancellation/deletion is not rollback and must never be presented as
-a way back to `lvms-vg1`.
-
-### Rebuild vg1 and create lvms-knowhere
-
-Only after production leg 1, its fresh successful projects sync, disposable B18a,
-and every required Gate C backup/restore row pass may the separate storage plan
-rebuild `vg1` and create `lvms-knowhere`. Keep production Knowhere and the B18
-disposable guest running on xandar/iSCSI. Validate the new class and
-DataSource/image imports, then complete B18b before production leg 2. Any failed
-leg-1/B18a check, missing backup, or unsuccessful sync means **do not rebuild**.
-`keepSource` retains the original vg1 M01/M02 sources until this point. The
-rebuild's reviewed teardown must explicitly name and authorize their deletion;
-the migration controller must never delete them automatically. Preserve all
-off-pool backups and rollback evidence through the observation window.
-
-### Leg 2: both active disks to lvms-knowhere; running VM xandar → Altus
-
-1. Require B18b signed off. Freeze Knowhere GitOps again. Confirm the running VMI
-   is on xandar, both active disks are the interim iSCSI PVCs, continuous probes
-   are healthy, Altus localnet mapping and LVMS capacity are ready, and no old vg1
-   volume is referenced. Refresh the independent root safety snapshot/copy and
-   projects sync from the active iSCSI volumes before starting leg 2.
-2. Create `knowhere-live-leg2` as one `VirtualMachineStorageMigrationPlan` with
-   `retentionPolicy: keepSource` and both `rootdisk` and `projectsdisk` targets.
-   Use unique final PVC names `knowhere-rootdisk-lvms` (Block) and
-   `knowhere-projects-lvms` (Filesystem), both RWO with
-   `storageClassName: lvms-knowhere`. Start its matching
-   `VirtualMachineStorageMigration`; never run separate root/projects migrations.
-3. Require `Completed`, both active disk references on the final PVCs, the same
-   running guest back on Altus, unchanged boot identity, healthy `knowhere-lan`,
-   projects mount, root/projects I/O, networking, Tailscale/herdr, and a real agent
-   session. Run `mise run knowhere:verify` without stopping the guest.
-4. Update GitOps active projects/VM references to `knowhere-projects-lvms`, the
-   ReplicationSource `spec.sourcePVC` to that same final active PVC,
-   `spec.restic.volumeSnapshotClassName` and
+1. Keep the production VM stopped. Restore O01 to a new RWO 300Gi Block PVC named
+   `knowhere-rootdisk` on `lvms-knowhere`; run a complete comparison against the
+   validated qcow2-LUKS artifact and read-only guest inspection.
+2. Create V03's destination as RWO Filesystem on `lvms-knowhere` with original
+   name `knowhere-projects` and exact request **136579960013 bytes**. Restore the
+   paired snapshot with Direct, require exact `/disk.img`, project manifests and
+   metadata, and correct only that file to 107:107. Both restores must finish and
+   validate before boot.
+3. Reconcile the original DataVolume/PVC names and VM volume references, and set
+   `spec.template.spec.domain.cpu.model: Skylake-Client-noTSX-IBRS`. Confirm the
+   VM is still stopped after GitOps reconciliation; the CPU-model change and one
+   expected fresh boot are intentional parts of this cold route.
+4. Point `projects-backup` `spec.sourcePVC` at original-name `knowhere-projects`;
+   set `spec.restic.volumeSnapshotClassName` and
    `spec.restic.cacheStorageClassName`/R10 to `lvms-knowhere`. Keep Snapshot copy
-   mode, then trigger and verify another fresh successful projects sync as above.
-   Unfreeze only after VM, storage, VolSync and guest evidence agrees.
-
-Keep the interim iSCSI M01/M02 source PVCs/PVs/DataVolumes for the defined
-observation window; do not delete them when leg 2 completes. Original vg1 source
-deletion belongs only to the separately reviewed rebuild teardown above. Later
-interim-iSCSI teardown requires another review after healthy observation and
-verified final backups. No source cleanup is automatic or implied by `Completed`.
-A completed leg cannot be rolled back by cancellation; recovery requires a
-separately reviewed forward plan while preserving Knowhere availability.
+   mode, trigger a fresh manual sync, require success/current snapshot/repository
+   evidence, and remove only the manual trigger. Do not boot before this final
+   backup succeeds.
+5. Perform exactly one expected fresh production boot. Require healthy
+   `knowhere-lan`, projects mount, root/projects I/O, project manifests and
+   representative `git fsck`, networking, Tailscale/herdr, user units, real agent
+   use, and `mise run knowhere:verify`. Record the new boot ID explicitly rather
+   than expecting unchanged-boot or continuous-availability evidence.
+6. Unfreeze only after VM, storage, final VolSync and guest evidence agree. Keep
+   all old sources that survived the separately reviewed rebuild, O01/V03
+   artifacts and evidence through the observation window. Any later old-source or
+   historical scratch cleanup requires another explicit named authorization;
+   restore, backup and successful boot never imply deletion approval.
 
 ## VolSync restore pattern
 
@@ -1322,7 +1258,7 @@ Follow `docs/runbooks/nextcloud-restore.md`, including its server-side
 
 - Restore D06's dump and V07 in the same coordinated restore set, plus the
   separate `nextcloud-app-nextcloud-data` NFS source from its own restic
-  repository. The NFS user-data volume is not one of the 104 pool PVCs but is
+  repository. The NFS user-data volume is not one of the 107 production pool PVCs but is
   required for a consistent application.
 - Keep Nextcloud scaled to zero. Start MariaDB alone, drop/recreate the empty
   `nextcloud` database as documented, and stream the verified dump into MariaDB.
@@ -1337,10 +1273,10 @@ Follow `docs/runbooks/nextcloud-restore.md`, including its server-side
 
 ## Recreate and reimport
 
-For R01–R65, let GitOps/VolSync/workload controllers create empty PVCs only after
+For R01–R67, let GitOps/VolSync/workload controllers create empty PVCs only after
 both StorageClasses are Ready and test provisioning has passed. Do not restore
 old DinD layers, runner caches, Redis state, model caches, or mover caches.
-Confirm all 65 have an intentional empty successor and that new cache class
+Confirm all 67 have an intentional empty successor and that new cache class
 selection is correct.
 
 For I01–I06, allow the six existing DataImportCrons to import once each into
@@ -1359,42 +1295,44 @@ dependent VM workloads.
 
 ## Restore validation and gates
 
-### Gate C: final backups and live leg 1 complete; original pool still intact
+### Gate C: final cold backups and B18C complete; original pool still intact
 
-Require one signed evidence row for every production M/V/D/O route:
+Require one signed evidence row for every production V/D/O route:
 
-- M01+M02: B18a passed; production leg-1 plan/migration names and `Completed`
-  status; both disks moved together to iSCSI; same running guest moved Altus →
-  xandar with unchanged boot identity and continuous availability; original vg1
-  sources retained; GitOps active references reconciled; VolSync points to the
-  interim active projects PVC with `synology-snapshot` and a cache off `lvms-vg1`;
-  fresh successful projects sync and repository evidence recorded.
-- V01/V02/V04–V15: fresh successful sync for every listed repository, latest
-  snapshot identity/time, repository check, restore-test reference, ownership
-  baseline. V03 also requires fresh DR-backup/sync coverage and its isolated DR
-  restore-test reference, but is not a production restore row.
+- V01–V16: fresh successful sync for every listed repository, latest snapshot
+  identity/time, repository check, restore-test reference and ownership baseline.
+  V03 additionally requires its fresh stopped-writer cold pairing with O01 and
+  paired B18C restore/boot evidence; it is a final production restore row.
 - D01–D11: new dump Job, nonzero `backup.sql`, byte size and SHA-256, fresh
   dump-PVC sync(s), repository check, isolated import and row-count evidence.
+- O01: Asgard graceful-stop and both-disk detach proof, self-contained sparse
+  qcow2-LUKS with no backing file, clean check, full source comparison,
+  ciphertext SHA-256, apparent/allocated size, and paired B18C evidence. O01 is
+  mandatory to unlock the separately authorized rebuild.
 - O02–O07: stopped/detached proof, GnuPG decrypt-and-tar-list success with
   `pipefail`, ciphertext SHA-256, apparent and allocated size, scratch extraction
-  comparison, and ownership/SELinux evidence; no plaintext `.tar` on NFS. O01 is
-  optional separately approved DR coverage and is not required to unlock rebuild.
-- R01–R65 and I01–I06: explicitly reviewed as recreation/reimport; no backup
-  artifact is required.
+  comparison, and ownership/SELinux evidence; no plaintext `.tar` on NFS.
+- R01–R67 and I01–I06: explicitly reviewed as recreation/reimport; no backup
+  artifact is required. Track the three `gb18-knowhere` LVMS scratch claims
+  separately from these production rows.
 
 Do not cross the storage point of no return with any missing or failed row.
-Failure of leg 1 or its post-leg sync stops rebuild; completed-migration
-cancellation is not rollback.
+Failure of the cold O01+V03 set or B18C stops the rebuild request. Passing Gate C
+does not itself authorize rebuild or deletion; the storage rebuild and every
+named source/scratch deletion require separate explicit approval.
 
 ### Post-migration application checks and closeout
 
-- Reconcile all 104 original names to their M/V/D/O/R/I successor. No active VM
-  or workload may reference the previous VG generation. Any source PV retained
-  for observation must be detached/unreferenced and does not count as active
-  old-pool use; original vg1 sources are absent only after their reviewed rebuild
-  teardown, never through automatic migration cleanup.
+- Reconcile all 107 original production names to their V/D/O/R/I successor and
+  reconcile the three historical scratch claims separately. No active VM or
+  workload may reference the previous VG generation. Any source PV retained for
+  observation must be detached/unreferenced and does not count as active old-pool
+  use; original vg1 sources are absent only after their explicitly reviewed
+  rebuild teardown, never through automatic cleanup.
 - Gitea: repository/file checks agree with D01; real CI job passes with DinD
   MTU/overlay2 checks.
+- Happier: V16 content/metadata and existing application state agree; real
+  read/write validation and fresh local+B2 post-restore backups pass.
 - Nextcloud: installed flag, calendar/contacts/files, DB counts, and writable
   upload; no unintended maintenance mode left enabled.
 - Paperless: data/media/DB agree; document search and a real document view work.
@@ -1405,22 +1343,21 @@ cancellation is not rollback.
   silences/state and UWM/Thanos rules are present. No history trimming.
 - Paperless-mcp: OAuth proxy state/clients remain valid and an authenticated MCP
   request succeeds without exposing tokens.
-- Knowhere: B18b passed before production leg 2; leg 2 `Completed` with both
-  active disks on `lvms-knowhere`, the same continuously available guest back on
-  Altus, unchanged boot identity, healthy projects
-  mount/network/Tailscale/herdr and real agent use. Final GitOps and
-  VolSync reference `knowhere-projects-lvms`; snapshot/cache classes are
-  `lvms-knowhere`; a fresh final projects sync succeeded. KNX must not request
+- Knowhere: fresh cold O01+V03 and B18C passed before the separately authorized
+  rebuild; both original-name disks are on `lvms-knowhere` with exact size/mode
+  and validated content. CPU model is `Skylake-Client-noTSX-IBRS`; exactly one
+  expected fresh production boot occurred after final VolSync. Healthy projects
+  mount/network/Tailscale/herdr, real agent use and `mise run knowhere:verify`
+  pass. Final GitOps/VolSync reference `knowhere-projects`; snapshot/cache classes
+  are `lvms-knowhere`; a fresh final projects sync succeeded. KNX must not request
   BitLocker recovery and must retain its vTPM state.
 - Audit every ReplicationSource for fresh schedules, no leftover manual trigger,
   successful post-migration backups, and intended cache StorageClasses.
 - Keep all backup repositories and migration artifacts unchanged for at least
-  seven healthy days. Keep interim iSCSI M01/M02 sources for the observation
-  window; do not prune rollback data or automatically delete source
-  PVCs/PVs/DataVolumes. Original vg1 source deletion requires the explicit
-  pre-rebuild teardown review; interim iSCSI teardown requires a separate review
-  after observation and final backup validation. Record both reviewed decisions
-  and the retained-source inventory in closeout.
+  seven healthy days. Do not prune recovery data or automatically delete source
+  PVCs/PVs/DataVolumes. Original vg1 and historical scratch deletion each require
+  explicit named authorization; record the rebuild teardown decision, any later
+  cleanup decision, and the retained-source/scratch inventory in closeout.
 
 ## Unresolved safety questions / required Gate A–B decisions
 
@@ -1429,7 +1366,7 @@ cancellation is not rollback.
    tailsafe-covered. Add and verify equivalent independent protection, or record
    explicit operator acceptance of the NAS-resident-only risk for the defined
    migration/retention window. Existing `/volume1/configs` tailsafe coverage does
-   not protect the O02–O07 artifacts or optional O01 DR artifacts.
+   not protect the O01–O07 artifacts.
 2. **Helper RBAC:** synthetic qcow2/GPG and libguestfs tests passed with
    namespaced `anyuid`, no privilege escalation, and only the documented minimum
    capabilities/environment. Validate the same permissions in each required
@@ -1442,27 +1379,28 @@ cancellation is not rollback.
 5. **Database globals:** prove the full `pg_dumpall` role/database restore behavior
    for each CNPG version and Immich's custom PostgreSQL image. Record expected
    duplicate-object diagnostics and fail criteria before the final import.
-6. **Knowhere safety and B18:** run the running-production root snapshot through
-   encrypted off-node copy and scratch recovery without stopping the source.
-   Pass the disposable Block-root/Filesystem-projects two-leg rehearsal with
-   continuous availability, `retentionPolicy: keepSource` and both post-leg
-   VolSync updates/syncs. B18a gates rebuild; B18b follows creation of
-   `lvms-knowhere` and gates production leg 2. All remain pending; no halted-
-   production test or V03 restore can replace them.
+6. **Knowhere cold safety and B18C:** from Asgard, prove graceful stop and detach,
+   capture fresh O01 qcow2-LUKS and paired V03 backups, then pass paired cold
+   restore/read-only inspection/isolated boot with
+   `Skylake-Client-noTSX-IBRS`. B18C gates the rebuild request; final original-name
+   restores, final VolSync and one expected fresh production boot follow the
+   separately authorized rebuild. Historical running-root and B18a evidence cannot
+   replace the fresh cold set or B18C.
 7. **SELinux/sparse support:** prove encrypted archive extraction preserves
    numeric owners, ACLs/xattrs and sparse allocation, and that final-namespace
    volume relabeling leaves each workload able to read its data. A scratch
    namespace has a different MCS label and must not be compared byte-for-byte for
    SELinux context.
-8. **Live-migration and xandar details:** the installed v1alpha1 plan/migration
-   schemas and `rootdisk`/`projectsdisk` names are confirmed; recheck them and
-   controller behavior for drift. Apply and prove the declared `knowhere-lan`
-   mapping on xandar before leg 1, confirm destination capacity, select the
-   interim non-vg1 VolSync cache class, and record GitOps freeze/reconciliation
-   owners. Direct/same-node migration is not a fallback.
-9. **Observation and teardown:** approve the interim-iSCSI observation duration
-   and the later review criteria for old vg1 source deletion and interim teardown.
-   Neither successful migration nor completed status authorizes source deletion.
+8. **Cold identity and GitOps:** confirm `rootdisk`/`projectsdisk`, original
+   DataVolume/PVC names, firmware/cloud-init/network identity and final CPU model.
+   Keep GitOps frozen through the full cold window, validate scratch/final
+   capacity and `lvms-knowhere` snapshot/cache selection, and prevent any boot
+   before both restores and final VolSync pass.
+9. **Rebuild, observation and teardown:** obtain separate explicit rebuild
+   authorization and an exact named deletion allowlist before pool teardown.
+   Define the observation period and later review criteria for any surviving old
+   sources and historical B18 scratch. Neither B18C, restore, backup nor fresh-boot
+   success authorizes deletion.
 10. **Current-state drift:** this is a point-in-time inventory. Any new/missing
     PVC, changed size/mode/class, changed ReplicationSource, new writer, or changed
     allocated-data budget requires a reviewed update, not an ad-hoc decision.
