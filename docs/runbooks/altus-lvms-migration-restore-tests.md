@@ -618,11 +618,21 @@ and no production PVC, MAC, IP, cloud-init Secret, or firmware UUID. Use
    PVC as disaster-recovery evidence: require
    `/disk.img`, its apparent/allocated size, scoped project manifests, and
    `chown 107:107 /disk.img` only. This V03 restore is never a production step.
+   Use a controller-created Job with a dedicated custom SCC granting only
+   `CHOWN`, no fsGroup and `openshift.io/required-scc`; verify that exact SCC
+   through the downward API before the write. Do not use a direct helper Pod,
+   `anyuid`, privileged SCC, `FOWNER`, `DAC_OVERRIDE`, or recursive rewrites.
 4. Create and initially boot disposable VM `knowhere-live-migration-test` on
    altus with both disks, disk serial `projectsdisk`, and its own disposable
    firmware UUID, MAC/IP, cloud-init, and guest hostname. Disable production
    agent/Tailscale enrollment. Record this identity and the guest boot ID. After
    this initial boot, no shutdown or reboot is permitted during either leg.
+5. Before any B18a retry, complete a quiet 15-minute preflight with samples at
+   least every 20 seconds: every Altus iowait sample must remain ≤20%, root use
+   <80%, and no restore/migration/mover workload may be active. Record per-device
+   utilization/throughput and etcd WAL p99 on both nodes; investigate sustained
+   90–100% device saturation or abnormal WAL elevation. Reconfirm Knowhere's
+   unchanged identity and health immediately before booting the disposable VM.
 
 Executable templates are `docs/runbooks/altus-lvms-b18-initial.yaml`,
 `docs/runbooks/altus-lvms-b18-leg1.yaml`, and
