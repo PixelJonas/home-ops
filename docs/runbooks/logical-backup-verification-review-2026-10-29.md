@@ -177,37 +177,36 @@ Validate configuration/session state, categories, save paths, state direction, a
 
 ### V10-V12 Qdrant
 
-Coordinate data, snapshots, and crawl progress. Compare exact point counts, known-vector result IDs, API/file snapshot consistency, and resume entries without starting a crawl. Root mode `2777` remains an open acceptance issue from B15 even though content and application checks passed.
+Coordinate data, snapshots, and crawl progress. Compare exact point counts, known-vector result IDs, API/file snapshot consistency, and resume entries without starting a crawl. B15 closed after exact source-derived per-path metadata restoration and compliant SCC admission. Five runtime file changes `0664→0644` and two directory changes `0775→02755` were independently reviewed as application-managed drift; the original contract does not require metadata immutability after the database starts.
 
 ### V13 Taxbuddy Hermes
 
-Require exact UID/GID and modes, preserved SSH host keys/pairing/tools home, SQLite `quick_check` for every database, and existing dashboard/chat/kanban reads without starting gateway/herdr/Moshi/tools/agent connections. B16 proved that mover `fsGroup` can cause widespread metadata mutation; this route remains unclosed.
+Require exact UID/GID and modes, preserved SSH host keys/pairing/tools home, SQLite `quick_check` for every database, and existing dashboard/chat/kanban reads without starting gateway/herdr/Moshi/tools/agent connections. B16 proved that mover `fsGroup` can cause widespread metadata mutation. Closure passed with mover UID/GID 10000 and `runAsNonRoot` but no `fsGroup`, exact per-path corrections, all 80,425 entries validated, eight SQLite checks, and existing dashboard reads. Source and restore templates now omit `fsGroup`.
 
 ### V04/V05 KNX and large VM images
 
-Use at least 1 Gi for a Synology CSI scratch V04 destination even though the source request is 300 Mi. Validate disk identity, NVRAM/vTPM hashes, ownership, modes, SELinux accessibility, and isolated Windows boot before claiming recovery. B17 restored both disks but never reached an acceptable metadata state or boot.
+Use at least 1 Gi for a Synology CSI scratch V04 destination even though the source request is 300 Mi. Validate disk identity, NVRAM/vTPM hashes, ownership, modes, SELinux accessibility, and isolated Windows boot before claiming recovery. B17 closure restored all 18 Gate A entries with exact mixed ownership, proved UID/GID 107 read access and destination SELinux labels, and booted Windows 11 to the normal logon screen without BitLocker recovery or external network access. ETS project access remains an interactive Windows Hello PIN check.
 
-Decide explicitly whether KNX metadata should preserve Gate A's mixed ownership exactly or normalize selected entries to 107:107; normalization is a transformation, not preservation. Also decide the required root modes and destination SELinux labels rather than copying source MCS categories.
+Preserve Gate A's mixed ownership exactly; blanket normalization to 107:107 would be a transformation, not preservation. Treat source MCS categories as facts, not scratch destination requirements.
 
 For V03-class sparse images, compare apparent and allocated bytes. Root-safety recovery passed content and boot checks, but allocation grew from about 37 GB to nearly the full 127.86 GB. Capacity planning must tolerate full allocation even when apparent content is unchanged.
 
 ## OpenShift SCC and metadata lessons
 
-The campaign established that an `anyuid` RoleBinding grants eligibility; it does not pin which SCC OpenShift selects. B16/B17 helpers were admitted as `volsync-privileged-mover` despite narrow or dedicated `anyuid` bindings. The complete RBAC closure and admission-selection rationale remain unknown; priority, naming, or the binding alone must not be stated as the cause.
+The SCC authorization root cause is established: helper Pods created directly through `oc-sa` inherit the direct cluster-admin caller's SCC eligibility in addition to their own ServiceAccount's eligibility. The binding `claude-admin-cluster-admin-binding` therefore made `volsync-privileged-mover` available even when a dedicated ServiceAccount had only an `anyuid` RoleBinding. Controller-created Pods consider only their ServiceAccount, so Jobs/Deployments with dedicated ServiceAccounts and pod-template `openshift.io/required-scc` provide the deterministic boundary.
 
-B15 provides one concrete pod-shape issue: its helper explicitly requested `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`, which `anyuid` does not allow while the VolSync SCC does. That does not explain the complete B15/B16/B17 authorization paths.
+B15 also had a concrete pod-shape constraint: its helper explicitly added `CHOWN`, `FOWNER`, and `DAC_OVERRIDE`, which `anyuid` cannot grant. Exact SCC sorting when multiple SCCs remain eligible is not assumed; the closure removes the unwanted eligibility instead of relying on selection order.
 
-Future remediation should use this order:
+The successful closure contract is:
 
-1. Enumerate relevant namespaced and cluster SCC grants and full SCC definitions before choosing a helper shape.
-2. Use a dedicated ServiceAccount and a sleep-only, non-privileged helper with no host access.
-3. Before any metadata command, require the pod's admitted SCC annotation and security context to match the approved contract. Delete it immediately on mismatch.
-4. Do not reuse mover ServiceAccounts for metadata helpers.
-5. Test restores without mover or inspector `fsGroup` where metadata preservation is the goal.
-6. Correct only specifically approved root metadata; avoid recursive permission rewrites.
-7. Independently revalidate complete content and metadata as the actual restricted consumer before application boot.
+1. Create helpers through controllers with dedicated ServiceAccounts and `required-scc`; do not create direct helper Pods through the cluster-admin caller.
+2. Record the admitted SCC before any exec or write and stop on mismatch.
+3. Omit mover and inspector `fsGroup` when exact metadata is required. Expect arbitrary mover ownership/modes and restore the source-derived metadata contract explicitly.
+4. Correct only enumerated per-path differences; do not recursively rewrite permissions. Prove pre/post content hashes unchanged and validate every path, type, size, UID/GID, and mode before application startup.
+5. Validate as the actual restricted consumer before boot. Record destination SELinux labels rather than copying source MCS categories.
+6. Distinguish pre-startup restoration acceptance from later application-managed metadata/content changes.
 
-These are proposed controls, not evidence that B15-B17 are closed.
+B15-B17 technical recovery is closed with this pattern. Existing-user application authentication remains a separate acceptance layer.
 
 ## Suggested implementation sequence for a future session
 
@@ -216,7 +215,7 @@ These are proposed controls, not evidence that B15-B17 are closed.
 3. **Create a shared non-mutating verifier.** Support SQL structure, full/sampled file manifests, numeric metadata, sparse allocation, and sanitized evidence. Completion requires negative tests for truncation and metadata mutation.
 4. **Schedule isolated restore drills.** Rotate application-level checks from the catalog above and record their age separately from nightly backup success. Completion requires an isolated replay and real application read for every logical database route.
 5. **Pre-arrange identity-aware tests.** Supply existing-user credentials or unlocked sessions securely for Vaultwarden and comparable apps without placing secrets in evidence.
-6. **Resolve metadata and admission contracts.** Close B15-B17 with reviewed, deterministic SCC behavior and complete target metadata/application acceptance before using those routes for migration.
+6. **Complete identity-aware application acceptance.** B15-B17 technical recovery is closed; use interactive existing-user authentication to close Vaultwarden and KNX/ETS without recording credentials in evidence.
 7. **Review queue and sparse-image handling.** Require explicit failed/DLQ replay/deletion decisions and capacity checks based on possible full allocation.
 
 A useful first production hardening candidate is Ingestbuddy because its failure and corrected direct-Service path are fully documented. Do not roll the shared template out broadly until that candidate passes capture, rejection, restore, and application checks with the new implementation.
@@ -249,5 +248,9 @@ Key NAS evidence archives:
 - `b17-knx-ets-preflight-evidence.tar.gz`
 - `b17-knx-ets-1gi-evidence.tar.gz`
 - `b17-knx-ets-metadata-evidence.tar.gz`
+- `b11-vaultwarden-closure-evidence.tar.gz`
+- `b15-qdrant-metadata-closure-evidence.tar.gz`
+- `b16-taxbuddy-hermes-closure-evidence.tar.gz`
+- `b17-knx-ets-closure-evidence.tar.gz`
 
 Earlier rejected captures and diagnostic archives are retained alongside these files. Use the successful archives for proven acceptance patterns and the failure archives to understand why the controls exist.
