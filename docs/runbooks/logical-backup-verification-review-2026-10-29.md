@@ -26,7 +26,7 @@ D04 Ingestbuddy supplied a complete failure chain:
 - Restic preserved the truncated bytes exactly. Mover success and repository integrity were therefore true but irrelevant to SQL completeness.
 - Evidence supports silent end-of-stream loss in the `kubectl exec` stdout path. The exact client/API/kubelet/CRI hop was not isolated, so a particular upstream bug is not conclusively proven. Source-data and Restic-mover corruption were not supported.
 
-The reviewed worktree still contains this risky pattern in `templates/psql-backup/cronjob.yaml` and the Immich database backup override. Successful D01-D03 imports validate those particular artifacts, not the ongoing backup path.
+The shared template and Immich override now replace this pattern with direct-Service dumps, unique temporary files, structural validation and atomic acceptance using the PostgreSQL 18.6 client. The validator rejected 13 malformed/truncated fixtures and accepted two valid fixtures; five full-workflow tests preserved the exact last-good backup on every rejection. Real non-superuser dumps passed against disposable PostgreSQL 17.6 and 18.6 servers, and all ten consuming application overlays passed manifest validation. These changes are not yet deployed: live writer-free captures and isolated restore drills remain required for every changed route.
 
 Key evidence:
 
@@ -210,7 +210,7 @@ B15-B17 technical recovery is closed with this pattern. Existing-user applicatio
 
 ## Suggested implementation sequence for a future session
 
-1. **Replace the shared PostgreSQL stream first.** Update the common template and Immich override to direct-Service dump files, unique temporary names, fail-closed structural checks, and atomic acceptance. Completion requires synthetic checker tests and one real writer-free capture per changed route.
+1. **Complete the shared PostgreSQL stream rollout.** The common template and Immich override now have direct-Service dump files, unique temporary names, fail-closed structural checks and atomic acceptance. Synthetic and real PostgreSQL 17/18 client-server tests passed. Remaining completion requires controlled deployment plus one real writer-free capture and isolated restore drill per changed route; future server majors newer than 18 require a newer client.
 2. **Add recovery-set manifests.** Cover every D route and coordinated file/DB application, including explicit exclusions and queue/external-data coverage. Completion requires every production PVC to map to a documented recovery or reviewed disposable route.
 3. **Create a shared non-mutating verifier.** Support SQL structure, full/sampled file manifests, numeric metadata, sparse allocation, and sanitized evidence. Completion requires negative tests for truncation and metadata mutation.
 4. **Schedule isolated restore drills.** Rotate application-level checks from the catalog above and record their age separately from nightly backup success. Completion requires an isolated replay and real application read for every logical database route.
