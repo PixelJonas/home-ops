@@ -580,8 +580,12 @@ migration work. No B00–B24 batch or production migration has run.
       production restore route and cannot substitute for B18. Optional O01 qcow2
       DR restore/compare evidence, if separately approved, likewise cannot
       substitute for B18 or M01. No halted-production Knowhere test is permitted.
-- [ ] KNX restore evidence revalidated against the current backup, including
-      firmware UUID, `disk.img`, swtpm permall state, and 107:107 ownership.
+- [ ] KNX restore evidence revalidated against a fresh backup taken only after
+      the production VM is stopped and its VMI is absent. Require firmware UUID,
+      `disk.img`, swtpm permall state, exact source-derived mixed ownership/modes,
+      SELinux accessibility, and isolated Windows recovery. Interactive ETS
+      authentication and KNX live migration are excluded by the user's 2026-10-29
+      acceptance decision; `runStrategy=Always` alone is not proof of a stopped VM.
 - [ ] Encrypted offline filesystem archives decrypted/extracted into scratch
       storage; file counts, checksums, numeric owners, sparse allocation, and
       destination SELinux accessibility checked.

@@ -185,7 +185,7 @@ Require exact UID/GID and modes, preserved SSH host keys/pairing/tools home, SQL
 
 ### V04/V05 KNX and large VM images
 
-Use at least 1 Gi for a Synology CSI scratch V04 destination even though the source request is 300 Mi. Validate disk identity, NVRAM/vTPM hashes, ownership, modes, SELinux accessibility, and isolated Windows boot before claiming recovery. B17 closure restored all 18 Gate A entries with exact mixed ownership, proved UID/GID 107 read access and destination SELinux labels, and booted Windows 11 to the normal logon screen without BitLocker recovery or external network access. ETS project access remains an interactive Windows Hello PIN check.
+Use at least 1 Gi for a Synology CSI scratch V04 destination even though the source request is 300 Mi. Validate disk identity, NVRAM/vTPM hashes, ownership, modes, SELinux accessibility, and isolated Windows boot before claiming recovery. B17 closure restored all 18 Gate A entries with exact mixed ownership, proved UID/GID 107 read access and destination SELinux labels, and booted Windows 11 to the normal logon screen without BitLocker recovery or external network access. On 2026-10-29 the user accepted stopped-VM backup and isolated restore as sufficient; interactive ETS authentication and KNX live migration are outside the recovery contract. A fresh stopped-VM backup/restore is still required, and preflight must verify the VMI is absent because `runStrategy=Always` can leave or return the VM to `Running`.
 
 Preserve Gate A's mixed ownership exactly; blanket normalization to 107:107 would be a transformation, not preservation. Treat source MCS categories as facts, not scratch destination requirements.
 
@@ -206,7 +206,7 @@ The successful closure contract is:
 5. Validate as the actual restricted consumer before boot. Record destination SELinux labels rather than copying source MCS categories.
 6. Distinguish pre-startup restoration acceptance from later application-managed metadata/content changes.
 
-B15-B17 technical recovery is closed with this pattern. Existing-user application authentication remains a separate acceptance layer.
+B15-B17 technical recovery is closed with this pattern. Existing-user application authentication is a separate acceptance layer where required; the 2026-10-29 KNX decision explicitly excludes it.
 
 ## Suggested implementation sequence for a future session
 
@@ -214,8 +214,8 @@ B15-B17 technical recovery is closed with this pattern. Existing-user applicatio
 2. **Add recovery-set manifests.** Cover every D route and coordinated file/DB application, including explicit exclusions and queue/external-data coverage. Completion requires every production PVC to map to a documented recovery or reviewed disposable route.
 3. **Create a shared non-mutating verifier.** Support SQL structure, full/sampled file manifests, numeric metadata, sparse allocation, and sanitized evidence. Completion requires negative tests for truncation and metadata mutation.
 4. **Schedule isolated restore drills.** Rotate application-level checks from the catalog above and record their age separately from nightly backup success. Completion requires an isolated replay and real application read for every logical database route.
-5. **Pre-arrange identity-aware tests.** Supply existing-user credentials or unlocked sessions securely for Vaultwarden and comparable apps without placing secrets in evidence.
-6. **Complete identity-aware application acceptance.** B15-B17 technical recovery is closed; use interactive existing-user authentication to close Vaultwarden and KNX/ETS without recording credentials in evidence.
+5. **Pre-arrange identity-aware tests where required.** Supply existing-user credentials or unlocked sessions securely for Vaultwarden and comparable apps without placing secrets in evidence. Vaultwarden acceptance is complete; KNX/ETS requires no interactive authentication under the revised contract.
+6. **Verify stopped-state preconditions for VM backups.** Require the production VMI and disk attachments to be absent before coordinated cold backups. Do not infer stopped state from a guest shutdown request or VM `runStrategy`.
 7. **Review queue and sparse-image handling.** Require explicit failed/DLQ replay/deletion decisions and capacity checks based on possible full allocation.
 
 A useful first production hardening candidate is Ingestbuddy because its failure and corrected direct-Service path are fully documented. Do not roll the shared template out broadly until that candidate passes capture, rejection, restore, and application checks with the new implementation.

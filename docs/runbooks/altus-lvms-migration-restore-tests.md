@@ -54,8 +54,8 @@ later B18 rehearsal. No production VM, PVC, or Secret was touched.
 - Batch B14 qBittorrent passed pinned V06 recovery: all 469 files and Gate A ownership/modes matched, UID/GID 1029:65537 read/write/delete checks passed, and WebUI/API validated 279 session entries, 8 categories, exact save paths/state direction and 19 known completed-data files without mass recheck. Four later production additions were correctly excluded from the pinned baseline. BitTorrent was loopback-only with no Gluetun/Route/external HTTPS/DHT/PeX/LSD/UPnP or production writes; downloads stayed read-only. Production was unchanged, cleanup passed with 104 Bound production LVMS PVCs, and SHA-verified evidence is archived as `b14-qbittorrent-evidence.tar.gz`.
 - Batch B15 Qdrant is **PASS after reviewed closure**. Controller-created helpers with dedicated ServiceAccounts and `required-scc` eliminated the direct cluster-admin caller's SCC union; all 23 captured admissions were compliant. Exact source-derived per-path corrections restored every path's content and metadata before startup, including roots `0:1001090000:2777`, with no recursive writes or content changes. Exact collections/counts, known-vector results, five snapshots and 7,744 resume entries passed without a crawl. Independent acceptance review confirmed that five runtime file changes `0664→0644` and two directory changes `0775→02755` are non-blocking application-managed drift; the original contract does not require post-startup metadata immutability. Closure evidence is SHA-archived as `b15-qdrant-metadata-closure-evidence.tar.gz`, with the initial failure and uncorrected-stop archives retained.
 - Batch B16 Taxbuddy Hermes is **PASS after reviewed closure**. The mover used UID/GID 10000 and `runAsNonRoot` without fsGroup; all 14 helper admissions were controller-created and limited to approved `anyuid`/`nonroot-v2`. Exact per-path corrections restored 80,087 nested modes without recursive writes or content changes; all 80,425 entries and 3.16 GB then matched Gate A, including root `10000:10000:0700` and required config/session/SSH/Moshi/tools state. Read-only `quick_check` passed for all eight SQLite databases and dashboard-only existing chat/Kanban reads passed with no external services or metadata drift. Cleanup passed with 104 Bound production LVMS PVCs and unchanged production Hermes/Knowhere. SHA-verified evidence is archived as `b16-taxbuddy-hermes-closure-evidence.tar.gz`; earlier failures remain archived. The V13 source/restore templates now omit fsGroup.
-- Batch B17 KNX has **PASSING technical recovery with one application GAP**. Exact V04/V05 restores, all 18 Gate A mixed-ownership entries, disk size, unchanged NVRAM/vTPM hashes, UID/GID 107 read-only access and destination SELinux labels passed. All seven helper/VM admissions were controller-created and compliant. Isolated Windows reached `AgentConnected=True`, Windows 11 and the normal logon screen without BitLocker recovery, host devices or external network paths. ETS demo/project access remains a GAP because the existing account requires its Windows Hello PIN; no reset, bypass or external activation was attempted. Cleanup passed with 104 Bound production LVMS PVCs and production KNX Stopped/unchanged. SHA-verified evidence is archived as `b17-knx-ets-closure-evidence.tar.gz`; earlier failures remain archived.
-- B18–B24, B17's ETS authentication closure, B09's production queue-deletion review, B06's deferred external completion, the shared D-route backup remediation, and B02's optional runner proof remain open unless separately recorded below. The B18a maximum pause is approved at 30 seconds per leg with a target of at most 10 seconds. Production Knowhere stayed Running throughout all completed checks.
+- Batch B17 KNX has **PASSING technical recovery**. Exact V04/V05 restores, all 18 Gate A mixed-ownership entries, disk size, unchanged NVRAM/vTPM hashes, UID/GID 107 read-only access and destination SELinux labels passed. All seven helper/VM admissions were controller-created and compliant. Isolated Windows reached `AgentConnected=True`, Windows 11 and the normal logon screen without BitLocker recovery, host devices or external network paths. On 2026-10-29 the user revised acceptance to a stopped-VM backup and isolated restore only: interactive ETS validation and KNX live migration are not required. A fresh stopped-VM backup/restore remains pending because the production VM was still `Running` with `runStrategy=Always` at two read-only preflights; no stop or production mutation was attempted. Earlier technical evidence is archived as `b17-knx-ets-closure-evidence.tar.gz`.
+- B18–B24, the fresh stopped KNX backup/restore, B09's production queue-deletion review, B06's deferred external completion, the shared D-route backup remediation, and B02's optional runner proof remain open unless separately recorded below. The B18a maximum pause is approved at 30 seconds per leg with a target of at most 10 seconds and applies only to disposable Knowhere rehearsals, not KNX. Production Knowhere stayed Running throughout all completed checks.
 
 ## Safety and completion contract
 
@@ -519,21 +519,31 @@ are mandatory; canary writes are allowed only into the scratch system.
 
 Use `docs/runbooks/knx-ets-volsync-restore-test.md`, with this runbook's exact
 namespace `gb17-knx-ets` substituted throughout and with a new current backup
-snapshot pair. Do not accept the 2026-10-11 result as current evidence.
+snapshot pair. Do not accept the 2026-10-11 result as current evidence. The
+2026-10-29 acceptance decision requires only a stopped-VM backup and isolated
+restore; interactive ETS authentication and KNX live migration are excluded.
 
-Keep production `windows-11-virtio-ets` unchanged. Restore V04/V05 to the exact
-PVC names above in the scratch namespace. Set the state PVC label
-`persistent-state-for: windows-11-virtio-ets-test`; clone the VM as
-`windows-11-virtio-ets-test`, initially Halted. Remove `devices.hostDevices`,
+Before taking the fresh backup, verify that production
+`windows-11-virtio-ets` is stopped, its VMI and disk attachments are absent,
+and it remains stopped. A guest shutdown request or `runStrategy=Always` is not
+proof of this precondition. Do not stop production implicitly when preflight
+finds it Running. Back up V04/V05 as a coordinated pair only while both source
+disks are unmounted, then leave production unchanged.
+
+Restore V04/V05 to the exact PVC names above in the scratch namespace. Set the
+state PVC label `persistent-state-for: windows-11-virtio-ets-test`; clone the VM
+as `windows-11-virtio-ets-test`, initially Halted. Remove `devices.hostDevices`,
 use MAC `02:e7:4f:bd:a6:38`, and retain firmware serial and UUID
-`b73ae2a8-c599-45f0-9830-33e50088fae3` byte-identical. Use only a namespaced
-`anyuid` grant for the ownership helper; no privileged SCC or production dongle.
-The 2026-10-27 read-only V04/V05 baseline also required the exact mixed source
-MCS set `s0:c0,c35,c190,c439`: `/src` used `c0,c35`, while nested state used
-`c190,c439`. Inspect restored labels and use the minimal matching category set;
-never relabel production data or substitute a privileged SCC.
+`b73ae2a8-c599-45f0-9830-33e50088fae3` byte-identical. Use controller-created
+helpers with dedicated ServiceAccounts and `openshift.io/required-scc`; record
+admitted SCC before exec or writes. No privileged SCC or production dongle is
+permitted. The 2026-10-27 read-only V04/V05 baseline also required the exact
+mixed source MCS set `s0:c0,c35,c190,c439`: `/src` used `c0,c35`, while nested
+state used `c190,c439`. Inspect restored labels and use the minimal matching
+category set; never relabel production data.
 
-Before boot, chown only the two restored trees to 107:107 and require:
+Before boot, restore exact source-derived per-path ownership and modes without
+recursive rewrites or content changes, and require:
 
 ```text
 /root/disk.img                                    expected current size 64050167808 bytes, or reviewed drift
@@ -541,12 +551,13 @@ Before boot, chown only the two restored trees to 107:107 and require:
 /state/swtpm/b73ae2a8-c599-45f0-9830-33e50088fae3/tpm2/tpm2-00.permall
 ```
 
-Every restored file must be 107:107. Record both source snapshot IDs together;
-a pair from unrelated recovery points fails. Boot the throwaway VM and require
-`AgentConnected=True`, Windows 11 guest OS, no BitLocker recovery, and ETS
-project access in demo mode. Lack of the USB license is expected and not a
-failure; attaching the production dongle is forbidden. Halt, wait for VMI and
-attachments to disappear, capture evidence, then clean up.
+Require every restored path to match the captured mixed-ownership baseline;
+blanket normalization to 107:107 fails. Record both source snapshot IDs
+together; a pair from unrelated recovery points fails. Boot only the throwaway
+VM and require `AgentConnected=True`, Windows 11 guest OS and no BitLocker
+recovery. No interactive ETS project or USB-license check is required. Halt the
+scratch VM, wait for its VMI and attachments to disappear, capture evidence,
+then clean up only scratch resources.
 
 ## B18: disposable Knowhere two-leg live-migration rehearsal
 
