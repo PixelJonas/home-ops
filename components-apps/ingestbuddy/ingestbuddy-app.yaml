@@ -59,23 +59,12 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: LITELLM_API_KEY
-                  PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
                   PLUGINS_PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
-                  PAPERLESS_API_TOKEN:
-                    valueFrom:
-                      secretKeyRef:
-                        name: ingestbuddy-credentials
-                        key: PAPERLESS_API_TOKEN
                   PLUGINS_PAPERLESS_API_TOKEN:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: PAPERLESS_API_TOKEN
-                  PAPERLESS_PUBLIC_URL:
-                    valueFrom:
-                      secretKeyRef:
-                        name: ingestbuddy-credentials
-                        key: PAPERLESS_PUBLIC_URL
                   PLUGINS_PAPERLESS_PUBLIC_URL:
                     valueFrom:
                       secretKeyRef:
@@ -86,11 +75,6 @@ spec:
                   # key (INGESTBUDDY_PAPERLESS_WEBHOOK_SECRET) the
                   # paperless-workflows-apply Job injects into the
                   # "pipeline:eingang intake" workflow's webhook header.
-                  PAPERLESS_WEBHOOK_SECRET:
-                    valueFrom:
-                      secretKeyRef:
-                        name: ingestbuddy-credentials
-                        key: PAPERLESS_WEBHOOK_SECRET
                   PLUGINS_PAPERLESS_WEBHOOK_SECRET:
                     valueFrom:
                       secretKeyRef:
@@ -130,13 +114,7 @@ spec:
                     "ocr_queue.deadline_near", "ocr_queue.forced_fallback",
                     "midgard.unavailable_for", "midgard.available"],
                     "enabled": true}]
-                  QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
                   PLUGINS_QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
-                  QDRANT_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: ingestbuddy-credentials
-                        key: QDRANT_API_KEY
                   PLUGINS_QDRANT_API_KEY:
                     valueFrom:
                       secretKeyRef:
@@ -216,35 +194,18 @@ spec:
                   # every one of these to even build its resource singleton
                   # on the first job — process_document itself would raise
                   # RuntimeError without them, not just the dispatch step.
-                  PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
                   PLUGINS_PAPERLESS_API_URL: http://paperless-ng.paperless.svc.cluster.local:8000
-                  PAPERLESS_API_TOKEN:
-                    valueFrom:
-                      secretKeyRef:
-                        name: ingestbuddy-credentials
-                        key: PAPERLESS_API_TOKEN
                   PLUGINS_PAPERLESS_API_TOKEN:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: PAPERLESS_API_TOKEN
-                  PAPERLESS_PUBLIC_URL:
-                    valueFrom:
-                      secretKeyRef:
-                        name: ingestbuddy-credentials
-                        key: PAPERLESS_PUBLIC_URL
                   PLUGINS_PAPERLESS_PUBLIC_URL:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: PAPERLESS_PUBLIC_URL
-                  QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
                   PLUGINS_QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
-                  QDRANT_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: ingestbuddy-credentials
-                        key: QDRANT_API_KEY
                   PLUGINS_QDRANT_API_KEY:
                     valueFrom:
                       secretKeyRef:
@@ -261,13 +222,7 @@ spec:
                   # until ingestbuddy grows tax-domain extraction; failures
                   # are recorded per-bundle as failed SinkDispatches, not
                   # worker crashes.
-                  TAXBUDDY_INTAKE_URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/intake/ingestbuddy
                   PLUGINS_TAXBUDDY_INTAKE_URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/intake/ingestbuddy
-                  TAXBUDDY_WEBHOOK_SECRET:
-                    valueFrom:
-                      secretKeyRef:
-                        name: ingestbuddy-credentials
-                        key: TAXBUDDY_WEBHOOK_SECRET
                   PLUGINS_TAXBUDDY_WEBHOOK_SECRET:
                     valueFrom:
                       secretKeyRef:
@@ -279,25 +234,16 @@ spec:
                   MIDGARD_HEALTH_URL: http://10.42.0.5:18080/healthz
                   # Vehicle domain shadow run (ingestbuddy#13): routing +
                   # extraction run and land in bundles.domain_metadata, but
-                  # VEHICLE_SINK_URL/SECRET stay unset, so no draft reaches
+                  # PLUGINS_VEHICLE_SINK_URL/SECRET stay unset, so no draft reaches
                   # vehicle-pipeline while its legacy intake is still live.
-                  # VEHICLE_TAGS mirrors components-apps/vehicle-pipeline's
+                  # PLUGINS_VEHICLE_TAGS mirrors components-apps/vehicle-pipeline's
+                  # VEHICLE_TAGS
                   # value; keep the two in sync until the legacy poll retires.
-                  MYGARAGE_VEHICLES:
-                    valueFrom:
-                      secretKeyRef:
-                        name: ingestbuddy-credentials
-                        key: MYGARAGE_VEHICLES
                   PLUGINS_VEHICLE_REGISTRY:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: MYGARAGE_VEHICLES
-                  VEHICLE_TAGS: >-
-                    {"multivan": ["Fahrzeug:Multivan", "Fahrzeug:Multivan-auto"],
-                    "id4": ["Fahrzeug:ID4", "Fahrzeug:ID4-auto"]}
-                  # ingestbuddy#106: the vehicle plugin reads its tag map from
-                  # PLUGINS_VEHICLE_TAGS; VEHICLE_TAGS stays until #108's cleanup.
                   PLUGINS_VEHICLE_TAGS: >-
                     {"multivan": ["Fahrzeug:Multivan", "Fahrzeug:Multivan-auto"],
                     "id4": ["Fahrzeug:ID4", "Fahrzeug:ID4-auto"]}
