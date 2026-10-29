@@ -59,12 +59,16 @@ later B18 rehearsal. No production VM, PVC, or Secret was touched.
 
 ## Safety and completion contract
 
-- Execute from outside Knowhere. Run one batch at a time and require its evidence
-  before starting the next. B18 is deliberately split: run B18a after B17, then
-  B19-B24 and all other pre-rebuild gates; retain the running B18 guest on
-  interim iSCSI through the rebuild and run B18b before the production return
-  leg. B18's two disks are one plan, not independent batches. Clean each batch
-  after sign-off except the explicitly retained B18 sources/active interim set.
+- Execute from outside Knowhere. Independent batches may run in parallel when
+  explicitly authorized, provided they have disjoint source/scratch resources,
+  combined capacity/load headroom, independent evidence, and continuous Knowhere
+  health checks; otherwise run one at a time. On 2026-10-29 the user explicitly
+  authorized the stopped KNX backup/restore to run alongside B19. B18 is
+  deliberately split: run B18a after B17, then B19-B24 and all other pre-rebuild
+  gates; retain the running B18 guest on interim iSCSI through the rebuild and
+  run B18b before the production return leg. B18's two disks are one plan, not
+  independent batches. Clean each batch after sign-off except the explicitly
+  retained B18 sources/active interim set.
 - Gate A must already be complete. Use the approved off-node export
   `10.10.10.40:/volume1/pmb-backup/altus-lvms-migration`, its encryption design,
   pinned helper images, `restic` 0.18.0, read-only guest tools, and minimum-SCC
