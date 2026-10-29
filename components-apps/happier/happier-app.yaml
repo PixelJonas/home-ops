@@ -62,12 +62,13 @@ spec:
                   # client IP used for rate limiting; a hop count fails
                   # startup, so it must be an address/CIDR.
                   HAPPIER_SERVER_TRUST_PROXY: 10.128.0.0/14
-                  # Anonymous device-key signup. Flip to "false" once the
-                  # first account exists (phone created + knowhere daemon
-                  # paired) — existing-key logins, token refresh and CLI
-                  # pairing keep working; only new account creation is
-                  # blocked.
-                  AUTH_ANONYMOUS_SIGNUP_ENABLED: "true"
+                  # Anonymous device-key signup, locked now that the one
+                  # account exists (phone + knowhere daemon paired
+                  # 2026-10-29). Existing-key logins, token refresh, account
+                  # restore on new devices and CLI pairing keep working; only
+                  # new account creation is blocked. Set "true" temporarily
+                  # to create a new account.
+                  AUTH_ANONYMOUS_SIGNUP_ENABLED: "false"
                   HANDY_MASTER_SECRET:
                     valueFrom:
                       secretKeyRef:
