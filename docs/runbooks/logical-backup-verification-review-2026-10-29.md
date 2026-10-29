@@ -161,7 +161,7 @@ Coordinate app files and database, preserve root ownership/modes, compare all ta
 
 ### D10 Vaultwarden
 
-Database/config counts and a synthetic vault canary are insufficient. Closure requires a securely supplied existing-user credential or unlocked session to prove existing-vault login/unlock, cipher/collection reads, authenticated existing attachment download, and organization membership. Never record plaintext cipher content or credentials in evidence.
+Database/config counts and a synthetic vault canary are insufficient. Closure requires a securely supplied existing-user credential or unlocked session to prove existing-vault login/unlock, cipher/collection reads, authenticated existing attachment download, and organization membership. B11 closed with user-confirmed interactive checks after a full refresh resolved an initial transient login hang/error; no cause was inferred. Never record plaintext cipher content or credentials in evidence.
 
 ### D11 Vehicle Pipeline
 
@@ -249,6 +249,7 @@ Key NAS evidence archives:
 - `b17-knx-ets-1gi-evidence.tar.gz`
 - `b17-knx-ets-metadata-evidence.tar.gz`
 - `b11-vaultwarden-closure-evidence.tar.gz`
+- `b11-vaultwarden-interactive-evidence.tar.gz`
 - `b15-qdrant-metadata-closure-evidence.tar.gz`
 - `b16-taxbuddy-hermes-closure-evidence.tar.gz`
 - `b17-knx-ets-closure-evidence.tar.gz`
