@@ -17,7 +17,7 @@ spec:
               persistentVolumeClaim:
                 claimName: syno-template-db-backup
           containers:
-            - name: pg-dump-via-kubectl
+            - name: pg-dump
               env:
                 - name: POSTGRES_USER
                   value: template
@@ -29,26 +29,182 @@ spec:
               volumeMounts:
                 - name: backup
                   mountPath: /backup
-              image: quay.io/openshift/origin-cli:4.22
+              image: ghcr.io/cloudnative-pg/postgresql:18.6-system-trixie
               command: ["/bin/bash", "-c"]
               args:
                 - |-
-                  set -e
+                  set -Eeuo pipefail
 
-                  echo -----------------------------------
-                  echo "Backing up $POSTGRES_USER database"
-                  # Look up the current primary dynamically -- a hardcoded
-                  # "-db-1" breaks after any CNPG failover (manual storage
-                  # migration or an automatic one), since the new primary
-                  # keeps whatever instance name it already had (e.g. -db-2).
-                  PRIMARY_POD=$(kubectl get cluster.postgresql.cnpg.io "$POSTGRES_USER"-db -o jsonpath='{.status.currentPrimary}')
-                  # Dump to a temp file and only replace backup.sql on success: a failed
-                  # dump used to truncate the last good backup.sql, and VolSync then backed
-                  # up a 0-byte file (immich, 2026-09-28 03:00 while the app was paused).
-                  kubectl exec "$PRIMARY_POD" --container postgres -- /bin/bash -c "PGPASSWORD=$POSTGRES_POSTGRES_PASSWORD pg_dumpall -U postgres" > /backup/backup.sql.tmp
-                  test -s /backup/backup.sql.tmp
-                  mv -f /backup/backup.sql.tmp /backup/backup.sql
-                  echo -----------------------------------
-                    ls -lah /backup
-                  echo -----------------------------------
+                  export PGHOST="${POSTGRES_HOST:-${POSTGRES_USER}-db-rw}"
+                  export PGUSER="$POSTGRES_USER"
+                  export PGPASSWORD="$POSTGRES_POSTGRES_PASSWORD"
+                  export PGCONNECT_TIMEOUT=15
+
+                  tmp=
+                  cleanup() {
+                    rc=$?
+                    trap - EXIT HUP INT TERM
+                    if [[ -n "${tmp:-}" ]]; then
+                      rm -f -- "$tmp"
+                    fi
+                    exit "$rc"
+                  }
+                  trap cleanup EXIT
+                  trap 'exit 129' HUP
+                  trap 'exit 130' INT
+                  trap 'exit 143' TERM
+
+                  echo "Starting direct-Service PostgreSQL dump"
+                  tmp="$(mktemp /backup/backup.sql.XXXXXXXXXX.tmp)"
+                  pg_dumpall --no-role-passwords --file="$tmp"
+                  chmod 0644 "$tmp"
+                  sync "$tmp"
+
+                  perl -Mstrict -Mwarnings -MEncode=decode,FB_CROAK - "$tmp" <<'PERL'
+                  my $path = shift @ARGV;
+                  die "backup validation failed: no dump path supplied\n" unless defined $path;
+
+                  sub reject {
+                    my ($message, $line) = @_;
+                    if (defined $line) {
+                      print STDERR "backup validation failed at line $line: $message\n";
+                    } else {
+                      print STDERR "backup validation failed: $message\n";
+                    }
+                    exit 1;
+                  }
+
+                  sub column_count {
+                    my ($text, $line) = @_;
+                    my $length = length $text;
+                    my $pos = 0;
+                    my $count = 0;
+
+                    while (1) {
+                      $pos++ while $pos < $length && substr($text, $pos, 1) =~ /\s/;
+                      reject("empty column in COPY declaration", $line) if $pos >= $length;
+
+                      if (substr($text, $pos, 1) eq '"') {
+                        my $closed = 0;
+                        $pos++;
+                        while ($pos < $length) {
+                          if (substr($text, $pos, 1) eq '"') {
+                            if ($pos + 1 < $length && substr($text, $pos + 1, 1) eq '"') {
+                              $pos += 2;
+                              next;
+                            }
+                            $pos++;
+                            $closed = 1;
+                            last;
+                          }
+                          $pos++;
+                        }
+                        reject("unterminated quoted column in COPY declaration", $line) unless $closed;
+                      } else {
+                        my $start = $pos;
+                        while ($pos < $length) {
+                          my $char = substr($text, $pos, 1);
+                          last if $char eq ',' || $char =~ /\s/;
+                          reject("unexpected quote in COPY column", $line) if $char eq '"';
+                          $pos++;
+                        }
+                        reject("invalid column in COPY declaration", $line) if $pos == $start;
+                      }
+
+                      $count++;
+                      $pos++ while $pos < $length && substr($text, $pos, 1) =~ /\s/;
+                      return $count if $pos >= $length;
+                      reject("invalid COPY column separator", $line) unless substr($text, $pos, 1) eq ',';
+                      $pos++;
+                    }
+                  }
+
+                  open my $fh, '<', $path or reject("cannot open dump");
+                  binmode $fh or reject("cannot set dump to binary mode");
+
+                  my $line_number = 0;
+                  my $last_ended_newline = 0;
+                  my $header_seen = 0;
+                  my $footer_seen = 0;
+                  my $saw_sql = 0;
+                  my $in_copy = 0;
+                  my $expected_fields = 0;
+                  my $copy_blocks = 0;
+
+                  while (1) {
+                    $! = 0;
+                    my $raw = <$fh>;
+                    if (!defined $raw) {
+                      reject("dump read failure") if $!;
+                      last;
+                    }
+
+                    $line_number++;
+                    $last_ended_newline = $raw =~ /\n\z/;
+                    reject("NUL byte in dump", $line_number) if index($raw, "\0") >= 0;
+                    reject("carriage return in direct-Linux dump", $line_number) if index($raw, "\r") >= 0;
+
+                    my $text;
+                    my $bytes = $raw;
+                    eval {
+                      $text = decode('UTF-8', $bytes, FB_CROAK);
+                      1;
+                    } or reject("invalid UTF-8", $line_number);
+
+                    if ($footer_seen) {
+                      reject("SQL after final cluster footer", $line_number)
+                        unless $text =~ /^\s*\z/ || $text =~ /^--[^\n]*\n?\z/;
+                      next;
+                    }
+
+                    if ($in_copy) {
+                      if ($raw eq "\\.\n") {
+                        $in_copy = 0;
+                        $expected_fields = 0;
+                        $copy_blocks++;
+                        next;
+                      }
+
+                      my $fields = 1 + (() = $raw =~ /\t/g);
+                      reject("COPY row field count mismatch", $line_number)
+                        unless $fields == $expected_fields;
+                      next;
+                    }
+
+                    reject("control byte outside COPY data", $line_number)
+                      if $raw =~ /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
+
+                    if ($text eq "-- PostgreSQL database cluster dump\n") {
+                      $header_seen = 1;
+                      next;
+                    }
+                    if ($text eq "-- PostgreSQL database cluster dump complete\n") {
+                      $footer_seen = 1;
+                      next;
+                    }
+                    next if $text =~ /^\s*\z/ || $text =~ /^--[^\n]*\n?\z/;
+
+                    $saw_sql = 1;
+                    if ($text =~ /^COPY\b/) {
+                      my ($columns) = $text =~ /^COPY\s+(?:"(?:[^"]|"")*"|[^\s.(]+)(?:\s*\.\s*(?:"(?:[^"]|"")*"|[^\s.(]+))*\s*\((.*)\)\s+FROM\s+stdin;\n\z/;
+                      reject("invalid or unsupported COPY statement", $line_number) unless defined $columns;
+                      $expected_fields = column_count($columns, $line_number);
+                      $in_copy = 1;
+                    }
+                  }
+
+                  close $fh or reject("cannot close dump after reading");
+                  reject("missing final newline") unless $last_ended_newline;
+                  reject("unterminated COPY block") if $in_copy;
+                  reject("missing cluster dump header") unless $header_seen;
+                  reject("dump contains no SQL statements") unless $saw_sql;
+                  reject("missing final cluster dump footer") unless $footer_seen;
+                  print "Structural validation passed ($copy_blocks COPY blocks)\n";
+                  PERL
+
+                  mv -f -- "$tmp" /backup/backup.sql
+                  tmp=
+                  sync /backup
+                  echo "Accepted structurally valid backup.sql"
+                  ls -lah /backup
           restartPolicy: OnFailure
