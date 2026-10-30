@@ -7,6 +7,8 @@
   value:
     - name: POSTGRES_USER
       value: vehicle_pipeline
+    - name: POSTGRES_HOST
+      value: vehicle-pipeline-db-rw
     - name: POSTGRES_POSTGRES_PASSWORD
       valueFrom:
         secretKeyRef:
