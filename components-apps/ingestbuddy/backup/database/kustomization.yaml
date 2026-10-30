@@ -5,6 +5,7 @@ namePrefix: database-
 namespace: ingestbuddy
 
 resources:
+  - pvc-capacity-30gi.yaml
   - ../../../../templates/psql-backup
   - ../../../../templates/volsync/rest
 
