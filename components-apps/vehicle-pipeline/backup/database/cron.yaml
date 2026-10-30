@@ -6,7 +6,7 @@
   path: /spec/jobTemplate/spec/template/spec/containers/0/env
   value:
     - name: POSTGRES_USER
-      value: vehicle-pipeline
+      value: vehicle_pipeline
     - name: POSTGRES_POSTGRES_PASSWORD
       valueFrom:
         secretKeyRef:
