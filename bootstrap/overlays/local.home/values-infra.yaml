@@ -186,6 +186,29 @@ applications:
       namespace: knowhere
     source:
       path: components-infra/knowhere/base
+    # The live DataVolumes were re-created out of band during the 2026-10-30
+    # LVMS migration (cdi.kubevirt.io/storage.prePopulated adopting the
+    # restored lvms-knowhere PVCs), so their /spec intentionally differs from
+    # git. DataVolume spec is immutable after creation: ArgoCD must never try
+    # to reconcile it (a rejected patch, or a Replace/recreate, would risk the
+    # VM disks). Without RespectIgnoreDifferences a sync would still apply the
+    # git spec despite ignoreDifferences (see knx-ets below).
+    syncOptions:
+      - RespectIgnoreDifferences=true
+    extraFields: |
+      ignoreDifferences:
+        - group: cdi.kubevirt.io
+          kind: DataVolume
+          name: knowhere-rootdisk
+          namespace: knowhere
+          jsonPointers:
+            - /spec
+        - group: cdi.kubevirt.io
+          kind: DataVolume
+          name: knowhere-projects
+          namespace: knowhere
+          jsonPointers:
+            - /spec
 
   knx-ets:
     annotations:

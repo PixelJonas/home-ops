@@ -31,7 +31,9 @@ metadata:
   name: knowhere-projects
   namespace: knowhere
   annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # Prune=false: never garbage-collect the VM disk if this manifest is ever
+    # dropped from git. Delete=false: keep it if the Application is deleted.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true,Prune=false,Delete=false
     argocd.argoproj.io/sync-wave: "0"
 spec:
   source:

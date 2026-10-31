@@ -15,7 +15,9 @@ metadata:
     # The CDI CRDs come from the openshift-virtualization operator
     # (components-infra/openshift-virtualization), which may not have
     # reconciled yet on ArgoCD's first pass over this Application.
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # Prune=false: never garbage-collect the VM disk if this manifest is ever
+    # dropped from git. Delete=false: keep it if the Application is deleted.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true,Prune=false,Delete=false
     argocd.argoproj.io/sync-wave: "0"
 spec:
   source:
