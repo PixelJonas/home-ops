@@ -10,3 +10,10 @@ spec:
   kubeletConfig:
     podsPerCore: 20
     maxPods: 352
+    # Image GC (altus root SSD also holds etcd): start pruning at 75 % disk,
+    # prune down to 65 %, and drop images unused for 14 days regardless.
+    # Lives here, not in increased-reservation: this KubeletConfig renders
+    # 99-master-generated-kubelet-1, which sorts last and wins on the master pool.
+    imageGCHighThresholdPercent: 75
+    imageGCLowThresholdPercent: 65
+    imageMaximumGCAge: 336h
