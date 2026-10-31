@@ -13,6 +13,9 @@
 - op: replace
   path: /spec/restic/copyMethod
   value: Snapshot
+- op: replace
+  path: /spec/restic/cacheStorageClassName
+  value: lvms-knowhere
 - op: add
   path: /spec/restic/volumeSnapshotClassName
-  value: lvms-vg1
+  value: lvms-knowhere

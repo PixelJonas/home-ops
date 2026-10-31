@@ -27,6 +27,7 @@ spec:
     spec:
       domain:
         cpu:
+          model: Skylake-Client-noTSX-IBRS
           cores: 6
         resources:
           requests:
