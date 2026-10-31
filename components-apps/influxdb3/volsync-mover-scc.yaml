@@ -1,0 +1,93 @@
+# Narrow SCC for the influxdb3 VolSync restic mover (data-backup).
+#
+# Why: the data volume is a static local PV (local-xandar) holding ~8.9M
+# files. Under restricted-v2 every mover pod start makes CRI-O recursively
+# relabel the whole volume to the pod's MCS level; that outlives CRI-O's
+# CreateContainer timeout, so the container never starts
+# (CreateContainerError "context deadline exceeded", last good snapshot
+# 2026-10-26). CRI-O skips the relabel for pods running as spc_t, so the
+# mover sets moverSecurityContext.seLinuxOptions.type: spc_t
+# (backup/data/local.yaml) and needs an SCC that admits it.
+#
+# Identical to restricted-v2 except seLinuxContext: RunAsAny (restricted-v2's
+# MustRunAs pins the namespace MCS level and rejects a custom type). Not
+# privileged, ALL capabilities dropped, no privilege escalation, no host
+# namespaces/ports/hostPath, UID still MustRunAsRange (namespace range).
+# Granted only to the mover's ServiceAccount via a namespaced RoleBinding.
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: influxdb3-volsync-mover
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+    kubernetes.io/description: >-
+      restricted-v2 with seLinuxContext RunAsAny, so the influxdb3 VolSync
+      mover can run as spc_t and skip CRI-O's recursive volume relabel.
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+requiredDropCapabilities:
+  - ALL
+fsGroup:
+  type: MustRunAs
+runAsUser:
+  type: MustRunAsRange
+seLinuxContext:
+  type: RunAsAny
+supplementalGroups:
+  type: RunAsAny
+seccompProfiles:
+  - runtime/default
+readOnlyRootFilesystem: false
+priority: null
+groups: []
+users: []
+volumes:
+  - configMap
+  - csi
+  - downwardAPI
+  - emptyDir
+  - ephemeral
+  - persistentVolumeClaim
+  - projected
+  - secret
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: system:openshift:scc:influxdb3-volsync-mover
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+rules:
+  - apiGroups:
+      - security.openshift.io
+    resources:
+      - securitycontextconstraints
+    resourceNames:
+      - influxdb3-volsync-mover
+    verbs:
+      - use
+---
+# VolSync auto-creates one ServiceAccount per ReplicationSource, named
+# volsync-src-<rs-name> (here: volsync-src-data-backup).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: influxdb3-volsync-mover-scc
+  namespace: influxdb3
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+subjects:
+  - kind: ServiceAccount
+    name: volsync-src-data-backup
+    namespace: influxdb3
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:influxdb3-volsync-mover

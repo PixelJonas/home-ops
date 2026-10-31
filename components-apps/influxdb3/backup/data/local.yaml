@@ -2,6 +2,11 @@
 # a static local PV on xandar (StorageClass local-xandar), which has no
 # VolumeSnapshot support. cacheStorageClassName follows it so the mover pod
 # (which mounts both source and cache PVCs) can schedule on xandar.
+#
+# seLinuxOptions.type spc_t (2026-10-31): CRI-O otherwise recursively
+# relabels the ~8.9M-file local PV on every mover start and times out
+# before the container starts. spc_t makes CRI-O skip the relabel; admitted
+# by the narrow SCC in ../../volsync-mover-scc.yaml.
 - op: replace
   path: /spec/sourcePVC
   value: influxdb3-app-data
@@ -21,3 +26,5 @@
     runAsGroup: 1001140000
     fsGroup: 1001140000
     fsGroupChangePolicy: OnRootMismatch
+    seLinuxOptions:
+      type: spc_t

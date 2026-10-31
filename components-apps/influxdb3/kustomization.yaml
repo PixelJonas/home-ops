@@ -3,5 +3,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - local-storage.yaml
+  - volsync-mover-scc.yaml
   - influxdb3-app.yaml
   - backup
