@@ -1,6 +1,6 @@
 - op: replace
   path: /spec/jobTemplate/spec/template/spec/volumes/0/persistentVolumeClaim/claimName
-  value: database-syno-db-backup
+  value: database-syno-db-backup-capacity-30gi
 
 - op: replace
   path: /spec/jobTemplate/spec/template/spec/containers/0/env
