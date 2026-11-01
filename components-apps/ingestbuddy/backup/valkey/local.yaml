@@ -1,0 +1,42 @@
+# Valkey queue state (RQ jobs incl. failed/DLQ history), kept on purpose
+# (D6, 2026-11-01). The pod runs `valkey-server --appendonly yes`
+# (appendfsync everysec, multi-part AOF + RDB preamble, RDB saves on),
+# so a crash-consistent CSI snapshot of /data is a loadable AOF; Valkey's
+# default aof-load-truncated drops at most the last second's partial write.
+- op: replace
+  path: /spec/sourcePVC
+  value: ingestbuddy-app
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-valkey
+
+# Outside the 03:00-05:30 UTC mover slots and away from this namespace's
+# database-backup (05:00).
+- op: replace
+  path: /spec/trigger/schedule
+  value: "50 1 * * *"
+
+# Tier B retention (backup strategy 2026-11-01, D4).
+- op: replace
+  path: /spec/restic/retain
+  value:
+    within: 3d
+    daily: 7
+    weekly: 6
+    monthly: 6
+
+# lvms-vg1 supports CSI snapshots (VolumeSnapshotClass lvms-vg1), so back
+# up from a point-in-time snapshot instead of mounting the live RWO PVC
+# (same convention as qdrant/taxbuddy-hermes data-backup).
+- op: add
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: lvms-vg1
+
+# No moverSecurityContext/fsGroup: the files are uid 999, mode 0600, so an
+# unprivileged mover could only read them through an injected fsGroup,
+# which rewrites group/mode in the backup. The namespace instead enables
+# VolSync privileged movers (../../namespace.yaml), which read as root and
+# keep the original ownership in the snapshot and on restore.

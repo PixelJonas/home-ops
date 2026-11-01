@@ -3,4 +3,9 @@ kind: Namespace
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+    # VolSync movers run privileged (root + DAC_OVERRIDE/CHOWN/FOWNER via the
+    # operator's volsync-privileged-mover SCC, no fsGroup) so the valkey-backup
+    # mover can read the uid-999 0600 queue files without fsGroup mutation and
+    # restores keep ownership. Applies to every mover in this namespace.
+    volsync.backube/privileged-movers: "true"
   name: taxbuddy
