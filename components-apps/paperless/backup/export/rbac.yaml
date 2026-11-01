@@ -1,0 +1,42 @@
+# Dedicated identity for the document exporter. It runs
+# `kubectl exec deploy/paperless-ng -- document_exporter ...`, which needs
+# only: get the Deployment, list/get its pods, and open an exec session.
+# Before this it reused the psql-backup ServiceAccount, which kept that
+# shared Role from shrinking after the dump moved to the DB Service (#1043).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: paperless-document-exporter
+  namespace: paperless
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: paperless-document-exporter
+  namespace: paperless
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["paperless-ng"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # create = SPDY/POST exec; get = the WebSocket upgrade newer kubectl uses.
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: paperless-document-exporter
+  namespace: paperless
+subjects:
+  - kind: ServiceAccount
+    name: paperless-document-exporter
+    namespace: paperless
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: paperless-document-exporter

@@ -7,6 +7,7 @@ namespace: paperless
 resources:
   - ../../../../templates/volsync/rest
   - ../../../../templates/volsync/backblaze
+  - rbac.yaml
   - cronjob-document-exporter.yaml
 
 patches:
