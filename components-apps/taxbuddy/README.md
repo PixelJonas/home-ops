@@ -192,6 +192,19 @@ Digest auto-bump: taxbuddy's `release.yml` regex replaces **all**
 `taxbuddy-app.yaml`, so this controller and the bmf-watcher CronJob move to
 each new digest together — no separate regex/manifest wiring was needed.
 
+## Backup (Doppler `homelab`/`home` via ESO)
+
+- `backup/database/`: `templates/psql-backup` + `templates/volsync/rest`
+  (`TAXBUDDY_DATABASE_REST_REPO_LOCAL`), 05:00 UTC.
+- `backup/valkey/`: the Valkey queue PVC `taxbuddy-app` (RQ jobs, including
+  failed/DLQ history, kept per backup strategy D6, 2026-11-01).
+  `valkey-server --appendonly yes`, so a crash-consistent `lvms-vg1` CSI
+  snapshot is a loadable AOF. REST repo only
+  (`TAXBUDDY_VALKEY_REST_REPO_LOCAL`), Tier B retention, 01:30 UTC. The
+  namespace enables VolSync privileged movers (the files are uid 999, mode
+  0600; no mover fsGroup), which also applies to `database-backup`.
+- Both share `RESTIC_PASSWORD`.
+
 ## Secrets (Doppler `homelab`/`home` via ESO)
 
 | Key | Purpose |
