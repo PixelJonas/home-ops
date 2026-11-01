@@ -35,6 +35,14 @@ spec:
                 # on a nearly-empty data dir at the 2026-10-01 xandar
                 # reboot -- that only grows as the 100Gi dataset fills).
                 fsGroupChangePolicy: OnRootMismatch
+                # spc_t (2026-11-01): under restricted-v2 CRI-O recursively
+                # relabels the ~8.9M-file data PV on every new pod and times
+                # out (CreateContainerError), as the VolSync mover did from
+                # 2026-10-26 until #1049. spc_t skips the relabel; admitted
+                # by the narrow SCC in volsync-mover-scc.yaml. MountOption
+                # relabeling isn't available: local PVs aren't eligible.
+                seLinuxOptions:
+                  type: spc_t
             containers:
               influxdb3:
                 image:

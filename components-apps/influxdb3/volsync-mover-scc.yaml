@@ -13,7 +13,17 @@
 # MustRunAs pins the namespace MCS level and rejects a custom type). Not
 # privileged, ALL capabilities dropped, no privilege escalation, no host
 # namespaces/ports/hostPath, UID still MustRunAsRange (namespace range).
-# Granted only to the mover's ServiceAccount via a namespaced RoleBinding.
+# Granted only to specific ServiceAccounts via a namespaced RoleBinding.
+#
+# The app pod has the same problem (2026-11-01): any new influxdb3-app pod
+# (rollout, xandar drain/reboot) would hit the same relabel timeout, so the
+# app also runs as spc_t (influxdb3-app.yaml) and its ServiceAccount is bound
+# here too. The SCC keeps its original name to avoid re-binding churn.
+#
+# Restores: a ReplicationDestination into influxdb3-app-data needs the same
+# treatment (moverSecurityContext.seLinuxOptions.type: spc_t, and add its
+# ServiceAccount volsync-dst-<rd-name> to the RoleBinding below), or its
+# mover never starts.
 apiVersion: security.openshift.io/v1
 kind: SecurityContextConstraints
 metadata:
@@ -22,7 +32,8 @@ metadata:
     argocd.argoproj.io/sync-wave: "30"
     kubernetes.io/description: >-
       restricted-v2 with seLinuxContext RunAsAny, so the influxdb3 VolSync
-      mover can run as spc_t and skip CRI-O's recursive volume relabel.
+      mover and app pod can run as spc_t and skip CRI-O's recursive volume
+      relabel.
 allowHostDirVolumePlugin: false
 allowHostIPC: false
 allowHostNetwork: false
@@ -75,7 +86,8 @@ rules:
       - use
 ---
 # VolSync auto-creates one ServiceAccount per ReplicationSource, named
-# volsync-src-<rs-name> (here: volsync-src-data-backup).
+# volsync-src-<rs-name> (here: volsync-src-data-backup). influxdb3-app is the
+# app-template chart's ServiceAccount for the influxdb3 controller.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -86,6 +98,9 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: volsync-src-data-backup
+    namespace: influxdb3
+  - kind: ServiceAccount
+    name: influxdb3-app
     namespace: influxdb3
 roleRef:
   apiGroup: rbac.authorization.k8s.io
