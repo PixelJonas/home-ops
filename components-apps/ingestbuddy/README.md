@@ -78,11 +78,19 @@ they point at doesn't exist yet:
 ## Backup (Doppler `homelab`/`home` via ESO)
 
 `backup/database/` is `templates/psql-backup` + `templates/volsync/rest`
-only — **no Backblaze/B2** (infra-ops#61: Valkey is an ephemeral queue, not
-backed up; the CNPG Postgres is the only state, since original document
-bytes live in `ingest.bundles.original_file` bytea with no object storage).
-New Doppler key `INGESTBUDDY_DATABASE_REST_REPO_LOCAL`; shared
-`RESTIC_PASSWORD` reused (same as every other app's REST backup).
+only — **no Backblaze/B2** (infra-ops#61); the CNPG Postgres holds the
+documents (original bytes live in `ingest.bundles.original_file` bytea, no
+object storage). New Doppler key `INGESTBUDDY_DATABASE_REST_REPO_LOCAL`;
+shared `RESTIC_PASSWORD` reused (same as every other app's REST backup).
+
+`backup/valkey/` backs up the Valkey queue PVC `ingestbuddy-app` (RQ jobs,
+including failed/DLQ history). infra-ops#61 originally treated Valkey as an
+ephemeral queue; that was reversed on 2026-11-01 (backup strategy D6): the
+failed/DLQ history is kept. `valkey-server --appendonly yes`, so a
+crash-consistent `lvms-vg1` CSI snapshot is a loadable AOF. REST repo only
+(`INGESTBUDDY_VALKEY_REST_REPO_LOCAL`), Tier B retention, 01:50 UTC. The
+namespace enables VolSync privileged movers (the files are uid 999, mode
+0600; no mover fsGroup), which also applies to `database-backup`.
 
 ## Secrets
 
@@ -94,6 +102,7 @@ New Doppler key `INGESTBUDDY_DATABASE_REST_REPO_LOCAL`; shared
 | `INGESTBUDDY_DOCLING_SERVE_API_KEY` | docling-serve auth. **Same value as `TAXBUDDY_DOCLING_SERVE_API_KEY`** — docling-serve's own `DOCLING_SERVE_API_KEY` env is a single shared value the server checks against (upstream docling-serve has no multi-key support), so this must stay byte-for-byte identical to whatever `docling-serve-credentials`/`DOCLING_SERVE_API_KEY` actually holds. |
 | `INGESTBUDDY_LITELLM_KEY` | ingestbuddy's own LiteLLM virtual key |
 | `INGESTBUDDY_DATABASE_REST_REPO_LOCAL` | restic REST repo for the Postgres backup |
+| `INGESTBUDDY_VALKEY_REST_REPO_LOCAL` | restic REST repo for the Valkey queue PVC backup |
 | `INGESTBUDDY_PAPERLESS_PUBLIC_URL` | External Paperless route, used only to build human-clickable doc links (`TaxbuddySink.doc_url`) — copy of `TAXBUDDY_PAPERLESS_URL`'s value |
 | `TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET` | See "Known gaps" above |
 | `PAPERLESS_API_TOKEN` | Shared, app-neutral (infra-ops#61) — same value as `TAXBUDDY_PAPERLESS_TOKEN`; taxbuddy migrates to this key at cutover (#9) and `TAXBUDDY_PAPERLESS_TOKEN` retires |
