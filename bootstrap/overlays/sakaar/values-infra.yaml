@@ -107,14 +107,6 @@ applications:
     source:
       path: components-infra/gha-runner-scale-set-taxbuddy/base
 
-  gha-runner-scale-set-devland:
-    annotations:
-      argocd.argoproj.io/sync-wave: "3"
-    destination:
-      namespace: arc-runners
-    source:
-      path: components-infra/gha-runner-scale-set-devland/base
-
   gha-runner-scale-set-recordbuddy:
     annotations:
       argocd.argoproj.io/sync-wave: "3"
@@ -164,14 +156,6 @@ applications:
           namespace: tailscale
           jsonPointers:
             - /spec/externalName
-
-  devland:
-    annotations:
-      argocd.argoproj.io/sync-wave: "4"
-    destination:
-      namespace: devland
-    source:
-      path: components-apps/devland/base
 
   registry:
     annotations:
