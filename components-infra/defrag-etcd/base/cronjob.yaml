@@ -22,8 +22,13 @@ spec:
               imagePullPolicy: IfNotPresent
               env:
                 # Defrag only if (dbSize - dbSizeInUse) exceeds BOTH thresholds.
+                # Keep these at or below etcdDatabaseHighFragmentationRatio's
+                # trigger (inUse/total < 0.5 AND inUse > 100 MiB, which implies
+                # fragmented > 100 MiB and > 50%). A higher byte floor (it was
+                # 200 MiB) skips every night while that alert keeps firing:
+                # 2026-11-01, 164 MB fragmented (54%) skipped, alert re-fired.
                 - name: MIN_FRAG_BYTES
-                  value: "209715200" # 200 MiB
+                  value: "104857600"  # 100 MiB
                 - name: MIN_FRAG_PERCENT
                   value: "40"
                 # "1" = log the decision, never defrag (for manual test runs).
