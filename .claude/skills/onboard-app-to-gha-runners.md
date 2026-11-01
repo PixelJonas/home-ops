@@ -35,8 +35,8 @@ for the history of why this replaced one-App-per-repo).
   there.
 
 Reference implementation: `components-infra/gha-runner-scale-set-recordbuddy/`
-and `components-infra/gha-runner-scale-set-devland/` — copy the pattern
-from whichever is closer to the new repo's needs.
+(or any other `components-infra/gha-runner-scale-set-*` dir) — copy the
+pattern from whichever is closer to the new repo's needs.
 
 ## Prerequisites
 
