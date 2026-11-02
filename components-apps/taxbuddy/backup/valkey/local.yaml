@@ -16,15 +16,6 @@
   path: /spec/trigger/schedule
   value: "30 1 * * *"
 
-# Tier B retention (backup strategy 2026-11-01, D4).
-- op: replace
-  path: /spec/restic/retain
-  value:
-    within: 3d
-    daily: 7
-    weekly: 6
-    monthly: 6
-
 # lvms-vg1 supports CSI snapshots (VolumeSnapshotClass lvms-vg1), so back
 # up from a point-in-time snapshot instead of mounting the live RWO PVC
 # (same convention as qdrant/taxbuddy-hermes data-backup).
