@@ -1,0 +1,2 @@
+# A kustomize Component cannot be built on its own; the tier A backup
+# kustomizations that list it under `components:` validate it.

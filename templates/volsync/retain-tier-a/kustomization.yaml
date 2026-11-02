@@ -1,0 +1,27 @@
+# Tier A VolSync retention: critical, irreplaceable data. The rest/ and
+# backblaze/ templates default to tier B; a backup kustomization opts into
+# tier A by listing this directory under `components:`. It replaces the
+# retain block of every ReplicationSource in that kustomization (local and
+# B2 legs alike), so both copies keep the same history.
+#
+# within: 7d keeps every snapshot (including manual and migration syncs)
+# for a week; daily/weekly/monthly/yearly then reach back about two years.
+# Design: infra-ops docs/agents/backup-strategy-2026-11-01/
+# 5-independence-retention-platform.md, item R1.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+    patch: |-
+      - op: replace
+        path: /spec/restic/retain
+        value:
+          within: 7d
+          daily: 14
+          weekly: 8
+          monthly: 12
+          yearly: 2
