@@ -12,10 +12,13 @@ spec:
     pruneIntervalDays: 14
     repository: restic-config-database
     cacheStorageClassName: lvms-vg1
+    # Retention: tier B (default). Tier A apps add the
+    # templates/volsync/retain-tier-a component instead.
+    # within: 3d keeps every snapshot of the last 3 days, so manual or
+    # migration syncs don't rotate out a scheduled one.
     retain:
-      hourly: 1
-      daily: 5
-      weekly: 4
-      monthly: 2
-      yearly: 1
+      within: 3d
+      daily: 7
+      weekly: 6
+      monthly: 6
     copyMethod: Direct
