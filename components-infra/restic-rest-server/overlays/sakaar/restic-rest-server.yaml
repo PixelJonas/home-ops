@@ -41,6 +41,10 @@ spec:
             annotations:
               tailscale.com/expose: "true"
               tailscale.com/hostname: "restic-rest-server"
+              # Own tailnet tag (infra-ops stacks/tailscale/acl.tf), not the
+              # operator default tag:k8s, whose grants would reach this
+              # unauthenticated backup server.
+              tailscale.com/tags: "tag:sakaar-restic"
             ports:
               http:
                 port: 8000
