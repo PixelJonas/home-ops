@@ -18,9 +18,12 @@
 # /opt/data is owned by the hermes user (uid/gid 10000) with mode 0700, so
 # the mover must run as that uid to read it. The mover ServiceAccount
 # (volsync-src-data-backup) is granted anyuid in ../../anyuid-rolebinding.yaml.
+# No fsGroup (backup strategy 1.9, 2026-11-02): every file is owned by uid
+# 10000, so runAsUser alone reads it, and an fsGroup walk would rewrite
+# group/mode/setgid bits in the snapshot clone and so in the backup. anyuid
+# (fsGroup RunAsAny) injects none.
 - op: add
   path: /spec/restic/moverSecurityContext
   value:
     runAsUser: 10000
     runAsGroup: 10000
-    fsGroup: 10000
