@@ -1,0 +1,104 @@
+// Shared Renovate preset for home-ops and private-ops. Each repo's
+// .github/renovate.json5 extends it via
+// "github>PixelJonas/home-ops//.github/renovate/base.json5", so changes here
+// apply to both repos.
+//
+// Manager layout (measured with a local dry run; no image is extracted by two
+// managers, which would create conflicting branches):
+// - customManagers regex: `repository:` + `tag:` pairs (app-template values
+//   inlined in Argo CD Applications).
+// - kubernetes: plain `image:` lines in manifests, incl. inline `values: |`
+//   blocks (replaces the old `# renovate` marker manager and the broad
+//   helm-values patterns that only picked up Job/CronJob images by accident).
+// - helm-values: default pattern (values.yaml files) only.
+// - argocd: chart versions in Applications.
+{
+  description: [
+    "Supply-chain posture: wide update surface, but nothing newer than a quarantine window. Every update must be at least 3 days old (majors 7) before Renovate creates its branch (internalChecksFilter strict). With the weekly Saturday run the effective delay is 3-10 days.",
+    "minimumReleaseAgeBehaviour timestamp-optional: only Docker Hub, GitHub tags/releases, Helm HTTP repos, PyPI/npm and the Terraform registry report release timestamps. Images on ghcr.io, quay.io and lscr.io and OCI Helm charts have none; with the default (timestamp-required) their updates would be held forever without notice. They get only the weekly cadence, no age gate.",
+    "Vulnerability-fix PRs bypass the age gate (Renovate default). osvVulnerabilityAlerts adds OSV-sourced fixes on top of GitHub's alerts; container images have no OSV feed.",
+    "Changes to this preset take effect only once merged to home-ops main (presets are fetched from the default branch), so a PR touching it can't be previewed by Renovate on its own branch.",
+  ],
+  extends: [
+    "config:recommended",
+    "docker:enableMajor",
+    ":disableRateLimiting",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":enablePreCommit",
+    ":automergeDigest",
+    ":automergeBranch",
+    "helpers:pinGitHubActionDigestsToSemver",
+    ":configMigration",
+    "abandonments:recommended",
+  ],
+  dependencyDashboardTitle: "Renovate Dashboard 🤖",
+  suppressNotifications: ["prIgnoreNotification"],
+  rebaseWhen: "conflicted",
+  schedule: ["on saturday"],
+  minimumReleaseAge: "3 days",
+  minimumReleaseAgeBehaviour: "timestamp-optional",
+  internalChecksFilter: "strict",
+  osvVulnerabilityAlerts: true,
+  platformAutomerge: true,
+  packageRules: [
+    {
+      matchUpdateTypes: ["minor", "patch"],
+      automerge: true,
+      automergeType: "branch",
+    },
+    {
+      description: "Majors carry the most risk and are reviewed by hand anyway: wait a full week.",
+      matchUpdateTypes: ["major"],
+      minimumReleaseAge: "7 days",
+    },
+    {
+      description: "Own images: bumped by each project's release workflow (digest-only refs) or deployed from :latest / sha-<commit> tags that Renovate can't order. Lookups only produce dashboard warnings.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/pixeljonas/**"],
+      enabled: false,
+    },
+    {
+      description: "In-cluster OpenShift image registry: not reachable from the Renovate runner.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["/^image-registry\\.openshift-image-registry\\.svc[:/]/"],
+      enabled: false,
+    },
+    {
+      description: "registry.redhat.io needs Red Hat registry credentials, which the Renovate app doesn't have, so every lookup fails. These images are bumped by hand.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["registry.redhat.io/**"],
+      enabled: false,
+    },
+  ],
+  argocd: {
+    managerFilePatterns: [
+      "/^components-apps/.+\\.yaml$/",
+      "/^components-infra/.+\\.yaml$/",
+    ],
+  },
+  kubernetes: {
+    description: "Plain `image: <repo>:<tag>[@digest]` lines in manifests, including the ones inside Argo CD Applications' inline `values: |` blocks.",
+    managerFilePatterns: [
+      "/^components-apps/.+\\.yaml$/",
+      "/^components-infra/.+\\.yaml$/",
+      "/^templates/.+\\.yaml$/",
+    ],
+  },
+  customManagers: [
+    {
+      description: "Helm-values style `repository:` + `tag:` pairs (e.g. bjw-s app-template values inlined in Argo CD Applications), with an optional pullPolicy line between them and an optional @sha256 digest on the tag. No versioningTemplate: the docker datasource's default docker versioning keeps exact tags (semver-coerced proposed rolling tags like 2.6.5 -> 2.7).",
+      customType: "regex",
+      managerFilePatterns: [
+        "/^components-apps/.+\\.yaml$/",
+        "/^components-infra/.+\\.yaml$/",
+        "/^templates/.+\\.yaml$/",
+      ],
+      matchStrings: [
+        // prettier-ignore
+        "(?:^|\\n) *repository: *['\"]?(?<depName>[^\\s'\"]+)['\"]?\\n(?: *pullPolicy:.*\\n)? *tag: *['\"]?(?<currentValue>[^\\s'\"@#]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?",
+      ],
+      datasourceTemplate: "docker",
+    },
+  ],
+}
