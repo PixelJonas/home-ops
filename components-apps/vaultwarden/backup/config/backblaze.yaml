@@ -1,0 +1,15 @@
+# Off-site leg for the config PVC (rsa_key.pem, attachments, sends). It
+# had none since the Oct 2025 backup reorganisation: only the local
+# rest-server RS existed, so this tier-A data went off-site only via tailsafe.
+- op: replace
+  path: /spec/sourcePVC
+  value: vaultwarden-app-config
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-config-b2
+- op: add
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: lvms-vg1
