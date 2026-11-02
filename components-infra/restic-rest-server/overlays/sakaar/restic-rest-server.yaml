@@ -25,7 +25,11 @@ spec:
                   tag: 0.14.0
                   pullPolicy: IfNotPresent
                 env:
-                  DISABLE_AUTHENTICATION: "1"
+                  # Image entrypoint passes this to --htpasswd-file. Whole-volume
+                  # mount (no subPath) so a rotated Secret reaches the file.
+                  PASSWORD_FILE: /etc/rest-server/.htpasswd
+                  # Each user may only open the repo named after it.
+                  OPTIONS: "--private-repos"
 
         persistence:
           data:
@@ -34,6 +38,12 @@ spec:
             storageClass: lvms-vg1
             accessMode: ReadWriteOnce
             size: 200Gi
+          htpasswd:
+            type: secret
+            name: restic-rest-server-htpasswd
+            globalMounts:
+              - path: /etc/rest-server
+                readOnly: true
 
         service:
           restic-rest:
@@ -42,8 +52,8 @@ spec:
               tailscale.com/expose: "true"
               tailscale.com/hostname: "restic-rest-server"
               # Own tailnet tag (infra-ops stacks/tailscale/acl.tf), not the
-              # operator default tag:k8s, whose grants would reach this
-              # unauthenticated backup server.
+              # operator default tag:k8s, so the generic grants don't reach
+              # this backup server (defence in depth on top of htpasswd).
               tailscale.com/tags: "tag:sakaar-restic"
             ports:
               http:
