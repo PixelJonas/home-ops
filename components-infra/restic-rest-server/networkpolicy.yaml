@@ -1,0 +1,77 @@
+# Ingress allow-list for the in-cluster restic REST server (altus).
+#
+# The server runs without authentication and without --append-only, so any
+# client that can reach TCP 8000 can delete repository files. This policy
+# admits only the clients that use it today (evidence: every Secret whose
+# RESTIC_REPOSITORY points at restic-rest-server-app, 2026-11-02, matched
+# 1:1 to the ReplicationSources below; no CronJob, Deployment, Route or
+# ServiceMonitor references the server):
+#
+#   1. VolSync mover pods (backup volsync-src-*, restore volsync-dst-*).
+#      VolSync labels every mover Job pod app.kubernetes.io/created-by:
+#      volsync. Only namespaces that own a rest-backed ReplicationSource or
+#      ReplicationDestination are listed.
+#   2. The knowhere VM's in-guest $HOME backup (restic over the pod network;
+#      masquerade binding, so traffic leaves from the virt-launcher pod).
+#
+# Adding an app whose backup uses templates/volsync/rest (or a restore
+# drill namespace) means adding its namespace to the list below, otherwise
+# its mover times out on connect and VolSyncBackupStale fires.
+#
+# The NAS-side tailsafe copy reads the repo directory over NFS, not HTTP,
+# so it needs no rule. The sakaar rest-server is a separate overlay and is
+# not covered here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restic-rest-server-ingress
+  namespace: restic-rest
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: restic-rest-server-app
+      app.kubernetes.io/controller: restic-rest-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - actual-budget
+                  - gitea
+                  - happier
+                  - honcho
+                  - immich
+                  - influxdb3
+                  - ingestbuddy
+                  - jellystat
+                  - knowhere
+                  - knx-ets
+                  - litellm
+                  - media
+                  - media-vpn
+                  - nextcloud
+                  - paperless
+                  - qdrant
+                  - resilio-sync
+                  - taxbuddy
+                  - taxbuddy-hermes
+                  - tymeslot
+                  - vaultwarden
+                  - vehicle-pipeline
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/created-by: volsync
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: knowhere
+          podSelector:
+            matchLabels:
+              kubevirt.io: virt-launcher
+              vm.kubevirt.io/name: knowhere
+      ports:
+        - protocol: TCP
+          port: 8000

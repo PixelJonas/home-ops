@@ -334,7 +334,10 @@ The pattern uses volsync `ReplicationSource` templates from `templates/` —
 **three** template kinds, composed per-app as needed:
 
 - `templates/volsync/rest` — backup to the in-cluster restic REST server
-  (NFS-backed on the Synology NAS). Every app should have this.
+  (NFS-backed on the Synology NAS). Every app should have this. The server
+  only accepts VolSync movers from allow-listed namespaces: add the app's
+  namespace to `components-infra/restic-rest-server/networkpolicy.yaml`, or
+  its mover times out on connect.
 - `templates/volsync/backblaze` — offsite backup to Backblaze B2. Add for
   anything you'd actually want to restore after a real disaster, not just
   local drive failure.
