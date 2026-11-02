@@ -16,11 +16,14 @@
   path: /spec/restic/cacheStorageClassName
   value: local-xandar
 # No fsGroup (backup strategy 1.9, 2026-11-02): with copyMethod Direct the
-# mover mounts the LIVE PVC, and kubelet's fsGroup walk rewrote inode
-# metadata on every run (ctime of every entry changed at each 05:00 sync).
-# Every file is owned by uid 1024 (gid 100), so runAsUser alone can read it;
-# the cache PVC stays writable via gid 100. anyuid (fsGroup RunAsAny) injects
-# no fsGroup.
+# mover mounts the LIVE PVC, so an fsGroup makes kubelet chgrp/chmod the
+# live config on every run. Every file is owned by uid 1024 (gid 100), so
+# runAsUser alone can read it; the cache PVC stays writable via gid 100.
+# anyuid (fsGroup RunAsAny) injects no fsGroup. Verified 2026-11-02: manual
+# sync Successful, uid:gid:mode of all entries unchanged. CRI-O still
+# relabels the live PVC to the namespace MCS on each mover start (same
+# label, but every entry's ctime changes); the influxdb3 spc_t SCC pattern
+# would avoid that if it ever matters.
 - op: add
   path: /spec/restic/moverSecurityContext
   value:
