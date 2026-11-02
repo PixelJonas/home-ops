@@ -7,11 +7,35 @@ metadata:
     argocd.argoproj.io/sync-wave: "200"
 spec:
   schedule: "0 3 * * *"
+  # Never overlap a still-running dump with the next night's run, and
+  # keep the last three failed Jobs (and their pod logs) as evidence.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      # Slowest route (ingestbuddy, ~9 GB) takes 3-5 minutes; 20 minutes
+      # leaves room for growth and a slow NAS without letting a hung dump
+      # run into the VolSync window.
+      activeDeadlineSeconds: 1200
+      # One retry for transient failures (connection reset, pod eviction).
+      backoffLimit: 1
+      # A rejected candidate (65), too little free space (73) or a client
+      # older than the server (78) won't fix itself on a retry: fail the
+      # Job at once instead of dumping again.
+      podFailurePolicy:
+        rules:
+          - action: FailJob
+            onExitCodes:
+              containerName: pg-dump
+              operator: In
+              values: [65, 73, 78]
       template:
         spec:
           serviceAccountName: database-psql-backup
+          # The dump talks to the DB Service only; no Kubernetes API access.
+          automountServiceAccountToken: false
           volumes:
             - name: backup
               persistentVolumeClaim:
@@ -35,6 +59,14 @@ spec:
                 - |-
                   set -Eeuo pipefail
 
+                  # Exit codes (sysexits.h), so a failed Job says why:
+                  #   65 candidate dump rejected by structural validation
+                  #   73 not enough free space on the dump PVC
+                  #   78 server major version newer than the client
+                  #   other: connection or pg_dumpall failure (retried once)
+                  # In every failure case the previous backup.sql stays.
+                  backup_dir="${BACKUP_DIR:-/backup}"
+
                   export PGHOST="${POSTGRES_HOST:-${POSTGRES_USER}-db-rw}"
                   export PGUSER="$POSTGRES_USER"
                   export PGPASSWORD="$POSTGRES_POSTGRES_PASSWORD"
@@ -54,12 +86,50 @@ spec:
                   trap 'exit 130' INT
                   trap 'exit 143' TERM
 
+                  # Preflight 1: a SIGKILLed, OOM-killed or evicted run skips
+                  # the EXIT trap and leaks its temp file. concurrencyPolicy:
+                  # Forbid means no other run can own one, so sweep them.
+                  stale="$(find "$backup_dir" -maxdepth 1 -type f \( -name 'backup.sql.*.tmp' -o -name 'backup.sql.tmp' \) -print -delete | wc -l)"
+                  echo "Preflight: removed $stale stale temp file(s)"
+
+                  # Preflight 2: the new dump is written next to the old one,
+                  # so require 1.5x the last accepted size in free space.
+                  last_size=0
+                  if [[ -f "$backup_dir/backup.sql" ]]; then
+                    last_size="$(stat -c %s -- "$backup_dir/backup.sql")"
+                  fi
+                  need=$(( last_size * 3 / 2 ))
+                  avail="$(df -P -B1 -- "$backup_dir" | awk 'NR == 2 { print $4 }')"
+                  if (( avail < need )); then
+                    echo "Preflight failed (exit 73): ${avail} bytes free on the dump PVC, need ${need} (1.5x the last accepted ${last_size} bytes)" >&2
+                    exit 73
+                  fi
+                  echo "Preflight: ${avail} bytes free, need ${need}"
+
+                  # Preflight 3: pg_dumpall refuses a newer server major anyway;
+                  # this makes the reason explicit.
+                  client_major="$(pg_dumpall --version | sed -E 's/^[^0-9]*([0-9]+).*/\1/')"
+                  if ! server_num="$(psql -XAtq -d postgres -c 'SHOW server_version_num' 2>/dev/null)"; then
+                    server_num="$(psql -XAtq -d template1 -c 'SHOW server_version_num')" || {
+                      rc=$?
+                      echo "Preflight failed (exit $rc): cannot connect to $PGHOST" >&2
+                      exit "$rc"
+                    }
+                  fi
+                  server_major=$(( server_num / 10000 ))
+                  if (( server_major > client_major )); then
+                    echo "Preflight failed (exit 78): server major $server_major is newer than client major $client_major" >&2
+                    exit 78
+                  fi
+                  echo "Preflight: server major $server_major, client major $client_major"
+
                   echo "Starting direct-Service PostgreSQL dump"
-                  tmp="$(mktemp /backup/backup.sql.XXXXXXXXXX.tmp)"
+                  tmp="$(mktemp "$backup_dir/backup.sql.XXXXXXXXXX.tmp")"
                   pg_dumpall --no-role-passwords --file="$tmp"
                   chmod 0644 "$tmp"
                   sync "$tmp"
 
+                  set +e
                   perl -Mstrict -Mwarnings -MEncode=decode,FB_CROAK - "$tmp" <<'PERL'
                   my $path = shift @ARGV;
                   die "backup validation failed: no dump path supplied\n" unless defined $path;
@@ -71,7 +141,7 @@ spec:
                     } else {
                       print STDERR "backup validation failed: $message\n";
                     }
-                    exit 1;
+                    exit 65;
                   }
 
                   sub column_count {
@@ -201,10 +271,19 @@ spec:
                   reject("missing final cluster dump footer") unless $footer_seen;
                   print "Structural validation passed ($copy_blocks COPY blocks)\n";
                   PERL
+                  rc=$?
+                  set -e
+                  if (( rc == 65 )); then
+                    echo "Rejected candidate (exit 65): structural validation failed; previous backup.sql kept" >&2
+                    exit 65
+                  elif (( rc != 0 )); then
+                    echo "Validator error (exit $rc); previous backup.sql kept" >&2
+                    exit "$rc"
+                  fi
 
-                  mv -f -- "$tmp" /backup/backup.sql
+                  mv -f -- "$tmp" "$backup_dir/backup.sql"
                   tmp=
-                  sync /backup
+                  sync "$backup_dir"
                   echo "Accepted structurally valid backup.sql"
-                  ls -lah /backup
-          restartPolicy: OnFailure
+                  ls -lah "$backup_dir"
+          restartPolicy: Never
