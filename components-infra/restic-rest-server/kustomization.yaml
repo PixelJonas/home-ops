@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - restic-rest-server.yaml
+  - networkpolicy.yaml
