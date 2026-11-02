@@ -8,6 +8,10 @@ resources:
   - ../../../../templates/volsync/rest
   - ../../../../templates/volsync/backblaze
 
+# Tier A retention (critical data), see templates/volsync/retain-tier-a.
+components:
+  - ../../../../templates/volsync/retain-tier-a
+
 patches:
   - target:
       group: volsync.backube
