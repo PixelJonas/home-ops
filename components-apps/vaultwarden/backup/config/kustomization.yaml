@@ -6,6 +6,7 @@ namespace: vaultwarden
 
 resources:
   - ../../../../templates/volsync/rest
+  - ../../../../templates/volsync/backblaze
 
 # Tier A retention (critical data), see templates/volsync/retain-tier-a.
 components:
@@ -24,3 +25,15 @@ patches:
       kind: ExternalSecret
       name: external-restic-config
     path: local-secret.yaml
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup-b2
+    path: backblaze.yaml
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: external-restic-config-b2
+    path: backblaze-secret.yaml
