@@ -72,6 +72,10 @@ See **[docs/adding-apps.md](docs/adding-apps.md)** for the full guide covering:
 - Alpine DNS fix for musl-based images
 - volsync backup pattern (restic REST server + Backblaze B2) and required Doppler keys
 
+## Backup and restore
+
+Procedures live in `docs/runbooks/`: [volsync-restore.md](docs/runbooks/volsync-restore.md) (one PVC from restic), [database-restore.md](docs/runbooks/database-restore.md) (logical dumps), [storage-rebuild-playbook.md](docs/runbooks/storage-rebuild-playbook.md) (pool rebuild / mass restore), plus app runbooks. Never leave a VolSync `ReplicationSource` or `ReplicationDestination` with `trigger: {}` (that means continuous sync), and never pipe a dump through `oc exec ... | psql`.
+
 ## Conventions
 
 - **Kustomize-first:** prefer `kustomization.yaml` overlays over raw YAML duplication.

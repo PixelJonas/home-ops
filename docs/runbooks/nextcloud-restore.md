@@ -4,6 +4,11 @@ Full disaster-recovery restore (namespace/PVCs destroyed or corrupted).
 For a live-cluster restore, skip steps that create objects which already
 exist.
 
+See also: [volsync-restore.md](volsync-restore.md) (generic RD restore and
+verification), [database-restore.md](database-restore.md) (dump transfer,
+replay and checks) and [storage-rebuild-playbook.md](storage-rebuild-playbook.md)
+(restoring many apps at once).
+
 Resource names below are confirmed against the live Altus cluster
 (2026-08-09), not guessed from Helm-chart conventions:
 
@@ -253,8 +258,12 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
 
    c. Mount the restored database-dump PVC into a throwaway debug pod
       (it's ReadWriteOnce so it can't be double-mounted into a running
-      pod — use a one-shot debug pod instead), then stream the dump into
-      MariaDB. The simplest path is a one-off Pod manifest mounting
+      pod — use a one-shot debug pod instead), copy the dump into the
+      MariaDB pod, prove the copy by sha256, and only then load it from
+      that local file. **Never pipe the dump straight from one `oc exec`
+      into `mariadb`**: the exec stream can end early without an error,
+      and the database is then silently missing everything after the cut
+      (see `database-restore.md`). Start with a one-off Pod mounting
       `database-syno-db-backup` at `/backup`:
 
       ```bash
@@ -280,12 +289,38 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
       EOF
       oc wait --for=condition=Ready pod/nextcloud-restore-debug -n nextcloud --timeout=5m
 
+      # 1. Hash at the source. Never cat the dump to your terminal.
+      oc exec nextcloud-restore-debug -n nextcloud -- sha256sum /backup/backup.sql
+
+      # 2. Copy into the MariaDB pod. First check `df -h /tmp` in the pod is
+      #    writable and has room for the dump; otherwise use a path on the
+      #    data volume and delete the copy afterwards.
       oc exec nextcloud-restore-debug -n nextcloud -- cat /backup/backup.sql | \
-        oc exec -i nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- /bin/bash -c \
-        'MYSQL_PWD="$(cat "$MARIADB_ROOT_PASSWORD_FILE")" mariadb -u root'
+        oc exec -i nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- \
+        /bin/bash -c 'cat > /tmp/restore.sql'
+
+      # 3. Hash at the target. It must equal step 1; if not, repeat step 2.
+      #    Never load an unverified copy.
+      oc exec nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- \
+        sha256sum /tmp/restore.sql
+
+      # 4. Load from the local file with a UTF-8 (utf8mb4) client connection.
+      #    The dump's own CREATE DATABASE recreates `nextcloud` with the
+      #    source's character set and collation (it was dropped in 6b).
+      oc exec nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- /bin/bash -c \
+        'MYSQL_PWD="$(cat "$MARIADB_ROOT_PASSWORD_FILE")" mariadb -u root --default-character-set=utf8mb4 < /tmp/restore.sql > /tmp/restore.log 2>&1; echo "rc=$?"; grep -c ERROR /tmp/restore.log'
+
+      # 5. Confirm the target is UTF-8 and the data arrived, then remove the copy.
+      oc exec nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- /bin/bash -c \
+        'MYSQL_PWD="$(cat "$MARIADB_ROOT_PASSWORD_FILE")" mariadb -u root -N -e "SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '"'"'nextcloud'"'"'; SELECT COUNT(*) FROM nextcloud.oc_users; SELECT COUNT(*) FROM nextcloud.oc_calendarobjects;"'
+      oc exec nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- rm -f /tmp/restore.sql /tmp/restore.log
 
       oc delete pod nextcloud-restore-debug -n nextcloud
       ```
+
+      The character set must be `utf8mb4` (as in the source) and `rc=0`
+      with no `ERROR` lines. Compare the counts against the values recorded
+      at backup time, not against an older baseline.
 
 7. **Scale Nextcloud back up:**
 
@@ -320,6 +355,24 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
     # delete any throwaway debug pod from step 6c if it wasn't already removed
     oc delete pod nextcloud-restore-debug -n nextcloud --ignore-not-found
     ```
+
+## Startup order in a mass restore
+
+When Nextcloud is restored as part of a larger recovery (see
+`storage-rebuild-playbook.md`), keep maintenance mode **on** from the final
+dump until the household has accepted the restore, and make sure no scheduled
+job (including the `mariadb-backup` CronJob, which toggles maintenance mode)
+can turn it off early. Order:
+
+1. MariaDB alone; load and verify the dump (step 6).
+2. Redis, empty (it is a cache; nothing is restored into it).
+3. Nextcloud app with maintenance mode still on; `php occ status` must show
+   `installed: true`.
+4. Household check: web and sync-client login (with second factor), shared
+   calendars and contacts, recent files, one download and one upload.
+5. Maintenance mode off.
+6. Metrics exporter, then the background-jobs CronJob and the backup CronJob
+   (unsuspend), then a fresh post-restore backup of every ReplicationSource.
 
 ## Dry-run status
 
