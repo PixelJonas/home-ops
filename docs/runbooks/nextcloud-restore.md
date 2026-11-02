@@ -81,6 +81,17 @@ scheduled, non-overlapping points in time. Concretely:
   data-backup trigger, with roughly a 2-minute safety margin for normal
   CronJob/VolSync scheduling latency.
 
+How the Job does it (since the dump moved off `kubectl exec`): the pod has
+two containers. `mariadb-dump` runs from the MariaDB server image, checks free
+space and versions first, then dumps over the `nextcloud-app-mariadb` Service
+with `--result-file`, validates the result (header, final `-- Dump completed`
+line, UTF-8, a `CREATE TABLE` for every application table and `INSERT`s for
+every non-empty one, against a table list with exact row counts taken inside
+the window) and renames it to `backup.sql`. `maintenance-mode` is the only part
+that uses the Kubernetes API: it enables maintenance mode only after the dump
+preflight passed, holds it as described above after a successful dump, and
+switches it off at once (no hold) if the dump failed or the pod is stopped.
+
 **The actual guarantee: both backups are triggered inside one shared,
 coordinated ~12-minute nightly maintenance window (03:00-03:12), instead of
 the DB dump's window closing within seconds while the data backup's own
