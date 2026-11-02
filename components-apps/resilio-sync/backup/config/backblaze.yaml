@@ -15,9 +15,14 @@
 - op: replace
   path: /spec/restic/cacheStorageClassName
   value: local-xandar
+# No fsGroup (backup strategy 1.9, 2026-11-02): with copyMethod Direct the
+# mover mounts the LIVE PVC, and kubelet's fsGroup walk rewrote inode
+# metadata on every run (ctime of every entry changed at each 05:00 sync).
+# Every file is owned by uid 1024 (gid 100), so runAsUser alone can read it;
+# the cache PVC stays writable via gid 100. anyuid (fsGroup RunAsAny) injects
+# no fsGroup.
 - op: add
   path: /spec/restic/moverSecurityContext
   value:
     runAsUser: 1024
     runAsGroup: 100
-    fsGroup: 100
