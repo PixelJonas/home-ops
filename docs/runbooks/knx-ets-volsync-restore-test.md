@@ -7,8 +7,9 @@ upgrades. The production VM stays running throughout — everything happens in
 a throwaway namespace. Budget ~45 min, mostly waiting on restic and Windows
 boot.
 
-References: `templates/replicationdestination.yaml`, `nextcloud-restore.md`
-(generic restore procedure), infra-ops `docs/journal/knx-ets-vm-restore-2026-10-11.md`.
+References: `templates/replicationdestination.yaml`, `volsync-restore.md`
+(generic restore procedure, VM disks), `nextcloud-restore.md`, infra-ops
+`docs/journal/knx-ets-vm-restore-2026-10-11.md`.
 
 ## Phase 0 — preflight
 
