@@ -4,9 +4,17 @@ Restore a logical PostgreSQL (CNPG) or MariaDB dump into a fresh database and
 prove it is complete, consistent and usable before the application starts.
 
 Backups come from `templates/psql-backup/` (CNPG, `pg_dumpall` over the database
-Service, structurally validated, atomically renamed to `backup.sql`) and
-`templates/mariadb-backup/` (Nextcloud). Each dump PVC is then backed up by a
-VolSync ReplicationSource. Related runbooks:
+Service) and `templates/mariadb-backup/` (Nextcloud, `mariadb-dump` over the
+database Service). Both structurally validate the candidate and only then rename
+it atomically to `backup.sql`; any failure keeps the previous file. Each dump PVC
+is then backed up by a VolSync ReplicationSource. A failed dump Job's exit code
+says why: 65 the candidate was rejected by validation, 73 too little free space
+on the dump PVC (needs 1.5x the last accepted size), 78 the server is newer than
+the client, 69 (MariaDB only) Nextcloud maintenance mode could not be enabled;
+anything else is a connection or dump failure. The namespace-local
+`database-db-backup-alerts` PrometheusRule (`templates/db-backup-alerts/`)
+alerts on no accepted dump in 26h, a failed Job and a dump PVC over 80 %.
+Related runbooks:
 
 - [volsync-restore.md](volsync-restore.md): restoring the dump PVC itself.
 - [storage-rebuild-playbook.md](storage-rebuild-playbook.md): many databases at

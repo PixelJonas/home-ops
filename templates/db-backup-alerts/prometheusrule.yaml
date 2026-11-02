@@ -1,0 +1,89 @@
+# Namespace-local alerts for the logical DB dump CronJob next to it
+# (templates/psql-backup, templates/mariadb-backup).
+#
+# Why here and not one central rule: user-workload monitoring enforces
+# the namespace label, so a rule only sees series of its own namespace.
+#
+# Why no `openshift.io/prometheus-rule-evaluation-scope: leaf-prometheus`
+# label (unlike volsync-system/volsync-backup): kube_cronjob_*, kube_job_*
+# and kubelet_volume_stats_* come from the platform Prometheus. The
+# user-workload Prometheus doesn't have them; the Thanos Ruler (the
+# default scope) queries both and sees them for its own namespace.
+#
+# Routing: platform Alertmanager, as for the VolSync rule.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: db-backup-alerts
+  namespace: template
+  annotations:
+    argocd.argoproj.io/sync-wave: "200"
+spec:
+  groups:
+    - name: database-backup
+      rules:
+        # The Job only succeeds after structural validation and the
+        # atomic rename, so the last successful run is the age of the
+        # newest accepted dump. Catches rejections, ENOSPC, hangs and a
+        # suspended CronJob. The ReplicationSource keeps backing up the
+        # old file "successfully", so VolSync alerts won't fire for this.
+        - alert: DatabaseBackupStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{cronjob=~"database-.*-backup"}
+              > 26 * 3600
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "No accepted database dump in {{ $labels.namespace }} for over 26h"
+            description: >-
+              CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} last succeeded
+              {{ $value | humanizeDuration }} ago. The dump PVC still holds the
+              previous backup.sql. Check the failed Job's pod log; exit 65 means
+              the candidate was rejected, 73 too little free space, 78 a client
+              older than the server.
+
+        # kube_job_failed{condition="true"} is the Job's final Failed
+        # condition. kube_job_status_failed would also count a pod that
+        # failed and was then retried successfully. Limited to Jobs started
+        # in the last 26h so a kept failed Job doesn't fire forever; past
+        # that, DatabaseBackupStale covers a route that is still failing.
+        - alert: DatabaseBackupJobFailed
+          expr: |
+            kube_job_failed{job_name=~"database-.*-backup-.*", condition="true"} == 1
+              and on (namespace, job_name)
+            (time() - kube_job_status_start_time{job_name=~"database-.*-backup-.*"}) < 26 * 3600
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Database dump Job {{ $labels.namespace }}/{{ $labels.job_name }} failed"
+            description: >-
+              The last good backup.sql was kept. Exit codes: 65 rejected by
+              validation, 73 not enough free space on the dump PVC, 78 server
+              major newer than the client, anything else a connection or dump
+              failure.
+
+        # The dump PVC is mounted only while the dump Job or its VolSync
+        # mover runs, and kubelet reports volume stats only for mounted
+        # volumes, so this takes the maximum over a day. A short Job can
+        # fall between scrapes; the Job's own free-space preflight (exit 73,
+        # DatabaseBackupJobFailed) is the reliable signal.
+        - alert: DatabaseBackupPVCNearFull
+          expr: |
+            max by (namespace, persistentvolumeclaim) (
+              max_over_time(kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*db-backup.*"}[26h])
+            )
+              /
+            max by (namespace, persistentvolumeclaim) (
+              max_over_time(kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~".*db-backup.*"}[26h])
+            )
+              > 0.8
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Dump PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is over 80% full"
+            description: >-
+              Peak usage in the last 26h was {{ $value | humanizePercentage }}.
+              The next dump needs 1.5x the last accepted size in free space.

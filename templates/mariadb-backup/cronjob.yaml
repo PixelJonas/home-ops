@@ -7,18 +7,70 @@ metadata:
     argocd.argoproj.io/sync-wave: "200"
 spec:
   schedule: "0 3 * * *"
+  # Never overlap runs (two runs would fight over maintenance mode), and
+  # keep the last three failed Jobs (and their pod logs) as evidence.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      # The run is ~12 minutes by design (maintenance hold, see below).
+      activeDeadlineSeconds: 1800
+      # One retry for transient failures (connection reset, eviction).
+      backoffLimit: 1
+      # A rejected candidate (65), too little free space (73) or a server
+      # newer than the client (78) won't fix itself on a retry.
+      podFailurePolicy:
+        rules:
+          - action: FailJob
+            onExitCodes:
+              containerName: mariadb-dump
+              operator: In
+              values: [65, 73, 78]
       template:
         spec:
           serviceAccountName: database-mariadb-backup
+          restartPolicy: Never
+          # Room for the maintenance container to switch maintenance mode
+          # off when the deadline or an eviction stops the pod.
+          terminationGracePeriodSeconds: 60
           volumes:
             - name: backup
               persistentVolumeClaim:
                 claimName: syno-template-db-backup
+            - name: sync
+              emptyDir: {}
+          # Two containers, coordinated through files in /sync:
+          #   mariadb-dump: preflight, dump over the DB Service, validate,
+          #     accept. Writes preflight-ok, then dump-done (its exit code).
+          #   maintenance-mode: the only part that needs the Kubernetes API
+          #     (kubectl exec occ). Enables maintenance mode after
+          #     preflight-ok, writes maintenance-on, waits for dump-done,
+          #     holds, then disables it.
+          #
+          # NOTE ON THE ACTUAL GUARANTEE THIS PROVIDES:
+          # Nextcloud writes to the DB and the app-data PVC together (e.g. a
+          # calendar write touches both), so both backups need to be taken
+          # while Nextcloud is in maintenance mode for them to be consistent
+          # with each other. Maintenance mode stays on for the *entire*
+          # window (dump + a fixed hold), not just for the few seconds the
+          # dump itself takes: the data-PVC ReplicationSource's schedule
+          # (components-apps/nextcloud/backup/data/{local,backblaze}.yaml)
+          # is "10 3 * * *", 10 minutes after this job's 03:00 start, so its
+          # trigger falls inside this hold. This is NOT a guarantee that the
+          # entire multi-minute VolSync restic transfer completes before
+          # maintenance mode turns off: copyMethod: Direct reads the live
+          # PVC over its own run duration. What it DOES guarantee: the DB
+          # dump and the data-PVC backup's *trigger* land inside one shared,
+          # coordinated ~12-minute nightly window (03:00-03:12). If the dump
+          # fails, maintenance mode is switched off at once (no hold), as
+          # before. See docs/runbooks/nextcloud-restore.md.
           containers:
-            - name: mariadb-dump-via-kubectl
+            - name: mariadb-dump
               env:
+                - name: MARIADB_HOST
+                  value: template-mariadb
                 - name: MARIADB_ROOT_PASSWORD
                   valueFrom:
                     secretKeyRef:
@@ -27,74 +79,325 @@ spec:
               volumeMounts:
                 - name: backup
                   mountPath: /backup
+                - name: sync
+                  mountPath: /sync
+              # Same image as the server, so client and server match. Keep
+              # in step with the Nextcloud chart's MariaDB image.
+              image: docker.io/bitnamilegacy/mariadb:11.4.6-debian-12-r0
+              command: ["/bin/bash", "-c"]
+              args:
+                - |-
+                  set -Eeuo pipefail
+
+                  # Exit codes (sysexits.h), so a failed Job says why:
+                  #   65 candidate dump rejected by structural validation
+                  #   69 maintenance mode could not be enabled (no dump taken)
+                  #   73 not enough free space on the dump PVC
+                  #   78 server version newer than the client
+                  #   other: connection or mariadb-dump failure (retried once)
+                  # In every failure case the previous backup.sql stays.
+                  backup_dir="${BACKUP_DIR:-/backup}"
+                  sync_dir="${SYNC_DIR:-/sync}"
+
+                  tmp=
+                  tables=
+                  cleanup() {
+                    rc=$?
+                    trap - EXIT HUP INT TERM
+                    if [[ -n "${tmp:-}" ]]; then
+                      rm -f -- "$tmp"
+                    fi
+                    if [[ -n "${tables:-}" ]]; then
+                      rm -f -- "$tables"
+                    fi
+                    echo "$rc" > "$sync_dir/dump-done.tmp"
+                    mv -f -- "$sync_dir/dump-done.tmp" "$sync_dir/dump-done"
+                    exit "$rc"
+                  }
+                  trap cleanup EXIT
+                  trap 'exit 129' HUP
+                  trap 'exit 130' INT
+                  trap 'exit 143' TERM
+
+                  : "${MARIADB_HOST:?MARIADB_HOST must be set}"
+                  export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"
+                  db=(mariadb --host="$MARIADB_HOST" --user=root --connect-timeout=15 --batch --skip-column-names)
+
+                  # Preflight runs before maintenance mode, so a full PVC or
+                  # an unreachable DB never takes Nextcloud offline.
+                  # 1: a SIGKILLed, OOM-killed or evicted run skips the EXIT
+                  # trap and leaks its temp file. concurrencyPolicy: Forbid
+                  # means no other run can own one, so sweep them.
+                  stale="$(find "$backup_dir" -maxdepth 1 -type f \( -name 'backup.sql.*.tmp' -o -name 'backup.sql.tmp' -o -name 'tables.*.tsv' \) -print -delete | wc -l)"
+                  echo "Preflight: removed $stale stale temp file(s)"
+
+                  # 2: the new dump is written next to the old one.
+                  last_size=0
+                  if [[ -f "$backup_dir/backup.sql" ]]; then
+                    last_size="$(stat -c %s -- "$backup_dir/backup.sql")"
+                  fi
+                  need=$(( last_size * 3 / 2 ))
+                  avail="$(df -P -B1 -- "$backup_dir" | awk 'NR == 2 { print $4 }')"
+                  if (( avail < need )); then
+                    echo "Preflight failed (exit 73): ${avail} bytes free on the dump PVC, need ${need} (1.5x the last accepted ${last_size} bytes)" >&2
+                    exit 73
+                  fi
+                  echo "Preflight: ${avail} bytes free, need ${need}"
+
+                  # 3: client must not be older than the server (major.minor).
+                  version_num() { sed -E 's/^[^0-9]*([0-9]+)\.([0-9]+).*/\1 \2/' | awk '{ print $1 * 1000 + $2 }'; }
+                  client_num="$(mariadb-dump --version | sed -E 's/.* from //' | version_num)"
+                  server_num="$("${db[@]}" -e 'SELECT @@version' | version_num)" || {
+                    rc=$?
+                    echo "Preflight failed (exit $rc): cannot connect to $MARIADB_HOST" >&2
+                    exit "$rc"
+                  }
+                  if (( server_num > client_num )); then
+                    echo "Preflight failed (exit 78): server version $server_num is newer than client $client_num (major*1000+minor)" >&2
+                    exit 78
+                  fi
+                  echo "Preflight: server $server_num, client $client_num (major*1000+minor)"
+                  touch "$sync_dir/preflight-ok"
+
+                  echo "Waiting for Nextcloud maintenance mode"
+                  for _ in $(seq 1 150); do
+                    [[ -f "$sync_dir/maintenance-on" || -f "$sync_dir/maintenance-failed" ]] && break
+                    sleep 2
+                  done
+                  if [[ ! -f "$sync_dir/maintenance-on" ]]; then
+                    echo "Maintenance mode not enabled (exit 69); no dump taken" >&2
+                    exit 69
+                  fi
+
+                  # Source table list with exact row counts, taken inside the
+                  # maintenance window (effectively writer-free). Every table
+                  # must be created in the dump, and every non-empty one must
+                  # have INSERTs. The system schemas are left out.
+                  tables="$(mktemp "$backup_dir/tables.XXXXXXXXXX.tsv")"
+                  count_sql="$("${db[@]}" -e "
+                    SET SESSION group_concat_max_len = 16777216;
+                    SELECT GROUP_CONCAT(
+                      CONCAT('SELECT ', QUOTE(table_schema), ', ', QUOTE(table_name), ', COUNT(*) FROM \`',
+                             REPLACE(table_schema, '\`', '\`\`'), '\`.\`', REPLACE(table_name, '\`', '\`\`'), '\`')
+                      SEPARATOR ' UNION ALL ')
+                    FROM information_schema.tables
+                    WHERE table_type = 'BASE TABLE'
+                      AND table_schema NOT IN ('information_schema', 'performance_schema', 'sys', 'mysql')")"
+                  if [[ -z "$count_sql" || "$count_sql" == NULL ]]; then
+                    echo "No application tables found on $MARIADB_HOST" >&2
+                    exit 1
+                  fi
+                  "${db[@]}" -e "$count_sql" > "$tables"
+                  echo "Source: $(wc -l < "$tables") application tables"
+
+                  echo "Starting direct-Service MariaDB dump (all databases, consistent snapshot)"
+                  tmp="$(mktemp "$backup_dir/backup.sql.XXXXXXXXXX.tmp")"
+                  mariadb-dump --host="$MARIADB_HOST" --user=root --connect-timeout=15 \
+                    --single-transaction --routines --triggers --events --hex-blob \
+                    --all-databases --result-file="$tmp"
+                  chmod 0644 "$tmp"
+                  sync "$tmp"
+
+                  set +e
+                  perl -Mstrict -Mwarnings -MEncode=decode,FB_CROAK - "$tmp" "$tables" <<'PERL'
+                  my ($path, $tables_path) = @ARGV;
+                  die "backup validation failed: missing arguments\n" unless defined $tables_path;
+
+                  sub reject {
+                    my ($message, $line) = @_;
+                    if (defined $line) {
+                      print STDERR "backup validation failed at line $line: $message\n";
+                    } else {
+                      print STDERR "backup validation failed: $message\n";
+                    }
+                    exit 65;
+                  }
+
+                  sub ident {
+                    my ($quoted) = @_;
+                    $quoted =~ s/``/`/g;
+                    return $quoted;
+                  }
+
+                  open my $fh, '<', $path or reject("cannot open dump");
+                  binmode $fh or reject("cannot set dump to binary mode");
+
+                  my $line_number = 0;
+                  my $last_ended_newline = 0;
+                  my $header_seen = 0;
+                  my $footer_seen = 0;
+                  my $current_db;
+                  my (%created, %inserted);
+
+                  while (1) {
+                    $! = 0;
+                    my $raw = <$fh>;
+                    if (!defined $raw) {
+                      reject("dump read failure") if $!;
+                      last;
+                    }
+
+                    $line_number++;
+                    $last_ended_newline = $raw =~ /\n\z/;
+                    reject("NUL byte in dump", $line_number) if index($raw, "\0") >= 0;
+
+                    my $text;
+                    my $bytes = $raw;
+                    eval {
+                      $text = decode('UTF-8', $bytes, FB_CROAK);
+                      1;
+                    } or reject("invalid UTF-8", $line_number);
+
+                    if ($footer_seen) {
+                      reject("SQL after final dump footer", $line_number)
+                        unless $text =~ /^\s*\z/ || $text =~ /^--[^\n]*\n?\z/;
+                      next;
+                    }
+
+                    if ($line_number <= 5 && $text =~ /^-- MariaDB dump /) {
+                      $header_seen = 1;
+                      next;
+                    }
+                    if ($text =~ /^-- Dump completed on /) {
+                      $footer_seen = 1;
+                      next;
+                    }
+                    if ($text =~ /^-- Current Database: `((?:[^`]|``)+)`\s*\z/) {
+                      $current_db = ident($1);
+                      next;
+                    }
+                    if ($text =~ /^CREATE TABLE (?:IF NOT EXISTS )?`((?:[^`]|``)+)` \(/) {
+                      reject("CREATE TABLE before any database", $line_number) unless defined $current_db;
+                      $created{"$current_db\t" . ident($1)} = 1;
+                      next;
+                    }
+                    if ($text =~ /^INSERT (?:IGNORE )?INTO `((?:[^`]|``)+)` /) {
+                      reject("INSERT before any database", $line_number) unless defined $current_db;
+                      $inserted{"$current_db\t" . ident($1)} = 1;
+                      next;
+                    }
+                  }
+
+                  close $fh or reject("cannot close dump after reading");
+                  reject("missing final newline") unless $last_ended_newline;
+                  reject("missing MariaDB dump header") unless $header_seen;
+                  reject("missing final '-- Dump completed' footer") unless $footer_seen;
+
+                  open my $tfh, '<', $tables_path or reject("cannot open source table list");
+                  my ($expected, $with_rows, @missing) = (0, 0);
+                  while (my $row = <$tfh>) {
+                    chomp $row;
+                    my ($schema, $table, $count) = split /\t/, $row, -1;
+                    reject("malformed source table list") unless defined $count && $count =~ /^\d+\z/;
+                    my $key = "$schema\t$table";
+                    $expected++;
+                    if (!$created{$key}) {
+                      push @missing, "$schema.$table (no CREATE TABLE)";
+                    } elsif ($count > 0) {
+                      $with_rows++;
+                      push @missing, "$schema.$table (no INSERT for $count rows)" unless $inserted{$key};
+                    }
+                  }
+                  close $tfh;
+                  reject("source table list is empty") unless $expected;
+                  if (@missing) {
+                    my $shown = join(', ', @missing[0 .. ($#missing < 9 ? $#missing : 9)]);
+                    reject(scalar(@missing) . " source table(s) missing from dump: $shown");
+                  }
+                  print "Structural validation passed ($expected tables, $with_rows with rows)\n";
+                  PERL
+                  rc=$?
+                  set -e
+                  if (( rc == 65 )); then
+                    echo "Rejected candidate (exit 65): structural validation failed; previous backup.sql kept" >&2
+                    exit 65
+                  elif (( rc != 0 )); then
+                    echo "Validator error (exit $rc); previous backup.sql kept" >&2
+                    exit "$rc"
+                  fi
+
+                  mv -f -- "$tmp" "$backup_dir/backup.sql"
+                  tmp=
+                  sync "$backup_dir"
+                  echo "Accepted structurally valid backup.sql"
+                  ls -lah "$backup_dir"
+            - name: maintenance-mode
+              env:
+                # Total maintenance window from this container's start;
+                # covers the data-PVC backup trigger at 03:10 (see NOTE).
+                - name: HOLD_WINDOW_SECONDS
+                  value: "720"
+              volumeMounts:
+                - name: sync
+                  mountPath: /sync
               image: quay.io/openshift/origin-cli:4.22
               command: ["/bin/bash", "-c"]
               args:
                 - |-
-                  set -e
-                  # NOTE ON THE ACTUAL GUARANTEE THIS PROVIDES:
-                  # Nextcloud writes to the DB and the app-data PVC together (e.g. a
-                  # calendar write touches both), so both backups need to be taken
-                  # while Nextcloud is in maintenance mode for them to be consistent
-                  # with each other. This trap keeps maintenance mode on for the
-                  # *entire* window below (dump + a fixed hold), not just for the
-                  # few seconds the mariadb-dump itself takes — the data-PVC
-                  # ReplicationSource's schedule (components-apps/nextcloud/backup/
-                  # data/{local,backblaze}.yaml) was deliberately retimed to
-                  # "10 3 * * *" (10 minutes after this job's 03:00 start) so its
-                  # trigger falls inside this hold. This is NOT a guarantee that the
-                  # entire multi-minute VolSync restic transfer completes before
-                  # maintenance mode turns off — VolSync's copyMethod: Direct reads
-                  # straight from the live PVC over its own run duration, same as
-                  # every other Direct-copyMethod app in this fleet (immich,
-                  # paperless), and a very large app-data PVC could still be mid-
-                  # transfer when the hold ends. What this DOES guarantee: both the
-                  # DB dump and the data-PVC backup's *trigger* land inside one
-                  # shared, coordinated ~12-minute nightly maintenance window
-                  # (03:00-03:12) instead of the DB dump's window closing within
-                  # seconds while the data backup's independent 05:00 schedule left
-                  # a ~2-hour gap where the two were never point-in-time consistent
-                  # with each other at all. See docs/runbooks/nextcloud-restore.md
-                  # for this stated plainly.
-                  trap 'kubectl exec deploy/nextcloud-app --container nextcloud -- php occ maintenance:mode --off || true' EXIT
+                  set -Euo pipefail
+                  sync_dir="${SYNC_DIR:-/sync}"
+                  occ() {
+                    kubectl exec deploy/nextcloud-app --container nextcloud -- php occ "$@"
+                  }
+
+                  enabled=0
+                  finish() {
+                    rc=$?
+                    trap - EXIT HUP INT TERM
+                    if (( enabled )); then
+                      echo "Disabling Nextcloud maintenance mode"
+                      occ maintenance:mode --off || echo "WARNING: could not disable maintenance mode" >&2
+                    fi
+                    exit "$rc"
+                  }
+                  trap finish EXIT
+                  trap 'exit 129' HUP
+                  trap 'exit 130' INT
+                  trap 'exit 143' TERM
 
                   START_TS=$(date +%s)
 
-                  echo -----------------------------------
-                  echo "Enabling Nextcloud maintenance mode"
-                  kubectl exec deploy/nextcloud-app --container nextcloud -- php occ maintenance:mode --on
-                  echo -----------------------------------
-                  echo "Backing up MariaDB (all databases, consistent snapshot)"
-                  # $MARIADB_ROOT_PASSWORD must be expanded HERE, in THIS job's own shell
-                  # (the only place the secret env is injected), NOT in the remote mariadb
-                  # pod. So it is NOT escaped: the job's shell interpolates the real password
-                  # into the command string before kubectl-exec ships it to the pod. A leading
-                  # backslash (\$) would defer expansion to the remote shell, where the env var
-                  # is unset, producing an empty password and "Access denied ... (using password: NO)".
-                  kubectl exec nextcloud-app-mariadb-0 --container mariadb -- /bin/bash -c \
-                    "MYSQL_PWD=$MARIADB_ROOT_PASSWORD mariadb-dump --single-transaction --routines --triggers --all-databases -u root" \
-                    > /backup/backup.sql.tmp
-                  # Only replace the last good dump on success (a failed dump used to
-                  # truncate backup.sql and VolSync would back up an empty file).
-                  test -s /backup/backup.sql.tmp
-                  mv -f /backup/backup.sql.tmp /backup/backup.sql
-                  echo -----------------------------------
-                  ls -lah /backup
-                  echo -----------------------------------
-                  # Hold maintenance mode open past the data-PVC VolSync backup's
-                  # own 03:10 trigger (see NOTE above). Target: 720s (12 minutes)
-                  # total from this job's start — a small (2-user) Nextcloud
-                  # mariadb-dump is expected to finish in well under a minute, so
-                  # this leaves roughly a 2-minute safety margin past the 10-minute
-                  # data-backup trigger point for normal CronJob/VolSync scheduling
-                  # latency. Computed relative to START_TS (not a flat `sleep 720`
-                  # after the dump) so a slower-than-expected dump doesn't push the
-                  # total window out indefinitely.
-                  TARGET_WINDOW_SECONDS=720
-                  ELAPSED=$(( $(date +%s) - START_TS ))
-                  REMAINING=$(( TARGET_WINDOW_SECONDS - ELAPSED ))
-                  if [ "$REMAINING" -gt 0 ]; then
-                    echo "Holding maintenance mode for ${REMAINING}s more to cover the data-PVC backup window"
-                    sleep "$REMAINING"
+                  # Wait for the dump container's preflight. If it already
+                  # failed, leave Nextcloud alone.
+                  for _ in $(seq 1 150); do
+                    [[ -f "$sync_dir/preflight-ok" || -f "$sync_dir/dump-done" ]] && break
+                    sleep 2
+                  done
+                  if [[ ! -f "$sync_dir/preflight-ok" ]]; then
+                    echo "Dump preflight did not pass; maintenance mode left off"
+                    exit 0
                   fi
-          restartPolicy: OnFailure
+
+                  echo "Enabling Nextcloud maintenance mode"
+                  enabled=1
+                  if ! occ maintenance:mode --on; then
+                    touch "$sync_dir/maintenance-failed"
+                    echo "Could not enable maintenance mode" >&2
+                    exit 1
+                  fi
+                  touch "$sync_dir/maintenance-on"
+
+                  until [[ -f "$sync_dir/dump-done" ]]; do
+                    if (( $(date +%s) - START_TS > 1500 )); then
+                      echo "Dump did not finish within 1500s; disabling maintenance mode" >&2
+                      exit 1
+                    fi
+                    sleep 2
+                  done
+                  dump_rc="$(cat "$sync_dir/dump-done")"
+                  if [[ "$dump_rc" != 0 ]]; then
+                    echo "Dump failed (exit $dump_rc); disabling maintenance mode without the hold"
+                    exit 0
+                  fi
+
+                  # Hold maintenance mode past the data-PVC backup's 03:10
+                  # trigger. Relative to START_TS, so a slow dump doesn't push
+                  # the window out indefinitely.
+                  remaining=$(( HOLD_WINDOW_SECONDS - ($(date +%s) - START_TS) ))
+                  if (( remaining > 0 )); then
+                    echo "Holding maintenance mode for ${remaining}s more to cover the data-PVC backup window"
+                    # Backgrounded + wait, so SIGTERM (deadline, eviction) runs
+                    # the trap at once instead of after the sleep.
+                    sleep "$remaining" &
+                    wait $!
+                  fi

@@ -7,3 +7,4 @@ resources:
   - serviceaccount.yaml
   - role.yaml
   - rolebinding-psql-backup.yaml
+  - ../db-backup-alerts
