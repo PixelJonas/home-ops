@@ -120,13 +120,26 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Check for renovate.json5 changes
+      - name: Check for renovate config changes
         id: changes
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
         with:
           filters: |
             renovate:
               - ".github/renovate.json5"
+              - ".github/renovate/**"
+      - name: Set up Node
+        if: steps.changes.outputs.renovate == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
       - name: Validate renovate config
         if: steps.changes.outputs.renovate == 'true'
-        run: npx --yes --package renovate renovate-config-validator .github/renovate.json5
+        env:
+          # Pinned instead of whatever npm serves today (supply chain); Renovate
+          # bumps it via the customManagers:githubActionsVersions preset.
+          # renovate: datasource=npm depName=renovate
+          RENOVATE_VERSION: 44.198.0
+        # The shared preset is validated as a file too: the repo config only
+        # extends it from main, so a broken preset would otherwise pass CI.
+        run: npx --yes --package "renovate@${RENOVATE_VERSION}" renovate-config-validator --strict .github/renovate.json5 .github/renovate/base.json5
