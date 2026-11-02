@@ -192,7 +192,9 @@ spec:
 
                   echo "Starting direct-Service MariaDB dump (all databases, consistent snapshot)"
                   tmp="$(mktemp "$backup_dir/backup.sql.XXXXXXXXXX.tmp")"
-                  mariadb-dump --host="$MARIADB_HOST" --user=root --connect-timeout=15 \
+                  # mariadb-dump has no --connect-timeout; the preflight above
+                  # already proved the Service answers.
+                  mariadb-dump --host="$MARIADB_HOST" --user=root \
                     --single-transaction --routines --triggers --events --hex-blob \
                     --all-databases --result-file="$tmp"
                   chmod 0644 "$tmp"
