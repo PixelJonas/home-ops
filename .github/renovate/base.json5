@@ -31,6 +31,8 @@
     "helpers:pinGitHubActionDigestsToSemver",
     ":configMigration",
     "abandonments:recommended",
+    // `# renovate: datasource=... depName=...` above `*_VERSION:` env in workflows
+    "customManagers:githubActionsVersions",
   ],
   dependencyDashboardTitle: "Renovate Dashboard 🤖",
   suppressNotifications: ["prIgnoreNotification"],
