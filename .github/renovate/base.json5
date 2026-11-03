@@ -89,6 +89,25 @@
       enabled: false,
     },
     {
+      description: "taxbuddy-hermes: the hermes-agent version lives in the gateway Containerfile FROM, the tools Containerfile ARG and the manifest tags of the own images (tag = hermes version). The own images are looked up as upstream hermes-agent, so one grouped PR bumps all of them. No platform automerge: Renovate merges only once EVERY check is green, including the PR image builds that push the new tag, so Argo CD never rolls to a missing image.",
+      matchPackageNames: [
+        "ghcr.io/pixeljonas/taxbuddy-hermes-gateway",
+        "ghcr.io/pixeljonas/taxbuddy-hermes-tools",
+      ],
+      enabled: true,
+      overridePackageName: "docker.io/nousresearch/hermes-agent",
+    },
+    {
+      matchPackageNames: [
+        "ghcr.io/pixeljonas/taxbuddy-hermes-gateway",
+        "ghcr.io/pixeljonas/taxbuddy-hermes-tools",
+        "docker.io/nousresearch/hermes-agent",
+        "nousresearch/hermes-agent",
+      ],
+      groupName: "taxbuddy-hermes",
+      platformAutomerge: false,
+    },
+    {
       description: "In-cluster OpenShift image registry: not reachable from the Renovate runner.",
       matchDatasources: ["docker"],
       matchPackageNames: ["/^image-registry\\.openshift-image-registry\\.svc[:/]/"],
@@ -129,6 +148,15 @@
         "(?:^|\\n) *repository: *['\"]?(?<depName>[^\\s'\"]+)['\"]?\\n(?: *pullPolicy:.*\\n)? *tag: *['\"]?(?<currentValue>[^\\s'\"@#]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?",
       ],
       datasourceTemplate: "docker",
+    },
+    {
+      description: "Version pins in Containerfile ARG/ENV lines, annotated with a `# renovate: datasource=<ds> depName=<name>` comment on the line above (the built-in dockerfile manager only reads FROM).",
+      customType: "regex",
+      managerFilePatterns: ["/(^|/)(Docker|Container)file[^/]*$/"],
+      matchStrings: [
+        // prettier-ignore
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n(?:ARG|ENV) [A-Za-z0-9_]+=(?<currentValue>\\S+)",
+      ],
     },
   ],
 }
