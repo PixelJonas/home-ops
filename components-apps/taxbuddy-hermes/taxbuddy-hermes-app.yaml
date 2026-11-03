@@ -62,7 +62,7 @@ spec:
               init-config:
                 image:
                   repository: nousresearch/hermes-agent
-                  tag: v2026.9.14
+                  tag: v2026.9.24
                   pullPolicy: IfNotPresent
                 command:
                   - /bin/sh
@@ -103,7 +103,7 @@ spec:
               hermes:
                 image:
                   repository: nousresearch/hermes-agent
-                  tag: v2026.9.14
+                  tag: v2026.9.24
                   pullPolicy: IfNotPresent
                 # The image's ENTRYPOINT is a fixed s6-overlay wrapper
                 # (/init main-wrapper.sh); it needs an explicit `gateway
@@ -165,7 +165,7 @@ spec:
                 # share this pod.
                 image:
                   repository: nousresearch/hermes-agent
-                  tag: v2026.9.14
+                  tag: v2026.9.24
                   pullPolicy: IfNotPresent
                 args:
                   - dashboard
