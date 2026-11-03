@@ -78,22 +78,25 @@ spec:
           enabled: true
           protocol: https
 
-        # The chart's own MYSQL_HOST/USER/PASSWORD env-var wiring (used by
-        # both the main container and the mariadb-isalive init container)
-        # is gated on internalDatabase.enabled, not mariadb.enabled -- it
-        # defaults to true (SQLite) and silently wins over the bundled
-        # MariaDB subchart unless explicitly disabled here. externalDatabase
-        # .existingSecret is still the correct place for credentials even
-        # though we're using the bundled subchart, not a real external DB --
-        # that's simply where this chart's template always reads them from.
+        # Database: CNPG Postgres nextcloud-db (postgresql-database.yaml),
+        # converted from the bitnami MariaDB subchart on 2026-11-03.
+        # internalDatabase defaults to true (SQLite) and wins over
+        # externalDatabase unless disabled. config.php (dbtype/dbhost/...)
+        # is the source of truth for an installed instance; these env vars
+        # only matter for a fresh install and the chart's own wiring.
         internalDatabase:
           enabled: false
 
         externalDatabase:
+          enabled: true
+          type: postgresql
+          host: nextcloud-db-rw
+          database: nextcloud
           existingSecret:
-            secretName: nextcloud-mariadb
-            usernameKey: mariadb-username
-            passwordKey: mariadb-password
+            enabled: true
+            secretName: nextcloud-db-nextcloud-secret
+            usernameKey: username
+            passwordKey: password
 
         # Background jobs hardening: chart default (cronjob.enabled: false)
         # leaves Nextcloud on its weakest "ajax" trigger mode (background
@@ -125,7 +128,7 @@ spec:
               runAsUser: 33
               runAsGroup: 33
             # Chart default backoffLimit 1 retried within a second into the
-            # same mariadb outage (2 Error pods per run). 4 retries with
+            # same database outage (2 Error pods per run). 4 retries with
             # Job exponential backoff (10s, 20s, 40s, 80s) ride out a DB
             # restart; concurrencyPolicy Forbid prevents overlap.
             backoffLimit: 4
@@ -152,61 +155,22 @@ spec:
             accessMode: ReadWriteOnce
             size: 100Gi
 
+        # Distributed cache + file locking: nextcloud-valkey (valkey.yaml)
+        # instead of the bitnami Redis subchart.
         mariadb:
-          enabled: true
-          auth:
-            database: nextcloud
-            username: nextcloud
-            existingSecret: nextcloud-mariadb
-          primary:
-            persistence:
-              enabled: true
-              storageClass: lvms-vg1
-              size: 10Gi
-            # Bitnami default liveness is timeoutSeconds 1 x3 -- every ~30s
-            # Altus node stall made the exec probe (bash + mariadb-admin)
-            # time out and SIGTERM a healthy mariadb (119 restarts, each a
-            # clean "Normal shutdown", taking cron.php down with it).
-            livenessProbe:
-              enabled: true
-              timeoutSeconds: 10
-              failureThreshold: 6
-            readinessProbe:
-              enabled: true
-              timeoutSeconds: 5
-          global:
-            compatibility:
-              openshift:
-                adaptSecurityContext: force
+          enabled: false
 
         redis:
+          enabled: false
+
+        externalRedis:
           enabled: true
-          auth:
+          host: nextcloud-valkey
+          port: "6379"
+          existingSecret:
             enabled: true
-            existingSecret: nextcloud-redis
-            existingSecretPasswordKey: redis-password
-          master:
-            persistence:
-              enabled: true
-              storageClass: lvms-vg1
-              size: 2Gi
-            livenessProbe:
-              enabled: true
-              timeoutSeconds: 10
-              failureThreshold: 10
-          replica:
-            persistence:
-              enabled: true
-              storageClass: lvms-vg1
-              size: 2Gi
-            livenessProbe:
-              enabled: true
-              timeoutSeconds: 10
-              failureThreshold: 10
-          global:
-            compatibility:
-              openshift:
-                adaptSecurityContext: force
+            secretName: nextcloud-redis
+            passwordKey: redis-password
 
         ingress:
           enabled: true
