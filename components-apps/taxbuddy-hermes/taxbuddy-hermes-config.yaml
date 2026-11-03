@@ -89,6 +89,36 @@ data:
         tools:
           resources: false
           prompts: false
+    # Written by `moshi-hook install --target hermes` since moshi-hook 0.4.45
+    # (lets the moshi-hooks plugin see which multiplexer pane a Hermes session
+    # runs in). Kept here for the same reseed reason as plugins.enabled.
+    terminal:
+      client_env_passthrough:
+        - TMUX
+        - TMUX_PANE
+        - HERDR_ENV
+        - HERDR_SESSION
+        - HERDR_PANE_ID
+        - HERDR_WORKSPACE_ID
+        - HERDR_TAB_ID
+        - HERDR_SOCKET_PATH
+        - ZELLIJ
+        - ZELLIJ_SESSION_NAME
+        - ZELLIJ_PANE_ID
+        - HC_SESSION
+        - HC_TERMINAL_ID
+        - HC_TERMINAL_SOCKET
+        - REX_BLOCK
+        - REX_SERVER
+        - REX_SESSION
+        - TERN_PANE
+        - TERN_PANE_SOCKET
+        - TERN_WINDOW_KEY
+        - TUIOS_ENV
+        - TUIOS_PANE_ID
+        - TUIOS_SESSION
+        - TUIOS_SOCKET
+        - TUIOS_WINDOW_ID
   # Live finding (Task 6 verification, 2026-07-30): Honcho config is NOT
   # part of config.yaml's schema — it's a separate file read from
   # $HERMES_HOME/honcho.json, confirmed by reading
