@@ -1,15 +1,126 @@
-- op: replace
-  path: /spec/jobTemplate/spec/template/spec/volumes/0/persistentVolumeClaim/claimName
-  value: database-syno-db-backup
+# Strategic-merge patch for the shared psql-backup CronJob (containers merge by name).
+# Adds the Nextcloud maintenance-mode handshake: the pg-dump container (SYNC_DIR set)
+# touches /sync/preflight-ok, waits for /sync/maintenance-on, and writes /sync/dump-done
+# (its exit code); the maintenance-mode container below toggles `occ maintenance:mode`
+# and holds it for HOLD_WINDOW_SECONDS from its own start so the data-PVC VolSync trigger
+# (03:10, components-apps/nextcloud/backup/data) falls inside the window. Same
+# coordination as templates/mariadb-backup. See docs/runbooks/nextcloud-restore.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: psql-backup
+spec:
+  jobTemplate:
+    spec:
+      # Dump + 720s hold + slack; the maintenance container gives up at 1500s.
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          # The maintenance-mode container runs `kubectl exec` (the dump needs no API access).
+          automountServiceAccountToken: true
+          # Room for maintenance-mode to switch maintenance off when the deadline
+          # or an eviction stops the pod.
+          terminationGracePeriodSeconds: 60
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: database-syno-db-backup
+            - name: sync
+              emptyDir: {}
+          containers:
+            - name: pg-dump
+              env:
+                - name: POSTGRES_USER
+                  value: nextcloud
+                - name: POSTGRES_POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: nextcloud-db-nextcloud-secret
+                      key: password
+                - name: SYNC_DIR
+                  value: /sync
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: sync
+                  mountPath: /sync
+            - name: maintenance-mode
+              env:
+                # Total maintenance window from this container's start;
+                # covers the data-PVC backup trigger at 03:10 (see NOTE).
+                - name: HOLD_WINDOW_SECONDS
+                  value: "720"
+              volumeMounts:
+                - name: sync
+                  mountPath: /sync
+              image: quay.io/openshift/origin-cli:4.22
+              command: ["/bin/bash", "-c"]
+              args:
+                - |-
+                  set -Euo pipefail
+                  sync_dir="${SYNC_DIR:-/sync}"
+                  occ() {
+                    kubectl exec deploy/nextcloud-app --container nextcloud -- php occ "$@"
+                  }
 
-# containers/0 is the mariadb-dump container (containers/1 is maintenance-mode).
-- op: replace
-  path: /spec/jobTemplate/spec/template/spec/containers/0/env
-  value:
-    - name: MARIADB_HOST
-      value: nextcloud-app-mariadb
-    - name: MARIADB_ROOT_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: nextcloud-mariadb
-          key: mariadb-root-password
+                  enabled=0
+                  finish() {
+                    rc=$?
+                    trap - EXIT HUP INT TERM
+                    if (( enabled )); then
+                      echo "Disabling Nextcloud maintenance mode"
+                      occ maintenance:mode --off || echo "WARNING: could not disable maintenance mode" >&2
+                    fi
+                    exit "$rc"
+                  }
+                  trap finish EXIT
+                  trap 'exit 129' HUP
+                  trap 'exit 130' INT
+                  trap 'exit 143' TERM
+
+                  START_TS=$(date +%s)
+
+                  # Wait for the dump container's preflight. If it already
+                  # failed, leave Nextcloud alone.
+                  for _ in $(seq 1 150); do
+                    [[ -f "$sync_dir/preflight-ok" || -f "$sync_dir/dump-done" ]] && break
+                    sleep 2
+                  done
+                  if [[ ! -f "$sync_dir/preflight-ok" ]]; then
+                    echo "Dump preflight did not pass; maintenance mode left off"
+                    exit 0
+                  fi
+
+                  echo "Enabling Nextcloud maintenance mode"
+                  enabled=1
+                  if ! occ maintenance:mode --on; then
+                    touch "$sync_dir/maintenance-failed"
+                    echo "Could not enable maintenance mode" >&2
+                    exit 1
+                  fi
+                  touch "$sync_dir/maintenance-on"
+
+                  until [[ -f "$sync_dir/dump-done" ]]; do
+                    if (( $(date +%s) - START_TS > 1500 )); then
+                      echo "Dump did not finish within 1500s; disabling maintenance mode" >&2
+                      exit 1
+                    fi
+                    sleep 2
+                  done
+                  dump_rc="$(cat "$sync_dir/dump-done")"
+                  if [[ "$dump_rc" != 0 ]]; then
+                    echo "Dump failed (exit $dump_rc); disabling maintenance mode without the hold"
+                    exit 0
+                  fi
+
+                  # Hold maintenance mode past the data-PVC backup's 03:10
+                  # trigger. Relative to START_TS, so a slow dump doesn't push
+                  # the window out indefinitely.
+                  remaining=$(( HOLD_WINDOW_SECONDS - ($(date +%s) - START_TS) ))
+                  if (( remaining > 0 )); then
+                    echo "Holding maintenance mode for ${remaining}s more to cover the data-PVC backup window"
+                    # Backgrounded + wait, so SIGTERM (deadline, eviction) runs
+                    # the trap at once instead of after the sleep.
+                    sleep "$remaining" &
+                    wait $!
+                  fi
