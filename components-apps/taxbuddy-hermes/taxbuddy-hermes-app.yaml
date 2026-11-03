@@ -175,25 +175,21 @@ spec:
                   # the plugin execs its helper with the inherited process
                   # env, and the helper honors MOSHI_SOCKET_PATH.
                   # taxbuddy ADR-0028: Telegram gateway (long polling, owner-only).
-                  # optional: a missing Doppler key must not block the pod.
                   TELEGRAM_BOT_TOKEN:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_BOT_TOKEN
-                        optional: true
                   TELEGRAM_ALLOWED_USERS:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_OWNER_ID
-                        optional: true
                   TELEGRAM_HOME_CHANNEL:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_OWNER_ID
-                        optional: true
                   MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
               dashboard:
                 # `hermes gateway run` does not start the web dashboard —
@@ -260,25 +256,21 @@ spec:
                         key: LOOKUP_MCP_TOKEN
                   # ADR-0028: agent_runtime's `oc exec … hermes taxbuddy-inbox notify` lands in
                   # this (first) container, so the plugin CLI needs the bot env here too.
-                  # optional: a missing Doppler key must not block the pod.
                   TELEGRAM_BOT_TOKEN:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_BOT_TOKEN
-                        optional: true
                   TELEGRAM_ALLOWED_USERS:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_OWNER_ID
-                        optional: true
                   TELEGRAM_HOME_CHANNEL:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_OWNER_ID
-                        optional: true
                   # Same as on the hermes container: dashboard-spawned chat
                   # sessions load the moshi-hooks plugin too.
                   MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
@@ -360,25 +352,21 @@ spec:
                         name: taxbuddy-hermes-credentials
                         key: LOOKUP_MCP_TOKEN
                   # ADR-0028: TUI sessions in this container load the taxbuddy-inbox plugin too.
-                  # optional: a missing Doppler key must not block the pod.
                   TELEGRAM_BOT_TOKEN:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_BOT_TOKEN
-                        optional: true
                   TELEGRAM_ALLOWED_USERS:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_OWNER_ID
-                        optional: true
                   TELEGRAM_HOME_CHANNEL:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_OWNER_ID
-                        optional: true
 
         persistence:
           hermes-data:
