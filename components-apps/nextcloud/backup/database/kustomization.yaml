@@ -49,3 +49,10 @@ patches:
       kind: CronJob
       name: psql-backup
     path: cron.yaml
+
+  - target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: RoleBinding
+      name: psql-backup
+    path: rolebinding.yaml
