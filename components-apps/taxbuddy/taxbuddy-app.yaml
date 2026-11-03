@@ -230,6 +230,13 @@ spec:
                   PACK_STEUERJAHRE: "2025,2026"
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                  # taxbuddy ADR-0028: one Telegram-Hinweis per new
+                  # owner-actionable kanban task, sent through the
+                  # taxbuddy-inbox Hermes plugin (needs the plugin + bot
+                  # token in taxbuddy-hermes). First enabled run baselines
+                  # the open board without sending; quiet hours =
+                  # DIGEST_QUIET_HOURS; max 5 notices per poll cycle.
+                  TELEGRAM_NOTICES_ENABLED: "true"
                   # taxbuddy P3-T04 (weekly digest): optional cloud-rendered
                   # Kurzüberblick. The narrator receives only structured
                   # aggregates (counts, category labels, statutory deadline
