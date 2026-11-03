@@ -107,6 +107,21 @@ spec:
                   # recheck. Enabled 2026-11-03 once the backfill had
                   # drained. Must match the worker's value.
                   MIDGARD_LOCAL_READ_CAP: "2"
+                  # Phase B pins (ingestbuddy#61): today's behaviour, set here
+                  # BEFORE the releases that add these options and later flip
+                  # the public defaults (dry-run write-back, if_unchanged
+                  # titles, English tags/OCR/prompts). Today's code ignores
+                  # them. Keep api and worker identical.
+                  PLUGINS_PAPERLESS_WRITEBACK_MODE: apply
+                  PLUGINS_PAPERLESS_WRITEBACK_FIELDS: title,correspondent,document_type,created,tags
+                  PLUGINS_PAPERLESS_TITLE_POLICY: always
+                  PLUGINS_PAPERLESS_TAG_INBOX: "ingestbuddy:eingang"
+                  PLUGINS_PAPERLESS_TAG_DONE: "ingestbuddy:verarbeitet"
+                  PLUGINS_PAPERLESS_TAG_DUPLICATE: "ingestbuddy:duplicate"
+                  PLUGINS_QDRANT_DENSE_SIZE: "1024"
+                  PLUGINS_QDRANT_PHYSICAL_COLLECTION: ingestbuddy_documents_v1
+                  OCR_LANG: de
+                  PROMPT_LOCALE: de
                   # Home Assistant event webhooks (wake/shutdown logic lives in
                   # HA). The URL embeds the webhook id, so it comes from
                   # Doppler via url_env; only pipeline-api emits events.
@@ -246,6 +261,21 @@ spec:
                   # recheck. Enabled 2026-11-03 once the backfill had
                   # drained. Must match the api's value.
                   MIDGARD_LOCAL_READ_CAP: "2"
+                  # Phase B pins (ingestbuddy#61): today's behaviour, set here
+                  # BEFORE the releases that add these options and later flip
+                  # the public defaults (dry-run write-back, if_unchanged
+                  # titles, English tags/OCR/prompts). Today's code ignores
+                  # them. Keep api and worker identical.
+                  PLUGINS_PAPERLESS_WRITEBACK_MODE: apply
+                  PLUGINS_PAPERLESS_WRITEBACK_FIELDS: title,correspondent,document_type,created,tags
+                  PLUGINS_PAPERLESS_TITLE_POLICY: always
+                  PLUGINS_PAPERLESS_TAG_INBOX: "ingestbuddy:eingang"
+                  PLUGINS_PAPERLESS_TAG_DONE: "ingestbuddy:verarbeitet"
+                  PLUGINS_PAPERLESS_TAG_DUPLICATE: "ingestbuddy:duplicate"
+                  PLUGINS_QDRANT_DENSE_SIZE: "1024"
+                  PLUGINS_QDRANT_PHYSICAL_COLLECTION: ingestbuddy_documents_v1
+                  OCR_LANG: de
+                  PROMPT_LOCALE: de
                   # Vehicle domain shadow run (ingestbuddy#13): routing +
                   # extraction run and land in bundles.domain_metadata, but
                   # PLUGINS_VEHICLE_SINK_URL/SECRET stay unset, so no draft reaches
