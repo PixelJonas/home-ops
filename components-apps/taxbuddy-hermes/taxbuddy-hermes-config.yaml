@@ -71,6 +71,19 @@ data:
         # pod's herdr server detect/lifecycle-track Hermes sessions in its
         # panes. Same reseed reasoning as moshi-hooks above.
         - herdr-agent-state
+        # taxbuddy ADR-0028: Telegram second inbox (notices, review buttons,
+        # deterministic reply routing, /offen, /naechste). Installed onto the
+        # PVC by the install-taxbuddy-inbox init container.
+        - taxbuddy-inbox
+    # ADR-0028: Telegram turns get the default hermes-telegram bundle plus the
+    # kanban toolset, so the agent can complete/comment Profilfrage and
+    # Onboarding tasks from a Telegram conversation like it does from the
+    # dashboard. Verified against the pod's resolver (2026-11-03): this list
+    # equals the default plus `kanban`, nothing removed.
+    platform_toolsets:
+      telegram:
+        - hermes-telegram
+        - kanban
     providers:
       litellm:
         name: litellm
@@ -132,6 +145,9 @@ data:
   # Honcho's app-template deployment has three controllers (honcho,
   # deriver, openconcho), which gets it the <release>-<controller>
   # service-naming form.
+  # pinPeerName (taxbuddy ADR-0028): single-user instance — without it a
+  # Telegram session's user peer would be the Telegram user id instead of
+  # jjanz, splitting memory between Telegram and the dashboard.
   # timeout: honcho's dialectic endpoint takes 30-170s under load
   # (66k-91k token contexts, per server-side PERFORMANCE logs) — the
   # plugin's 30s default HTTP timeout caused "cannot connect to honcho".
@@ -139,6 +155,7 @@ data:
     {
       "workspace": "taxbuddy",
       "peerName": "jjanz",
+      "pinPeerName": true,
       "aiPeer": "taxbuddy-hermes",
       "baseUrl": "http://honcho-app-honcho.honcho.svc:8000",
       "environment": "production",
@@ -200,3 +217,37 @@ data:
     - Ein Re-OCR ist teuer (jede Seite wird per Vision-Modell neu
       transkribiert). Beurteile deshalb so konkret wie möglich, z. B.
       „Text endet nach Seite 5 von 12" statt „sieht komisch aus".
+
+    # taxbuddy ADR-0028 (2026-11-03): Telegram as a second inbox.
+    ## Telegram
+
+    Der Eigentümer erreicht dich auch per Telegram (Direktnachricht). Es gelten
+    dieselben Regeln wie im Dashboard. Zusätzlich:
+
+    - taxbuddy schickt dort Hinweise zu offenen Aufgaben; jeder endet mit
+      `Aufgabe: t_…`. Antwortet der Eigentümer auf einen Hinweis, siehst du ihn
+      zitiert („[Replying to …]“) und kennst so die Aufgabe.
+    - Antwort auf einen [PROFILFRAGE]-Hinweis: Führe das Gespräch direkt hier.
+      Frage nach, bis der Umstand klar ist, halte ihn mit `honcho_conclude`
+      fest und schließe dann die Aufgabe mit einem kurzen Kommentar ab – genau
+      wie im Dashboard.
+    - Antwort auf einen [ONBOARDING]-Hinweis: Führe das Interview hier, nach
+      den Anweisungen im Text der Aufgabe (lies sie mit den Kanban-Tools).
+    - [REVIEW]- und [FAILED]-Entscheidungen trifft der Eigentümer über die
+      Buttons oder eine feste Antwort („ok“, „ablehnen …“, „korrigiere
+      feld=wert“); taxbuddy verarbeitet sie ohne dich. Schreibe selbst NIE
+      `approve`, `reject` oder `correct …` als Kommentar auf eine Aufgabe.
+      Landet eine solche Antwort doch bei dir, sage ihm, dass sie nicht
+      übernommen wurde, und bitte ihn, den Button zu nutzen oder im Dashboard
+      zu entscheiden.
+    - Schreibe in deinen eigenen Antworten nie die Zeile `Aufgabe: t_…`
+      (das Format ist den Hinweisen vorbehalten); nenne Aufgaben über ihren
+      Titel.
+    - Fehlgeschlagene Verarbeitungen ([FAILED]) kann der Eigentümer per
+      Telegram nur ablehnen – nie freigeben oder korrigieren (das ginge nur im
+      Dashboard). Zum erneuten Verarbeiten setzt er in Paperless den Tag
+      `steuer:eingang` wieder.
+    - /offen zeigt offene Aufgaben, /naechste schickt die nächste
+      Belegprüfung als Hinweis.
+    - Telegram ist nicht Ende-zu-Ende-verschlüsselt: Wiederhole keine
+      vollständigen IBANs, Steuer-IDs oder Zugangsdaten im Chat.
