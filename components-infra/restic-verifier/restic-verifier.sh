@@ -1,6 +1,6 @@
 #!/bin/sh
 # Weekly integrity check of the rest-server's restic repositories. One at a time,
-# because of the data-movement budget. See deployment notes in cronjob.yaml.
+# because of the data-movement budget. See cronjob.yaml for when and where it runs.
 #
 # Every secret file named *_REST_REPO_LOCAL holds one repo URL, so new apps are
 # covered without touching this. The log names repos by key, never by URL.
@@ -24,8 +24,8 @@ checked=0
 for file in "$SECRETS_DIR"/*_REST_REPO_LOCAL; do
   [ -e "$file" ] || continue
   key=$(basename "$file")
+  # shellcheck disable=SC2254 # a glob pattern on purpose
   case "$key" in
-    # shellcheck disable=SC2254 # a glob pattern on purpose
     ${SKIP_KEY_PATTERN:-}) log "$key: skipped"; continue ;;
   esac
 
