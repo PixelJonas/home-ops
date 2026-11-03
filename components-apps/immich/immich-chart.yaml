@@ -35,7 +35,7 @@ spec:
               server:
                 image:
                   repository: ghcr.io/immich-app/immich-server
-                  tag: v3.2.2
+                  tag: v3.3.5
                   pullPolicy: IfNotPresent
                 # Sized from 7d usage (2026-09-29); requests only so the
                 # scheduler accounts for immich's load, no limits.
@@ -65,7 +65,7 @@ spec:
               machine-learning:
                 image:
                   repository: ghcr.io/immich-app/immich-machine-learning
-                  tag: v3.1.0
+                  tag: v3.3.5
                   pullPolicy: IfNotPresent
                 # Sized from 7d usage (2026-09-29); requests only so the
                 # scheduler accounts for immich's load, no limits.
