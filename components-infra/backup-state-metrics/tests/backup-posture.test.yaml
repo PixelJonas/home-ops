@@ -37,7 +37,10 @@ tests:
                 "repository is already locked", then patch spec.restic.unlock. Runbook:
                 docs/runbooks/.
       # A healthy cluster's exporter raises nothing.
-      - alertname: BackupStateMetricsMissing
+      - alertname: BackupStateMetricsDown
+        eval_time: 190m
+        exp_alerts: []
+      - alertname: BackupStateMetricsEmpty
         eval_time: 190m
         exp_alerts: []
   # A finished sync (status False) is never "stuck", however old.
@@ -170,22 +173,32 @@ tests:
               description: >-
                 It restores continuously into its PVC, which may be live. Set spec.paused or
                 delete the ReplicationDestination now.
-  # The exporter disappearing fires the absence alert, for each missing signal.
+  # The exporter disappearing fires both absence alerts.
   - interval: 1m
     input_series:
       - series: up{job="backup-state-metrics"}
         values: 0x30
     alert_rule_test:
-      - alertname: BackupStateMetricsMissing
+      - alertname: BackupStateMetricsDown
         eval_time: 20m
         exp_alerts:
           - exp_labels:
               severity: critical
             exp_annotations:
-              summary: Backup state metrics are missing
+              summary: Backup state exporter is down
               description: >-
-                The exporter is down or sees no ReplicationSources, so the other backup alerts
-                can't fire. Check deployment/backup-state-metrics in volsync-system.
+                The other backup alerts can't fire without it. Check
+                deployment/backup-state-metrics in volsync-system.
+      - alertname: BackupStateMetricsEmpty
+        eval_time: 20m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Backup state exporter reports no ReplicationSources
+              description: >-
+                Either every backup is gone or the exporter can't read them. The other
+                backup alerts can't fire. Check its RBAC and config in volsync-system.
   # Prune overdue: an old prune and a never-pruned old RS fire; recent ones don't.
   - interval: 5m
     input_series:
