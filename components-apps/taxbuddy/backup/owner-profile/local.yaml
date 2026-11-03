@@ -1,0 +1,23 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: taxbuddy-app-owner-profile
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-owner-profile
+
+# The profile writer's atomic replacement creates owner.md as uid 1000, mode
+# 0600. NFS root_squash prevents the namespace's default root mover from
+# reading it, so run this mover as the same uid instead.
+- op: add
+  path: /spec/restic/moverSecurityContext
+  value:
+    runAsUser: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+
+# nfs-subdir-external-provisioner has no CSI snapshot support, so retain the
+# template's Direct copy method. Atomic replacement keeps each backed-up file
+# whole. Run after the Valkey backup rather than alongside the database dump.
+- op: replace
+  path: /spec/trigger/schedule
+  value: "45 1 * * *"
