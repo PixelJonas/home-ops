@@ -100,6 +100,13 @@ spec:
                   # Without it ingestbuddy never calls the `local: true`
                   # models. Must match the worker's value.
                   MIDGARD_HEALTH_URL: http://10.42.0.5:18080/healthz
+                  # Deterministic local-read failure cap (ingestbuddy #77,
+                  # ADR-0005): after 2 failures that every local model hit
+                  # (schema/json_invalid, context overflow, 422) a job goes
+                  # remote, or with the fallback off it keeps its slow
+                  # recheck. Enabled 2026-11-03 once the backfill had
+                  # drained. Must match the worker's value.
+                  MIDGARD_LOCAL_READ_CAP: "2"
                   # Home Assistant event webhooks (wake/shutdown logic lives in
                   # HA). The URL embeds the webhook id, so it comes from
                   # Doppler via url_env; only pipeline-api emits events.
@@ -232,6 +239,13 @@ spec:
                   # routes escalation/re-OCR pages by this probe. Must match
                   # the api's value.
                   MIDGARD_HEALTH_URL: http://10.42.0.5:18080/healthz
+                  # Deterministic local-read failure cap (ingestbuddy #77,
+                  # ADR-0005): after 2 failures that every local model hit
+                  # (schema/json_invalid, context overflow, 422) a job goes
+                  # remote, or with the fallback off it keeps its slow
+                  # recheck. Enabled 2026-11-03 once the backfill had
+                  # drained. Must match the api's value.
+                  MIDGARD_LOCAL_READ_CAP: "2"
                   # Vehicle domain shadow run (ingestbuddy#13): routing +
                   # extraction run and land in bundles.domain_metadata, but
                   # PLUGINS_VEHICLE_SINK_URL/SECRET stay unset, so no draft reaches
