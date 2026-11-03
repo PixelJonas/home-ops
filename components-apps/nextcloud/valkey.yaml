@@ -1,0 +1,114 @@
+# Valkey for Nextcloud's distributed cache and file locking, replacing the
+# chart's bitnami Redis subchart (bitnamilegacy images get no updates).
+# Cache only: no persistence, a restart just empties it (Nextcloud rebuilds
+# the cache and file locks are short-lived). Password from the existing
+# nextcloud-redis Secret, also read by the chart via externalRedis.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nextcloud-valkey
+  namespace: nextcloud
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud-valkey
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+  labels:
+    app.kubernetes.io/name: nextcloud-valkey
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nextcloud-valkey
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nextcloud-valkey
+    spec:
+      serviceAccountName: nextcloud-valkey
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: valkey
+          image: docker.io/valkey/valkey:9.1.3
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-redis
+                  key: redis-password
+            # valkey-cli reads this, so the probes need no -a flag.
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-redis
+                  key: redis-password
+          # Password via a config line on stdin, so it is not in the
+          # process arguments.
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              printf 'requirepass "%s"\n' "$VALKEY_PASSWORD" |
+              exec valkey-server - --save "" --appendonly no --dir /data
+              --maxmemory 256mb --maxmemory-policy allkeys-lru
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextcloud-valkey
+  namespace: nextcloud
+  labels:
+    app.kubernetes.io/name: nextcloud-valkey
+spec:
+  selector:
+    app.kubernetes.io/name: nextcloud-valkey
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
