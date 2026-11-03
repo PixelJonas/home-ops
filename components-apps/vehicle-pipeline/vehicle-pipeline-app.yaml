@@ -82,10 +82,11 @@ spec:
                   API_TOKENS:
                     valueFrom:
                       secretKeyRef: {name: vehicle-pipeline-credentials, key: API_TOKENS}
-                  # Closes the tailnet path to /api/v1 (see the Service below).
-                  # Stays "false" until Caddy sends X-Proxy-Auth: "true" before
-                  # that locks the UI out.
-                  REQUIRE_AUTH: "false"
+                  # Closes the tailnet path to /api/v1 (see the Service below):
+                  # a request needs a token or Caddy's X-Proxy-Auth plus
+                  # Remote-User. Caddy sends the header (infra-ops
+                  # INFRA_PROXY_AUTH_SECRETS); "false" is the way back.
+                  REQUIRE_AUTH: "true"
                   PROXY_AUTH_SHA256:
                     valueFrom:
                       secretKeyRef: {name: vehicle-pipeline-credentials, key: PROXY_AUTH_SHA256}
