@@ -6,6 +6,7 @@
       "view_customfield",
       "view_document",
       "view_documenttype",
+      "view_note",
       "view_storagepath",
       "view_tag",
       "view_uisettings"
