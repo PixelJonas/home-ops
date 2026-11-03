@@ -55,6 +55,7 @@ spec:
                   - media-vpn
                   - nextcloud
                   - paperless
+                  - paperless-mcp
                   - qdrant
                   - resilio-sync
                   - taxbuddy
