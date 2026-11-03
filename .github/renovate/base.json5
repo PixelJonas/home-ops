@@ -27,7 +27,6 @@
     ":semanticCommits",
     ":enablePreCommit",
     ":automergeDigest",
-    ":automergeBranch",
     "helpers:pinGitHubActionDigestsToSemver",
     ":configMigration",
     "abandonments:recommended",
@@ -42,12 +41,17 @@
   minimumReleaseAgeBehaviour: "timestamp-optional",
   internalChecksFilter: "strict",
   osvVulnerabilityAlerts: true,
+  // PR automerge, not branch automerge: CI (validate-manifests) only runs on pull_request
+  // and on main, so a bare Renovate branch never gets checks. Under branch automerge every
+  // update sat ~25h (prNotPendingHours) before falling back to a PR anyway. With PRs, GitHub
+  // auto-merge (home-ops: required checks) merges as soon as CI is green; private-ops has no
+  // branch protection, so Renovate merges it itself on its next (daily) run.
+  automergeType: "pr",
   platformAutomerge: true,
   packageRules: [
     {
       matchUpdateTypes: ["minor", "patch"],
       automerge: true,
-      automergeType: "branch",
     },
     {
       description: "Majors carry the most risk and are reviewed by hand anyway: wait a full week.",
