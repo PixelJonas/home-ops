@@ -5,9 +5,10 @@ namePrefix: database-
 namespace: nextcloud
 
 resources:
-  - ../../../../templates/mariadb-backup
+  - ../../../../templates/psql-backup
   - ../../../../templates/volsync/rest
   - ../../../../templates/volsync/backblaze
+  - role.yaml
 
 # Tier A retention (critical data), see templates/volsync/retain-tier-a.
 components:
@@ -46,12 +47,5 @@ patches:
       group: batch
       version: v1
       kind: CronJob
-      name: mariadb-backup
+      name: psql-backup
     path: cron.yaml
-
-  - target:
-      group: rbac.authorization.k8s.io
-      version: v1
-      kind: RoleBinding
-      name: mariadb-backup
-    path: rolebinding.yaml
