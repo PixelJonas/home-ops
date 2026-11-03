@@ -6,6 +6,10 @@ resources:
   - external-nextcloud-admin.yaml
   - external-nextcloud-mariadb.yaml
   - external-nextcloud-redis.yaml
+  - external-nextcloud-db-nextcloud.yaml
+  - external-nextcloud-db-superuser.yaml
+  - postgresql-database.yaml
+  - valkey.yaml
   - nextcloud-app.yaml
   - servicemonitor.yaml
   - prometheus-rule.yaml
