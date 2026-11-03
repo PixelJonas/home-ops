@@ -38,6 +38,12 @@ spec:
               DISABLE_REGISTRATION: true
             security:
               REVERSE_PROXY_TRUSTED_PROXIES: "10.42.0.11/32,10.128.0.0/14"
+              # Hosts webhooks (and OAuth2 clients) may call. Default
+              # "external" blocks private addresses, so the in-cluster
+              # Hermes webhook Service (components-infra/knowhere, infra-ops
+              # #354 assistant-requests) is added by exact name; its
+              # ClusterIP stays private and nothing else private opens up.
+              ALLOWED_HOST_LIST: "external,knowhere-hermes-webhook.knowhere.svc.cluster.local"
             actions:
               ENABLED: true
 

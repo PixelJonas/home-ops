@@ -6,4 +6,6 @@ resources:
   - datavolume-projects.yaml
   - external-secret-cloudinit.yaml
   - virtualmachine.yaml
+  - service-hermes-webhook.yaml
+  - networkpolicy-hermes-webhook.yaml
   - ./backup
