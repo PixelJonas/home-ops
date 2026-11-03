@@ -1,0 +1,38 @@
+# CNPG Postgres for Nextcloud, replacing the chart's bitnami MariaDB
+# subchart (bitnamilegacy images get no updates). Data was moved with
+# `occ db:convert-type` on 2026-11-03; see docs/runbooks/nextcloud-restore.md.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: nextcloud-db
+  namespace: nextcloud
+  annotations:
+    argocd.argoproj.io/sync-wave: "100"
+spec:
+  instances: 1
+  enablePDB: false
+
+  superuserSecret:
+    name: nextcloud-db-postgres-secret
+
+  bootstrap:
+    initdb:
+      database: nextcloud
+      owner: nextcloud
+      secret:
+        name: nextcloud-db-nextcloud-secret
+
+  storage:
+    size: 5Gi
+
+  # Same tolerance as vaultwarden-db: Altus has periodic ~30s node-wide
+  # stalls that otherwise trip the liveness probe.
+  probes:
+    liveness:
+      periodSeconds: 10
+      timeoutSeconds: 10
+      failureThreshold: 5
+    readiness:
+      periodSeconds: 10
+      timeoutSeconds: 10
+      failureThreshold: 5
