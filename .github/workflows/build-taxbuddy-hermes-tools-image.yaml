@@ -1,7 +1,18 @@
 name: build-taxbuddy-hermes-tools-image
+# Image tag = hermes-agent version, which the taxbuddy-hermes manifest pins.
+# PRs build too, so a Renovate hermes bump (Containerfile + manifest in one
+# PR, merged by Renovate only once every check is green) has its image in
+# the registry before Argo CD rolls the pod (Deployment strategy Recreate).
+# A PR only pushes a tag that does not exist yet: unmerged code never
+# overwrites an image main already runs. main always (re)pushes the version
+# tag, sha-<commit> and latest.
 on:
   push:
     branches: [main]
+    paths:
+      - "containers/taxbuddy-hermes-tools/**"
+      - ".github/workflows/build-taxbuddy-hermes-tools-image.yaml"
+  pull_request:
     paths:
       - "containers/taxbuddy-hermes-tools/**"
       - ".github/workflows/build-taxbuddy-hermes-tools-image.yaml"
@@ -15,6 +26,9 @@ jobs:
   build:
     name: build and push
     runs-on: ubuntu-latest
+    env:
+      IMAGE: ghcr.io/pixeljonas/taxbuddy-hermes-tools
+      CTX: containers/taxbuddy-hermes-tools
     steps:
       - name: Code Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -30,16 +44,33 @@ jobs:
 
       - name: Compute tags
         id: meta
-        run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          version="$(grep -oP '^ARG HERMES_VERSION=\K\S+' "$CTX/Containerfile")"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          push=true
+          if [ "$EVENT" = "pull_request" ] && docker manifest inspect "$IMAGE:$version" >/dev/null 2>&1; then
+            push=false
+          fi
+          echo "push=$push" >> "$GITHUB_OUTPUT"
+          echo "version=$version push=$push"
 
       - name: Build and push
         env:
+          EVENT: ${{ github.event_name }}
+          VERSION: ${{ steps.meta.outputs.version }}
           SHA_SHORT: ${{ steps.meta.outputs.sha_short }}
+          PUSH: ${{ steps.meta.outputs.push }}
           GH_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          docker build -f containers/taxbuddy-hermes-tools/Containerfile \
-            --secret id=github_token,env=GH_TOKEN \
-            -t "ghcr.io/pixeljonas/taxbuddy-hermes-tools:sha-${SHA_SHORT}" \
-            -t ghcr.io/pixeljonas/taxbuddy-hermes-tools:latest \
-            containers/taxbuddy-hermes-tools
-          docker push --all-tags ghcr.io/pixeljonas/taxbuddy-hermes-tools
+          tags=(-t "$IMAGE:$VERSION")
+          if [ "$EVENT" != "pull_request" ]; then
+            tags+=(-t "$IMAGE:sha-$SHA_SHORT" -t "$IMAGE:latest")
+          fi
+          docker build -f "$CTX/Containerfile" --secret id=github_token,env=GH_TOKEN "${tags[@]}" "$CTX"
+          if [ "$PUSH" = "true" ]; then
+            docker push --all-tags "$IMAGE"
+          fi

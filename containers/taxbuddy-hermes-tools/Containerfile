@@ -46,15 +46,16 @@ RUN curl -fsSL -o /usr/local/bin/kubectl \
       | awk '{print $1 "  /usr/local/bin/kubectl"}' | sha256sum -c - \
     && chmod +x /usr/local/bin/kubectl
 
-# hermes-agent pinned to match the nousresearch/hermes-agent:v2026.9.14 image
-# (banner "Hermes Agent v0.21.3 (2026.9.14)"). PyPI's hermes-agent is a
-# different, older package, and upstream deliberately blocks wheel/sdist
-# builds ("distributed via the shell installer, Docker image, or Nix") — the
+# hermes-agent from the upstream release tag. Same version as the gateway
+# image's FROM line; Renovate bumps both in one PR (group "taxbuddy-hermes"
+# in .github/renovate/base.json5). PyPI's hermes-agent is a different, older
+# package, and upstream deliberately blocks wheel/sdist builds — the
 # supported non-Docker path is an editable `uv sync` of a source checkout,
-# which is what the upstream image itself does (/opt/hermes + .venv). Pinned
-# to the v2026.9.14 release commit; version asserted from installed metadata.
+# which is what the upstream image itself does (/opt/hermes + .venv).
 # PYTHONDONTWRITEBYTECODE mirrors upstream: /opt/hermes stays root-owned and
 # the container runs as uid 10000, so .pyc writes would fail anyway.
+# renovate: datasource=docker depName=docker.io/nousresearch/hermes-agent
+ARG HERMES_VERSION=v2026.9.24
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -67,18 +68,17 @@ RUN --mount=type=secret,id=github_token,required=false \
     && if [ -s /run/secrets/github_token ]; then \
          curl -fsSL -H "Authorization: Bearer $(cat /run/secrets/github_token)" \
            -o /tmp/hermes.tar.gz \
-           "https://api.github.com/repos/NousResearch/hermes-agent/tarball/345cd2b057a452236de401d3534b8502a7465e8d"; \
+           "https://api.github.com/repos/NousResearch/hermes-agent/tarball/${HERMES_VERSION}"; \
        else \
          curl -fsSL -o /tmp/hermes.tar.gz \
-           "https://api.github.com/repos/NousResearch/hermes-agent/tarball/345cd2b057a452236de401d3534b8502a7465e8d"; \
+           "https://api.github.com/repos/NousResearch/hermes-agent/tarball/${HERMES_VERSION}"; \
        fi \
     && tar -xzf /tmp/hermes.tar.gz -C /opt/hermes --strip-components=1 \
     && rm -f /tmp/hermes.tar.gz
 WORKDIR /opt/hermes
 RUN uv sync --locked --no-dev \
     && ln -s /opt/hermes/.venv/bin/hermes /usr/local/bin/hermes \
-    && /opt/hermes/.venv/bin/python -c \
-      "import importlib.metadata, sys; v = importlib.metadata.version('hermes-agent'); sys.exit(f'expected hermes-agent 0.21.3, got {v}') if v != '0.21.3' else None" \
+    && /opt/hermes/.venv/bin/hermes --version | grep -F "(${HERMES_VERSION#v})" \
     && chmod -R a+rX /opt/hermes /opt/uv-python
 WORKDIR /
 
