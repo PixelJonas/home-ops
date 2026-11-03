@@ -572,7 +572,7 @@ spec:
               lookup-mcp:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/lookup_mcp
-                  digest: "sha256:30460da56dc6e24abe5a284e3dfbad85c24cf97f724ffb4d6a0ac5a38e2d5fbd"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
+                  digest: "sha256:842379a59d0a8d1e5e56135cda19648393c9859b222bfb25fb84b0e49bfa36b3"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
