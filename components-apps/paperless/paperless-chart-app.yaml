@@ -118,7 +118,7 @@ spec:
               tika:
                 image:
                   repository: docker.io/apache/tika
-                  tag: 2.9.0.0
+                  tag: 2.9.2.1
                   pullPolicy: IfNotPresent
               gotenberg:
                 image:
