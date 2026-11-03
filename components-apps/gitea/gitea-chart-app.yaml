@@ -27,6 +27,15 @@ spec:
         openshift:
           enabled: true
 
+        # One replica on one RWO volume: the chart's RollingUpdate default
+        # (maxSurge 100%, maxUnavailable 0) starts the new pod next to the old
+        # one, which still holds the LevelDB queue lock (/data/queues/common),
+        # so the new pod crash-loops ("unable to lock level db") and the
+        # rollout never finishes (2026-11-03, ALLOWED_HOST_LIST change).
+        # Recreate stops the old pod first (~1 min downtime per rollout).
+        strategy:
+          type: Recreate
+
         gitea:
           admin:
             existingSecret: gitea-admin-secret
