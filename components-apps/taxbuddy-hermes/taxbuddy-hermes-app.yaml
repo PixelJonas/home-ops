@@ -61,9 +61,12 @@ spec:
               # into the main container.
               init-config:
                 image:
-                  repository: nousresearch/hermes-agent
-                  tag: v2026.9.24
-                  pullPolicy: IfNotPresent
+                  # Upstream hermes-agent + local faster-whisper (STT
+                  # fallback); the hermes version is the FROM tag in
+                  # containers/taxbuddy-hermes-gateway/Containerfile.
+                  repository: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
+                  tag: latest
+                  pullPolicy: Always
                 command:
                   - /bin/sh
                   - -c
@@ -124,9 +127,12 @@ spec:
             containers:
               hermes:
                 image:
-                  repository: nousresearch/hermes-agent
-                  tag: v2026.9.24
-                  pullPolicy: IfNotPresent
+                  # Upstream hermes-agent + local faster-whisper (STT
+                  # fallback); the hermes version is the FROM tag in
+                  # containers/taxbuddy-hermes-gateway/Containerfile.
+                  repository: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
+                  tag: latest
+                  pullPolicy: Always
                 # The image's ENTRYPOINT is a fixed s6-overlay wrapper
                 # (/init main-wrapper.sh); it needs an explicit `gateway
                 # run` argument to boot the long-running gateway process
@@ -187,6 +193,9 @@ spec:
                   # allowed models include whisper-large-v3).
                   STT_OPENAI_BASE_URL: http://litellm-app.litellm.svc:4000/v1
                   STT_OPENAI_MODEL: whisper-large-v3
+                  # Local fallback model (faster-whisper small) is baked into
+                  # the image under this read-only cache.
+                  HF_HUB_CACHE: /opt/whisper-models
                   VOICE_TOOLS_OPENAI_KEY:
                     valueFrom:
                       secretKeyRef:
@@ -206,9 +215,12 @@ spec:
                 # mounted by one pod at a time, so both processes must
                 # share this pod.
                 image:
-                  repository: nousresearch/hermes-agent
-                  tag: v2026.9.24
-                  pullPolicy: IfNotPresent
+                  # Upstream hermes-agent + local faster-whisper (STT
+                  # fallback); the hermes version is the FROM tag in
+                  # containers/taxbuddy-hermes-gateway/Containerfile.
+                  repository: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
+                  tag: latest
+                  pullPolicy: Always
                 args:
                   - dashboard
                   - --host
