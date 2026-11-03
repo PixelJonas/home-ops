@@ -18,9 +18,10 @@ Resource names below are confirmed against the live Altus cluster
 | ArgoCD leaf Application | `nextcloud-app` |
 | ArgoCD parent (app-of-apps) Application | `cluster-config-manager` |
 | Nextcloud Deployment | `nextcloud-app` |
-| MariaDB StatefulSet | `nextcloud-app-mariadb` |
-| MariaDB pod | `nextcloud-app-mariadb-0` |
-| MariaDB root-password Secret | `nextcloud-mariadb`, key `mariadb-root-password` |
+| CNPG Cluster (PostgreSQL) | `nextcloud-db` (Service `nextcloud-db-rw`) |
+| Database / owner | `nextcloud` / `nextcloud` |
+| Owner credentials Secret | `nextcloud-db-nextcloud-secret` (basic-auth, keys `username`, `password`) |
+| Backup CronJob | `database-psql-backup` (`templates/psql-backup`, patched in `components-apps/nextcloud/backup/database/`) |
 | App-data PVC (webroot/config/custom_apps/themes) | `nextcloud-app-nextcloud` |
 | User-file-data PVC (`nextcloud.datadir`, `synology-nfs-storage`) | `nextcloud-app-nextcloud-data` |
 | User-file-data local restic-rest repo secret | `restic-config-data-nfs` |
@@ -60,7 +61,7 @@ Resource names below are confirmed against the live Altus cluster
 
 ## Backup consistency: what the maintenance-mode window actually guarantees
 
-The `mariadb-backup` CronJob (`templates/mariadb-backup/cronjob.yaml`) puts
+The `database-psql-backup` CronJob (`templates/psql-backup/cronjob.yaml`, with the `SYNC_DIR` handshake and the `maintenance-mode` container added by `components-apps/nextcloud/backup/database/cron.yaml`) puts
 Nextcloud into maintenance mode before the DB dump and keeps it there via a
 fixed hold afterward, specifically so the DB dump and the app-data PVC
 backup are taken from a coordinated window rather than two independently-
@@ -77,17 +78,18 @@ scheduled, non-overlapping points in time. Concretely:
   CronJob's start, computed relative to the job's own start timestamp (not
   a flat sleep tacked onto the end), so a slower-than-expected dump doesn't
   push the total window out indefinitely. That comfortably covers a small
-  (2-user) `mariadb-dump` (expected well under a minute) plus the 03:10
+  (2-user) `pg_dumpall` (expected well under a minute) plus the 03:10
   data-backup trigger, with roughly a 2-minute safety margin for normal
   CronJob/VolSync scheduling latency.
 
 How the Job does it (since the dump moved off `kubectl exec`): the pod has
-two containers. `mariadb-dump` runs from the MariaDB server image, checks free
-space and versions first, then dumps over the `nextcloud-app-mariadb` Service
-with `--result-file`, validates the result (header, final `-- Dump completed`
-line, UTF-8, a `CREATE TABLE` for every application table and `INSERT`s for
-every non-empty one, against a table list with exact row counts taken inside
-the window) and renames it to `backup.sql`. `maintenance-mode` is the only part
+two containers. `pg-dump` runs the shared `psql-backup` pipeline: it checks free
+space and the server/client versions first, signals `preflight-ok`, waits for
+maintenance mode (exit 69 if it could not be enabled), then runs `pg_dumpall`
+against the `nextcloud-db-rw` Service, validates the result structurally (cluster
+header and footer, UTF-8, COPY blocks terminated with matching field counts, see
+[database-restore.md](database-restore.md)) and renames it to `backup.sql`; it
+writes its exit code to `/sync/dump-done` on exit. `maintenance-mode` is the only part
 that uses the Kubernetes API: it enables maintenance mode only after the dump
 preflight passed, holds it as described above after a successful dump, and
 switches it off at once (no hold) if the dump failed or the pod is stopped.
@@ -131,13 +133,12 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
    manifests — sync just those objects, or `oc apply` them directly as a
    stopgap, before proceeding.
 
-3. **Scale everything to zero**, in this order (app first, so nothing keeps
-   writing to the DB while it's mid-shutdown, then the DB):
+3. **Scale the app to zero** (nothing may write to the DB during the load):
 
    ```bash
    oc scale deployment/nextcloud-app --replicas=0 -n nextcloud
-   oc scale statefulset/nextcloud-app-mariadb --replicas=0 -n nextcloud
    ```
+   (The `nextcloud-db` Cluster stays running; step 6 replays into it.)
 
 4. **Restore the database-dump PVC** from B2 (or the local REST tier if
    Altus itself is intact and it's just data corruption, not a full
@@ -227,55 +228,37 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
     above. A plain `oc exec ... tar xzf ...` as root will silently produce
     files the real app can't read.
 
-6. **Load the restored dump into MariaDB.** This is the step a raw-PVC
-   snapshot approach wouldn't need (the DB directory would already *be*
-   MariaDB's live state) — because this fleet uses a logical dump, the
-   dump file has to be replayed back in explicitly:
+6. **Load the restored dump into PostgreSQL (`nextcloud-db`).** The dump is a
+   `pg_dumpall` of the whole cluster, replayed as the superuser into an empty
+   `nextcloud` database. [database-restore.md](database-restore.md) sections
+   2-5 describe the generic procedure; the Nextcloud-specific values are below.
+   **Never pipe the dump from one `oc exec` into `psql`**: the exec stream can
+   end early without an error and the database is then silently missing
+   everything after the cut.
 
-   a. Scale MariaDB back up just enough to accept connections, but make
-      sure Nextcloud itself stays at 0 replicas so nothing else writes to
-      the DB during the load:
-
-      ```bash
-      oc scale statefulset/nextcloud-app-mariadb --replicas=1 -n nextcloud
-      # wait for the pod to be Ready
-      oc wait --for=condition=Ready pod/nextcloud-app-mariadb-0 -n nextcloud --timeout=5m
-      ```
-
-   b. Safety step, same lesson as the CNPG "empty-database race" gotcha in
-      `infra-ops`'s `.claude/rules/kubernetes-argocd.md` even though CNPG
-      itself doesn't apply here: a MariaDB StatefulSet's first-ever start
-      can auto-create an empty `nextcloud` schema before this restore
-      reaches it. The dump file's own `CREATE DATABASE` statements will
-      then silently no-op against that pre-existing (if empty) schema.
-      Force a clean target regardless — cheap and harmless if it genuinely
-      is empty:
-
-      **Password note (verified live against `nextcloud-app-mariadb-0` on
-      2026-08-09):** unlike the `mariadb-backup` CronJob — which gets the
-      password via an explicit `env: MARIADB_ROOT_PASSWORD` `secretKeyRef`
-      injected from outside — the running MariaDB pod itself does **not**
-      have a plain `MARIADB_ROOT_PASSWORD` env var set. The Bitnami MariaDB
-      image instead only exposes `MARIADB_ROOT_PASSWORD_FILE` (a path to a
-      file containing the password, mounted from the same
-      `nextcloud-mariadb` Secret). The commands below read the password
-      from that file via `cat` inside the `oc exec`, entirely server-side —
-      the value is never printed to your terminal or this document:
+   a. Nextcloud stays at 0 replicas (step 3). Make sure the Cluster is healthy
+      and resolve the primary:
 
       ```bash
-      oc exec nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- /bin/bash -c \
-        'MYSQL_PWD="$(cat "$MARIADB_ROOT_PASSWORD_FILE")" mariadb -u root -e "DROP DATABASE IF EXISTS nextcloud;"'
+      oc wait --for=condition=Ready cluster.postgresql.cnpg.io/nextcloud-db -n nextcloud --timeout=10m
+      PRIMARY="$(oc get cluster.postgresql.cnpg.io nextcloud-db -n nextcloud -o jsonpath='{.status.currentPrimary}')"
       ```
 
-   c. Mount the restored database-dump PVC into a throwaway debug pod
-      (it's ReadWriteOnce so it can't be double-mounted into a running
-      pod — use a one-shot debug pod instead), copy the dump into the
-      MariaDB pod, prove the copy by sha256, and only then load it from
-      that local file. **Never pipe the dump straight from one `oc exec`
-      into `mariadb`**: the exec stream can end early without an error,
-      and the database is then silently missing everything after the cut
-      (see `database-restore.md`). Start with a one-off Pod mounting
-      `database-syno-db-backup` at `/backup`:
+   b. Force a clean target (CNPG bootstrap can pre-create the schema, and the
+      dump's `CREATE DATABASE` would then no-op against it). Only on a freshly
+      initialized, empty database, never on one holding data you have not
+      backed up:
+
+      ```bash
+      oc exec -n nextcloud "$PRIMARY" -c postgres -- psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+        -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'nextcloud' AND pid <> pg_backend_pid();" \
+        -c "DROP DATABASE IF EXISTS nextcloud;" \
+        -c "CREATE DATABASE nextcloud OWNER nextcloud ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0;"
+      ```
+
+   c. Mount the restored dump PVC in a one-shot debug pod (it is ReadWriteOnce,
+      so it cannot be shared with a running pod), copy the dump into the
+      database pod, prove the copy by sha256, and replay from that local file:
 
       ```bash
       cat <<EOF | oc apply -f -
@@ -303,35 +286,36 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
       # 1. Hash at the source. Never cat the dump to your terminal.
       oc exec nextcloud-restore-debug -n nextcloud -- sha256sum /backup/backup.sql
 
-      # 2. Copy into the MariaDB pod. First check `df -h /tmp` in the pod is
-      #    writable and has room for the dump; otherwise use a path on the
-      #    data volume and delete the copy afterwards.
+      # 2. Copy into the database pod (check `df -h /tmp` there first; use a
+      #    path on the data volume if /tmp is too small, and delete it after).
       oc exec nextcloud-restore-debug -n nextcloud -- cat /backup/backup.sql | \
-        oc exec -i nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- \
-        /bin/bash -c 'cat > /tmp/restore.sql'
+        oc exec -i -n nextcloud "$PRIMARY" -c postgres -- sh -c 'cat > /tmp/restore.sql'
 
       # 3. Hash at the target. It must equal step 1; if not, repeat step 2.
-      #    Never load an unverified copy.
-      oc exec nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- \
-        sha256sum /tmp/restore.sql
+      oc exec -n nextcloud "$PRIMARY" -c postgres -- sh -c 'stat -c %s /tmp/restore.sql; sha256sum /tmp/restore.sql'
 
-      # 4. Load from the local file with a UTF-8 (utf8mb4) client connection.
-      #    The dump's own CREATE DATABASE recreates `nextcloud` with the
-      #    source's character set and collation (it was dropped in 6b).
-      oc exec nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- /bin/bash -c \
-        'MYSQL_PWD="$(cat "$MARIADB_ROOT_PASSWORD_FILE")" mariadb -u root --default-character-set=utf8mb4 < /tmp/restore.sql > /tmp/restore.log 2>&1; echo "rc=$?"; grep -c ERROR /tmp/restore.log'
+      # 4. Replay from the local file, then review the log.
+      oc exec -n nextcloud "$PRIMARY" -c postgres -- sh -c \
+        'psql -U postgres -d postgres -f /tmp/restore.sql > /tmp/restore.log 2>&1; echo "rc=$?"'
+      oc exec -n nextcloud "$PRIMARY" -c postgres -- sh -c \
+        'grep -c "ERROR" /tmp/restore.log; grep "ERROR" /tmp/restore.log | sed -E "s/^psql:[^ ]*: //; s/\"[^\"]*\"/\"<id>\"/g" | sort | uniq -c'
 
-      # 5. Confirm the target is UTF-8 and the data arrived, then remove the copy.
-      oc exec nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- /bin/bash -c \
-        'MYSQL_PWD="$(cat "$MARIADB_ROOT_PASSWORD_FILE")" mariadb -u root -N -e "SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '"'"'nextcloud'"'"'; SELECT COUNT(*) FROM nextcloud.oc_users; SELECT COUNT(*) FROM nextcloud.oc_calendarobjects;"'
-      oc exec nextcloud-app-mariadb-0 -n nextcloud --container mariadb -- rm -f /tmp/restore.sql /tmp/restore.log
-
+      # 5. Sanity counts, then remove the copy and the debug pod.
+      oc exec -n nextcloud "$PRIMARY" -c postgres -- psql -U postgres -d nextcloud -Atc \
+        "SELECT count(*) FROM oc_users; SELECT count(*) FROM oc_calendarobjects;"
+      oc exec -n nextcloud "$PRIMARY" -c postgres -- rm -f /tmp/restore.sql /tmp/restore.log
       oc delete pod nextcloud-restore-debug -n nextcloud
       ```
 
-      The character set must be `utf8mb4` (as in the source) and `rc=0`
-      with no `ERROR` lines. Compare the counts against the values recorded
-      at backup time, not against an older baseline.
+      `pg_dumpall` replays roles and databases that already exist on a CNPG
+      target, so a few errors are expected (`role "postgres" already exists`,
+      the `nextcloud` role, `database "nextcloud" already exists` if you
+      skipped 6b). Any other error class (relation, extension, data,
+      permission) fails the restore; see database-restore.md section 4. The
+      replay must reach the end of the dump (last COPY applied), and the counts
+      must match the values recorded at backup time. The dump omits role
+      passwords (`--no-role-passwords`); the owner password stays in
+      `nextcloud-db-nextcloud-secret`, which ESO and CNPG manage.
 
 7. **Scale Nextcloud back up:**
 
@@ -372,10 +356,10 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
 When Nextcloud is restored as part of a larger recovery (see
 `storage-rebuild-playbook.md`), keep maintenance mode **on** from the final
 dump until the household has accepted the restore, and make sure no scheduled
-job (including the `mariadb-backup` CronJob, which toggles maintenance mode)
+job (including the `database-psql-backup` CronJob, which toggles maintenance mode)
 can turn it off early. Order:
 
-1. MariaDB alone; load and verify the dump (step 6).
+1. PostgreSQL (`nextcloud-db`) alone; load and verify the dump (step 6).
 2. Redis, empty (it is a cache; nothing is restored into it).
 3. Nextcloud app with maintenance mode still on; `php occ status` must show
    `installed: true`.
@@ -400,10 +384,10 @@ backup exists for that PVC yet, so there's nothing to restore in a dry run
 until that's built.
 
 Once at least one backup cycle has completed (after the first 03:00
-`mariadb-backup` CronJob run followed by the 03:10 VolSync trigger),
+`database-psql-backup` CronJob run followed by the 03:10 VolSync trigger),
 dry-run this procedure — either into a scratch namespace
-(`nextcloud-restore-test` with its own throwaway MariaDB + the restored
-PVCs, verify the dump loads and the schema looks sane via `SHOW TABLES;`
+(`nextcloud-restore-test` with its own throwaway Postgres + the restored
+PVCs, verify the dump loads and the schema looks sane via `\dt`
 and a spot-check of the `oc_calendarobjects` row count, then delete the
 scratch namespace), or, if willing to accept brief downtime, for real
 against `nextcloud` during a low-traffic window (restoring the latest

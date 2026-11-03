@@ -61,11 +61,15 @@ spec:
 
                   # Exit codes (sysexits.h), so a failed Job says why:
                   #   65 candidate dump rejected by structural validation
+                  #   69 SYNC_DIR handshake: maintenance mode not enabled (no dump taken)
                   #   73 not enough free space on the dump PVC
                   #   78 server major version newer than the client
                   #   other: connection or pg_dumpall failure (retried once)
                   # In every failure case the previous backup.sql stays.
                   backup_dir="${BACKUP_DIR:-/backup}"
+                  # Optional handshake with a sidecar (e.g. Nextcloud
+                  # maintenance mode). Off unless SYNC_DIR is set.
+                  sync_dir="${SYNC_DIR:-}"
 
                   export PGHOST="${POSTGRES_HOST:-${POSTGRES_USER}-db-rw}"
                   export PGUSER="$POSTGRES_USER"
@@ -78,6 +82,10 @@ spec:
                     trap - EXIT HUP INT TERM
                     if [[ -n "${tmp:-}" ]]; then
                       rm -f -- "$tmp"
+                    fi
+                    if [[ -n "$sync_dir" ]]; then
+                      echo "$rc" > "$sync_dir/dump-done.tmp"
+                      mv -f -- "$sync_dir/dump-done.tmp" "$sync_dir/dump-done"
                     fi
                     exit "$rc"
                   }
@@ -122,6 +130,19 @@ spec:
                     exit 78
                   fi
                   echo "Preflight: server major $server_major, client major $client_major"
+
+                  if [[ -n "$sync_dir" ]]; then
+                    touch "$sync_dir/preflight-ok"
+                    echo "Waiting for maintenance mode"
+                    for _ in $(seq 1 150); do
+                      [[ -f "$sync_dir/maintenance-on" || -f "$sync_dir/maintenance-failed" ]] && break
+                      sleep 2
+                    done
+                    if [[ ! -f "$sync_dir/maintenance-on" ]]; then
+                      echo "Maintenance mode not enabled (exit 69); no dump taken" >&2
+                      exit 69
+                    fi
+                  fi
 
                   echo "Starting direct-Service PostgreSQL dump"
                   tmp="$(mktemp "$backup_dir/backup.sql.XXXXXXXXXX.tmp")"
