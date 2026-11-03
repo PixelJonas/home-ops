@@ -25,6 +25,16 @@ if [ ! -f /opt/data/tools/ssh/ssh_host_ed25519_key ]; then
     ssh-keygen -t ed25519 -f /opt/data/tools/ssh/ssh_host_ed25519_key -N ""
 fi
 
+# Re-assert the modes sshd insists on at every start. A VolSync restore into a
+# fresh PVC (2026-11-01, LVMS rebuild) brought the tree back group-writable
+# (setgid 2775 dirs, 0660 host key): sshd then ignores the host key ("bad
+# permissions" -> "no hostkeys available -- exiting") while the container
+# stays Running, and StrictModes would reject authorized_keys under a
+# group-writable directory.
+chmod 0600 /opt/data/tools/ssh/ssh_host_ed25519_key
+chmod 0644 /opt/data/tools/ssh/ssh_host_ed25519_key.pub
+chmod go-w /opt/data/tools /opt/data/tools/ssh "$HOME"
+
 # Copy authorized_keys off the ConfigMap mount: OpenShift injects an fsGroup
 # onto volumes, making the ConfigMap dir group-writable, which sshd's
 # StrictModes rejects ("bad ownership or modes"). The copy lives on the PVC,
@@ -60,10 +70,13 @@ herdr server &
 # server off to itself once the API socket is up so the long-running
 # server is always the handoff-import'd kind. Failure is non-fatal: the
 # directly-spawned server still serves local panes and SSH attach.
+# Retry the handoff itself rather than waiting for herdr.sock to exist: the
+# socket file from the previous container survives on the PVC, so a
+# socket-exists check passes before the new server listens and the handoff
+# failed with server_not_running (2026-11-01).
 for _ in $(seq 1 40); do
-    [ -S "$HOME/.config/herdr/herdr.sock" ] && break
+    herdr server live-handoff --import-exe /usr/local/bin/herdr && break
     sleep 0.5
 done
-herdr server live-handoff --import-exe /usr/local/bin/herdr || true
 
 exec tini -- sleep infinity
