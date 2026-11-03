@@ -764,7 +764,7 @@ spec:
               matching-engine:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/matching_engine
-                  digest: "sha256:ad3990ad7e898fce7a795bf8602ed02f92b2ead31874685ef25ad63ab0adc55e"
+                  digest: "sha256:8a28d3200df69ee0b61b0b16a2cfbdd9339d0e014acead7ccb8f095e19fac6ce"
                   pullPolicy: IfNotPresent
                 command: ["python", "-m", "matching_engine.main", "--once"]
                 env:
