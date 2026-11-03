@@ -34,7 +34,7 @@ spec:
               actual:
                 image:
                   repository: actualbudget/actual-server
-                  tag: 26.9.0@sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3
+                  tag: 26.11.0@sha256:06cf186569cf58d93e12659ff1a517b65b5b0ebee7050a3991d4bd8a1d398da6
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
