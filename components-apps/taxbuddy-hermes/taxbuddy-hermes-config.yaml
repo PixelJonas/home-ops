@@ -322,7 +322,7 @@ data:
     ## Field meanings
 
     - Money and exact numbers are decimal strings (`"1234.56"`, EUR). Timestamps are
-      ISO 8601 with the Europe/Berlin offset, `date` fields are `YYYY-MM-DD`.
+      ISO 8601 with the report timezone's offset, `date` fields are `YYYY-MM-DD`.
     - `business`: `true` dienstlich, `false` privat, `null` unanswered
       (`business=unknown` finds these). `business_via: auto` was tagged private by the
       detector, not by a person. `business_km` set: a Mischfahrt, only that part counts.
