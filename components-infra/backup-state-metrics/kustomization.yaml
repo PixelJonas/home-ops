@@ -14,4 +14,4 @@ resources:
 configMapGenerator:
   - name: backup-state-metrics-config
     files:
-      - config.yaml
+      - config.yaml=custom-resource-state.yaml
