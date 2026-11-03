@@ -11,3 +11,4 @@ resources:
   - litellm-config.yaml
   - postgresql-database.yaml
   - litellm-app.yaml
+  - litellm-bge-m3-app.yaml
