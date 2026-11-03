@@ -1,0 +1,31 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-state-metrics
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-state-metrics
+rules:
+  - apiGroups: [volsync.backube]
+    resources: [replicationsources, replicationdestinations]
+    verbs: [list, watch]
+  # kube-state-metrics discovers custom resources through their CRDs.
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backup-state-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-state-metrics
+subjects:
+  - kind: ServiceAccount
+    name: backup-state-metrics
+    namespace: volsync-system

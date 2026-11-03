@@ -1,0 +1,17 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: volsync-system
+
+resources:
+  - rbac.yaml
+  - deployment.yaml
+  - service.yaml
+  - servicemonitor.yaml
+  - prometheusrule.yaml
+
+configMapGenerator:
+  - name: backup-state-metrics-config
+    files:
+      - config.yaml
