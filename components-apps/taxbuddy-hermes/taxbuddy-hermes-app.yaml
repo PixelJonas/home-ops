@@ -62,10 +62,11 @@ spec:
               init-config:
                 image:
                   # Upstream hermes-agent + local faster-whisper (STT
-                  # fallback); the hermes version is the FROM tag in
-                  # containers/taxbuddy-hermes-gateway/Containerfile.
+                  # fallback). Tag = hermes version (FROM line of
+                  # containers/taxbuddy-hermes-gateway/Containerfile); Renovate
+                  # bumps both together, the PR build pushes the tag first.
                   repository: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
-                  tag: latest
+                  tag: v2026.9.24
                   pullPolicy: Always
                 command:
                   - /bin/sh
@@ -89,7 +90,7 @@ spec:
               tools-bin-init:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy-hermes-tools
-                  tag: latest
+                  tag: v2026.9.24
                   pullPolicy: Always
                 command:
                   - /bin/sh
@@ -128,10 +129,11 @@ spec:
               hermes:
                 image:
                   # Upstream hermes-agent + local faster-whisper (STT
-                  # fallback); the hermes version is the FROM tag in
-                  # containers/taxbuddy-hermes-gateway/Containerfile.
+                  # fallback). Tag = hermes version (FROM line of
+                  # containers/taxbuddy-hermes-gateway/Containerfile); Renovate
+                  # bumps both together, the PR build pushes the tag first.
                   repository: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
-                  tag: latest
+                  tag: v2026.9.24
                   pullPolicy: Always
                 # The image's ENTRYPOINT is a fixed s6-overlay wrapper
                 # (/init main-wrapper.sh); it needs an explicit `gateway
@@ -216,10 +218,11 @@ spec:
                 # share this pod.
                 image:
                   # Upstream hermes-agent + local faster-whisper (STT
-                  # fallback); the hermes version is the FROM tag in
-                  # containers/taxbuddy-hermes-gateway/Containerfile.
+                  # fallback). Tag = hermes version (FROM line of
+                  # containers/taxbuddy-hermes-gateway/Containerfile); Renovate
+                  # bumps both together, the PR build pushes the tag first.
                   repository: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
-                  tag: latest
+                  tag: v2026.9.24
                   pullPolicy: Always
                 args:
                   - dashboard
@@ -300,7 +303,7 @@ spec:
               tools:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy-hermes-tools
-                  tag: latest
+                  tag: v2026.9.24
                   pullPolicy: Always
                 command:
                   - /opt/tools/entrypoint.sh
