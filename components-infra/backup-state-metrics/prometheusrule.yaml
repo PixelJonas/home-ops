@@ -135,17 +135,30 @@ spec:
             description: The ReplicationDestination is over 48h old. Delete it if the restore is done.
     - name: backup-state-metrics
       rules:
-        # Absence alerts, so the exporter can't fail silently. No RS at all is
-        # also an alert: this cluster is expected to have some.
-        - alert: BackupStateMetricsMissing
-          expr: |
-            absent(up{job="backup-state-metrics"} == 1)
-              or absent(volsync_rs_info)
+        # Absence alerts, so the exporter can't fail silently. These must stay
+        # two rules. UWM's namespace enforcement adds a namespace label to a plain
+        # absent(selector) but not to absent(... == 1), and the rule's own labels
+        # then make both identical. Joined with `or`, the rule errors with "vector
+        # contains metrics with the same labelset" exactly when the exporter is
+        # gone, and never fires. promtool can't catch this: it has no enforcement.
+        - alert: BackupStateMetricsDown
+          expr: absent(up{job="backup-state-metrics"} == 1)
           for: 10m
           labels:
             severity: critical
           annotations:
-            summary: Backup state metrics are missing
+            summary: Backup state exporter is down
             description: >-
-              The exporter is down or sees no ReplicationSources, so the other backup alerts
-              can't fire. Check deployment/backup-state-metrics in volsync-system.
+              The other backup alerts can't fire without it. Check
+              deployment/backup-state-metrics in volsync-system.
+        # This cluster is expected to have ReplicationSources.
+        - alert: BackupStateMetricsEmpty
+          expr: absent(volsync_rs_info)
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Backup state exporter reports no ReplicationSources
+            description: >-
+              Either every backup is gone or the exporter can't read them. The other
+              backup alerts can't fire. Check its RBAC and config in volsync-system.
