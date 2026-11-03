@@ -50,6 +50,30 @@
   platformAutomerge: true,
   packageRules: [
     {
+      description: "Tika 4 dropped /tika/form (TIKA-4809), which paperless-ngx's tika client uses; stay on 3.x like paperless upstream's compose files.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/apache/tika"],
+      allowedVersions: "/^3\\./",
+    },
+    {
+      description: "templates/mariadb-backup dump client must match the Nextcloud chart's bundled MariaDB server (not visible to Renovate), and bitnamilegacy is frozen. Bump it by hand together with the server.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/bitnamilegacy/mariadb"],
+      enabled: false,
+    },
+    {
+      description: "Keep oc within kubectl version skew of the clusters (OpenShift stable-4.x). Revisit when the clusters move to a new major.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["quay.io/openshift/origin-cli"],
+      allowedVersions: "/^4\\./",
+    },
+    {
+      description: "node-version for renovate-config-validator: Renovate's engines field is node ^24.11.0. Lift once Renovate supports Node 26.",
+      matchManagers: ["github-actions"],
+      matchDepNames: ["node"],
+      allowedVersions: "<25",
+    },
+    {
       matchUpdateTypes: ["minor", "patch"],
       automerge: true,
     },
