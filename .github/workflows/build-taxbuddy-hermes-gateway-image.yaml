@@ -1,0 +1,45 @@
+name: build-taxbuddy-hermes-gateway-image
+on:
+  push:
+    branches: [main]
+    paths:
+      - "containers/taxbuddy-hermes-gateway/**"
+      - ".github/workflows/build-taxbuddy-hermes-gateway-image.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: build and push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        env:
+          SHA_SHORT: ${{ steps.meta.outputs.sha_short }}
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          docker build -f containers/taxbuddy-hermes-gateway/Containerfile \
+            --secret id=github_token,env=GH_TOKEN \
+            -t "ghcr.io/pixeljonas/taxbuddy-hermes-gateway:sha-${SHA_SHORT}" \
+            -t ghcr.io/pixeljonas/taxbuddy-hermes-gateway:latest \
+            containers/taxbuddy-hermes-gateway
+          docker push --all-tags ghcr.io/pixeljonas/taxbuddy-hermes-gateway
