@@ -64,14 +64,20 @@ data:
     # deployment as Wong/Jarvis and RecordBuddy (infra-ops
     # docs/agents/shared-asr-asgard-plan-2026-11-03.md). Base URL, model and
     # key come from env on the hermes container (STT_OPENAI_* are read at
-    # import, not from config). This image has no faster-whisper, so there is
-    # no local fallback: if asgard is down, the voice note is not transcribed.
+    # import, not from config).
+    # If asgard is down, the gateway falls back to local faster-whisper
+    # `small` (baked into containers/taxbuddy-hermes-gateway, CPU, ~5 s per
+    # 10 s clip). The fallback is pinned to German: small's auto-detect
+    # picked English for a German note and translated it.
     stt:
       provider: openai
       language: ""
       prompt: "Jonas spricht mit TaxBuddy über seine Steuererklärung, Belege, Paperless und das Finanzamt."
       openai:
         model: whisper-large-v3
+      local:
+        model: small
+        language: de
     plugins:
       enabled:
         - moshi-hooks
