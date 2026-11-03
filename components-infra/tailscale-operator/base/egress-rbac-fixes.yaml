@@ -29,6 +29,34 @@ roleRef:
   kind: Role
   name: operator-statefulset-finalizers
 ---
+# 1b) The per-proxy config Secrets are owned by the ProxyGroup itself (cluster-
+#     scoped tailscale.com resource), so the same admission check needs update on
+#     proxygroups/finalizers too. Without it a ProxyGroup created fresh never gets
+#     its config Secrets ("cannot set blockOwnerDeletion if an ownerReference
+#     refers to a resource you can't set finalizers on"); altus hit this, sakaar's
+#     older Secrets predate the check.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tailscale-operator-proxygroup-finalizers
+rules:
+  - apiGroups: ["tailscale.com"]
+    resources: ["proxygroups/finalizers"]
+    verbs: ["update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tailscale-operator-proxygroup-finalizers
+subjects:
+  - kind: ServiceAccount
+    name: operator
+    namespace: tailscale
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tailscale-operator-proxygroup-finalizers
+---
 # 2) The egress ProxyGroup's proxy pods run with privileged: true (NET_ADMIN/
 # iptables for the egress NAT rules). The ServiceAccount the StatefulSet's
 # pod template actually uses is named after the ProxyGroup itself
