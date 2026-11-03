@@ -1,0 +1,100 @@
+---
+# kube-state-metrics CustomResourceState config. VolSync's own metrics have no
+# last-sync timestamp, paused flag, schedule or mover result, and their series
+# outlive deleted objects. These come from a live watch, so a series disappears
+# with its object.
+kind: CustomResourceStateMetrics
+spec:
+  resources:
+    - groupVersionKind:
+        group: volsync.backube
+        version: v1alpha1
+        kind: ReplicationSource
+      metricNamePrefix: volsync_rs
+      labelsFromPath:
+        rs_namespace: [metadata, namespace]
+        rs_name: [metadata, name]
+      metrics:
+        - name: info
+          help: ReplicationSource trigger and target.
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                schedule: [spec, trigger, schedule]
+                manual: [spec, trigger, manual]
+                source_pvc: [spec, sourcePVC]
+                repository: [spec, restic, repository]
+        - name: created_timestamp_seconds
+          help: ReplicationSource creation time.
+          each:
+            type: Gauge
+            gauge:
+              path: [metadata, creationTimestamp]
+        - name: paused
+          help: Whether spec.paused is set.
+          each:
+            type: Gauge
+            gauge:
+              path: [spec, paused]
+              nilIsZero: true
+        - name: last_sync_timestamp_seconds
+          help: status.lastSyncTime.
+          each:
+            type: Gauge
+            gauge:
+              path: [status, lastSyncTime]
+        - name: next_sync_timestamp_seconds
+          help: status.nextSyncTime.
+          each:
+            type: Gauge
+            gauge:
+              path: [status, nextSyncTime]
+        - name: last_pruned_timestamp_seconds
+          help: status.restic.lastPruned.
+          each:
+            type: Gauge
+            gauge:
+              path: [status, restic, lastPruned]
+        - name: mover_result
+          help: Result of the latest mover run.
+          each:
+            type: StateSet
+            stateSet:
+              path: [status, latestMoverStatus, result]
+              labelName: result
+              list: [Successful, Failed]
+        - name: condition_transition_timestamp_seconds
+          help: Last transition time of each status condition.
+          each:
+            type: Gauge
+            gauge:
+              path: [status, conditions]
+              valueFrom: [lastTransitionTime]
+              labelsFromPath:
+                type: [type]
+                status: [status]
+                reason: [reason]
+    - groupVersionKind:
+        group: volsync.backube
+        version: v1alpha1
+        kind: ReplicationDestination
+      metricNamePrefix: volsync_rd
+      labelsFromPath:
+        rd_namespace: [metadata, namespace]
+        rd_name: [metadata, name]
+      metrics:
+        - name: info
+          help: ReplicationDestination trigger.
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                schedule: [spec, trigger, schedule]
+                manual: [spec, trigger, manual]
+        - name: created_timestamp_seconds
+          help: ReplicationDestination creation time.
+          each:
+            type: Gauge
+            gauge:
+              path: [metadata, creationTimestamp]

@@ -1,0 +1,224 @@
+---
+# promtool unit tests. Time starts at 0, so ages are relative to the eval time.
+# Sample every minute: a wider interval than Prometheus's 5m lookback leaves gaps
+# that reset an alert's `for`.
+rule_files:
+  - rules.generated.yaml
+evaluation_interval: 1m
+tests:
+  # Sync stuck: fires once the condition is over 3h old, not before.
+  - interval: 1m
+    input_series:
+      - series: >-
+          volsync_rs_condition_transition_timestamp_seconds{rs_namespace="media",rs_name="radarr-backup",type="Synchronizing",status="True",reason="SyncInProgress"}
+        values: 0x240
+      - series: up{job="backup-state-metrics"}
+        values: 1x240
+      - series: volsync_rs_info{rs_namespace="media",rs_name="radarr-backup",schedule="0 5 * * *"}
+        values: 1x240
+    alert_rule_test:
+      - alertname: BackupRSSyncStuck
+        eval_time: 170m
+        exp_alerts: []
+      - alertname: BackupRSSyncStuck
+        eval_time: 190m
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              rs_namespace: media
+              rs_name: radarr-backup
+              type: Synchronizing
+              status: "True"
+              reason: SyncInProgress
+            exp_annotations:
+              summary: Backup media/radarr-backup has been syncing for over 3h
+              description: >-
+                Usually a stale restic lock from a dead mover: check the mover pod log for
+                "repository is already locked", then patch spec.restic.unlock. Runbook:
+                docs/runbooks/.
+      # A healthy cluster's exporter raises nothing.
+      - alertname: BackupStateMetricsMissing
+        eval_time: 190m
+        exp_alerts: []
+  # A finished sync (status False) is never "stuck", however old.
+  - interval: 1m
+    input_series:
+      - series: >-
+          volsync_rs_condition_transition_timestamp_seconds{rs_namespace="a",rs_name="b",type="Synchronizing",status="False",reason="WaitingForSchedule"}
+        values: 0x240
+    alert_rule_test:
+      - alertname: BackupRSSyncStuck
+        eval_time: 200m
+        exp_alerts: []
+  # Stale: 0 is a real value here, the case Grafana's old rule missed.
+  - interval: 1m
+    input_series:
+      - series: volsync_rs_last_sync_timestamp_seconds{rs_namespace="a",rs_name="b"}
+        values: 0x1700
+    alert_rule_test:
+      - alertname: BackupRSStale
+        eval_time: 25h
+        exp_alerts: []
+      - alertname: BackupRSStale
+        eval_time: 27h
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              rs_namespace: a
+              rs_name: b
+            exp_annotations:
+              summary: Backup a/b has not synced for over 26h
+              description: >-
+                Last sync 1d 3h 0m 0s ago. Check for a leftover manual
+                trigger, a pause, a far-future schedule, or a stuck mover.
+  # Never synced: only for an old RS with no last-sync series.
+  - interval: 1m
+    input_series:
+      - series: volsync_rs_created_timestamp_seconds{rs_namespace="new",rs_name="x"}
+        values: 0x1700
+      - series: volsync_rs_created_timestamp_seconds{rs_namespace="ok",rs_name="y"}
+        values: 0x1700
+      - series: volsync_rs_last_sync_timestamp_seconds{rs_namespace="ok",rs_name="y"}
+        values: 90000x1700
+    alert_rule_test:
+      - alertname: BackupRSNeverSynced
+        eval_time: 25h
+        exp_alerts: []
+      - alertname: BackupRSNeverSynced
+        eval_time: 27h
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              rs_namespace: new
+              rs_name: x
+            exp_annotations:
+              summary: Backup new/x has never synced
+              description: The ReplicationSource is over 26h old and has no completed sync.
+  # Mover failed; a Successful run must not fire.
+  - interval: 1m
+    input_series:
+      - series: volsync_rs_mover_result{rs_namespace="a",rs_name="b",result="Failed"}
+        values: 1x30
+      - series: volsync_rs_mover_result{rs_namespace="c",rs_name="d",result="Failed"}
+        values: 0x30
+      - series: volsync_rs_mover_result{rs_namespace="c",rs_name="d",result="Successful"}
+        values: 1x30
+    alert_rule_test:
+      - alertname: BackupRSMoverFailed
+        eval_time: 20m
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              rs_namespace: a
+              rs_name: b
+              result: Failed
+            exp_annotations:
+              summary: "Backup a/b: latest mover run failed"
+              description: Check status.latestMoverStatus.logs on the ReplicationSource.
+  # Manual trigger left and trigger shape. KSM omits a label whose path is empty.
+  - interval: 1m
+    input_series:
+      - series: volsync_rs_info{rs_namespace="a",rs_name="manual",manual="restore-once"}
+        values: 1x500
+      - series: volsync_rs_info{rs_namespace="c",rs_name="normal",schedule="0 5 * * *"}
+        values: 1x500
+      - series: volsync_rs_info{rs_namespace="e",rs_name="empty"}
+        values: 1x500
+    alert_rule_test:
+      - alertname: BackupRSManualTriggerLeft
+        eval_time: 7h
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              rs_namespace: a
+              rs_name: manual
+              manual: restore-once
+            exp_annotations:
+              summary: Backup a/manual has a leftover manual trigger
+              description: >-
+                spec.trigger.manual disables the schedule. Remove it once
+                status.lastManualSync matches.
+      - alertname: BackupRSScheduleUnexpected
+        eval_time: 2h
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              rs_namespace: e
+              rs_name: empty
+            exp_annotations:
+              summary: Backup e/empty has an unexpected trigger
+              description: >-
+                The next sync is over 26h away (for example a parked 0 0 1 1 * schedule), or
+                the trigger is empty, which syncs continuously.
+  # Empty-trigger restore is critical; one with a manual token is not.
+  - interval: 1m
+    input_series:
+      - series: volsync_rd_info{rd_namespace="qdrant",rd_name="loop"}
+        values: 1x20
+      - series: volsync_rd_info{rd_namespace="a",rd_name="once",manual="restore-once"}
+        values: 1x20
+    alert_rule_test:
+      - alertname: BackupRDContinuous
+        eval_time: 10m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              rd_namespace: qdrant
+              rd_name: loop
+            exp_annotations:
+              summary: Restore qdrant/loop has an empty trigger
+              description: >-
+                It restores continuously into its PVC, which may be live. Set spec.paused or
+                delete the ReplicationDestination now.
+  # The exporter disappearing fires the absence alert, for each missing signal.
+  - interval: 1m
+    input_series:
+      - series: up{job="backup-state-metrics"}
+        values: 0x30
+    alert_rule_test:
+      - alertname: BackupStateMetricsMissing
+        eval_time: 20m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Backup state metrics are missing
+              description: >-
+                The exporter is down or sees no ReplicationSources, so the other backup alerts
+                can't fire. Check deployment/backup-state-metrics in volsync-system.
+  # Prune overdue: an old prune and a never-pruned old RS fire; recent ones don't.
+  - interval: 5m
+    input_series:
+      - series: volsync_rs_last_pruned_timestamp_seconds{rs_namespace="old",rs_name="pruned"}
+        values: 0x6500
+      - series: volsync_rs_created_timestamp_seconds{rs_namespace="old",rs_name="pruned"}
+        values: 0x6500
+      - series: volsync_rs_created_timestamp_seconds{rs_namespace="old",rs_name="never"}
+        values: 0x6500
+      - series: volsync_rs_created_timestamp_seconds{rs_namespace="young",rs_name="never"}
+        values: 1000000x6500
+    alert_rule_test:
+      - alertname: BackupRSPruneOverdue
+        eval_time: 20d
+        exp_alerts: []
+      - alertname: BackupRSPruneOverdue
+        eval_time: 22d
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              rs_namespace: old
+              rs_name: pruned
+            exp_annotations:
+              summary: Backup old/pruned has not pruned for over 21 days
+              description: >-
+                Age 22d 0h 0m 0s since the last prune, or since creation if it
+                never pruned. pruneIntervalDays is 14.
+          - exp_labels:
+              severity: warning
+              rs_namespace: old
+              rs_name: never
+            exp_annotations:
+              summary: Backup old/never has not pruned for over 21 days
+              description: >-
+                Age 22d 0h 0m 0s since the last prune, or since creation if it
+                never pruned. pruneIntervalDays is 14.

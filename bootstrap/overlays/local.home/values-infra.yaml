@@ -144,6 +144,12 @@ applications:
     source:
       path: components-infra/volsync
 
+  backup-state-metrics:
+    annotations:
+      argocd.argoproj.io/sync-wave: "23"
+    source:
+      path: components-infra/backup-state-metrics
+
   # Same component Sakaar already runs (bootstrap/overlays/sakaar/values-infra.yaml)
   # -- Altus has no Tailscale K8s operator of its own yet, so
   # tailscale.com/expose annotations on Altus Services (e.g.

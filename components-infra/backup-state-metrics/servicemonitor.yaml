@@ -1,0 +1,13 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: backup-state-metrics
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backup-state-metrics
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 60s

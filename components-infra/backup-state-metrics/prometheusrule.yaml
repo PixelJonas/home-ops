@@ -1,0 +1,151 @@
+---
+# Alerts on backup state, from the exporter next to this rule. Evaluated by the
+# user-workload Prometheus (leaf scope), which enforces the namespace label: the
+# exporter's series all carry namespace=volsync-system, with the watched object
+# in rs_namespace/rs_name. Routes through the platform Alertmanager.
+#
+# Tests: tests/backup-posture.test.yaml (scripts/test_prometheus_rules.sh).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: backup-posture
+  labels:
+    openshift.io/prometheus-rule-evaluation-scope: leaf-prometheus
+spec:
+  groups:
+    - name: backup-replication-source
+      rules:
+        # A mover crash-looping on a stale restic lock uploads a snapshot on
+        # every retry and only fails at forget/prune, so the sync stays "in
+        # progress" and the volsync_* metrics show nothing until the next tick.
+        - alert: BackupRSSyncStuck
+          expr: |
+            time() - volsync_rs_condition_transition_timestamp_seconds{type="Synchronizing",status="True"}
+              > 3 * 3600
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backup {{ $labels.rs_namespace }}/{{ $labels.rs_name }} has been syncing for over 3h"
+            description: >-
+              Usually a stale restic lock from a dead mover: check the mover pod log for
+              "repository is already locked", then patch spec.restic.unlock. Runbook:
+              docs/runbooks/.
+        - alert: BackupRSMoverFailed
+          expr: volsync_rs_mover_result{result="Failed"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backup {{ $labels.rs_namespace }}/{{ $labels.rs_name }}: latest mover run failed"
+            description: Check status.latestMoverStatus.logs on the ReplicationSource.
+        - alert: BackupRSStale
+          expr: time() - volsync_rs_last_sync_timestamp_seconds > 26 * 3600
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backup {{ $labels.rs_namespace }}/{{ $labels.rs_name }} has not synced for over 26h"
+            description: >-
+              Last sync {{ $value | humanizeDuration }} ago. Check for a leftover manual
+              trigger, a pause, a far-future schedule, or a stuck mover.
+        - alert: BackupRSNeverSynced
+          expr: |
+            (time() - volsync_rs_created_timestamp_seconds > 26 * 3600)
+              unless on (rs_namespace, rs_name) volsync_rs_last_sync_timestamp_seconds
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backup {{ $labels.rs_namespace }}/{{ $labels.rs_name }} has never synced"
+            description: The ReplicationSource is over 26h old and has no completed sync.
+        - alert: BackupRSPaused
+          expr: volsync_rs_paused == 1
+          for: 6h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backup {{ $labels.rs_namespace }}/{{ $labels.rs_name }} is paused"
+            description: spec.paused has been set for over 6h, likely left over from maintenance.
+        - alert: BackupRSManualTriggerLeft
+          expr: volsync_rs_info{manual!=""}
+          for: 6h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backup {{ $labels.rs_namespace }}/{{ $labels.rs_name }} has a leftover manual trigger"
+            description: >-
+              spec.trigger.manual disables the schedule. Remove it once
+              status.lastManualSync matches.
+        - alert: BackupRSScheduleUnexpected
+          expr: |
+            volsync_rs_next_sync_timestamp_seconds - time() > 26 * 3600
+              or volsync_rs_info{manual="",schedule=""}
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backup {{ $labels.rs_namespace }}/{{ $labels.rs_name }} has an unexpected trigger"
+            description: >-
+              The next sync is over 26h away (for example a parked 0 0 1 1 * schedule), or
+              the trigger is empty, which syncs continuously.
+        - alert: BackupRSPruneOverdue
+          expr: |
+            time() - volsync_rs_last_pruned_timestamp_seconds > 21 * 86400
+              or
+            (time() - volsync_rs_created_timestamp_seconds > 21 * 86400)
+              unless on (rs_namespace, rs_name) volsync_rs_last_pruned_timestamp_seconds
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backup {{ $labels.rs_namespace }}/{{ $labels.rs_name }} has not pruned for over 21 days"
+            description: >-
+              Age {{ $value | humanizeDuration }} since the last prune, or since creation if it
+              never pruned. pruneIntervalDays is 14.
+        - alert: BackupRSCountDropped
+          expr: count(volsync_rs_info) < count(volsync_rs_info offset 1d)
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: Fewer ReplicationSources than a day ago
+            description: >-
+              A backup disappeared. Expected after removing an app on purpose, and clears
+              within a day. Otherwise check for a stale Argo revision.
+    - name: backup-replication-destination
+      rules:
+        # A destination with an empty trigger re-restores into its PVC forever.
+        - alert: BackupRDContinuous
+          expr: volsync_rd_info{manual="",schedule=""}
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Restore {{ $labels.rd_namespace }}/{{ $labels.rd_name }} has an empty trigger"
+            description: >-
+              It restores continuously into its PVC, which may be live. Set spec.paused or
+              delete the ReplicationDestination now.
+        - alert: BackupRDLeftover
+          expr: time() - volsync_rd_created_timestamp_seconds > 48 * 3600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Restore {{ $labels.rd_namespace }}/{{ $labels.rd_name }} left over"
+            description: The ReplicationDestination is over 48h old. Delete it if the restore is done.
+    - name: backup-state-metrics
+      rules:
+        # Absence alerts, so the exporter can't fail silently. No RS at all is
+        # also an alert: this cluster is expected to have some.
+        - alert: BackupStateMetricsMissing
+          expr: |
+            absent(up{job="backup-state-metrics"} == 1)
+              or absent(volsync_rs_info)
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Backup state metrics are missing
+            description: >-
+              The exporter is down or sees no ReplicationSources, so the other backup alerts
+              can't fire. Check deployment/backup-state-metrics in volsync-system.
