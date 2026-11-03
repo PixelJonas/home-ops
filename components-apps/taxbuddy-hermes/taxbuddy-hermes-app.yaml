@@ -20,8 +20,8 @@ spec:
             replicas: 1
             pod:
               # Live finding (2026-10-01): hermes lazy-installs optional
-              # deps (e.g. honcho-ai for memory.provider: honcho) with uv,
-              # a static musl binary. With the default ndots:5, "pypi.org"
+              # dependencies with uv, a static musl binary. With the default
+              # ndots:5, "pypi.org"
               # is first tried with search suffixes, and
               # pypi.org.altus.janz.digital answers NOERROR/NODATA — glibc
               # moves on, musl stops ("Name has no usable address"). ndots:1
@@ -67,13 +67,10 @@ spec:
                 command:
                   - /bin/sh
                   - -c
-                # Extended (Task 6) to also seed honcho.json and SOUL.md
-                # alongside config.yaml — same one-container, one-seed-step
-                # pattern as before, just a &&-chained shell one-liner.
+                # Seed SOUL.md alongside config.yaml as a writable PVC copy.
                 args:
                   - >-
                     cp /opt/hermes-config-seed/config.yaml /opt/data/config.yaml &&
-                    cp /opt/hermes-config-seed/honcho.json /opt/data/honcho.json &&
                     cp /opt/hermes-config-seed/SOUL.md /opt/data/SOUL.md
               # Publishes the static moshi-hook binary onto a shared
               # emptyDir so the moshi-hooks plugin running INSIDE the hermes
@@ -111,7 +108,7 @@ spec:
               install-taxbuddy-inbox:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:6fbb10eb3109144fb2f59e928a552e30caf825dd722a406e1d36095caa7a4140"
+                  digest: "sha256:380f963eb462e4e2ec4e73fad16749022a8b88b0c30faa5954939529e45d828b"
                   pullPolicy: IfNotPresent
                 command:
                   - /bin/sh
@@ -153,14 +150,6 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LITELLM_API_KEY
-                  # Falls back into honcho.json's HonchoClientConfig when
-                  # honcho.json omits apiKey (Task 6 live finding — see
-                  # taxbuddy-hermes-config.yaml).
-                  HONCHO_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: taxbuddy-hermes-credentials
-                        key: HONCHO_API_KEY
                   # Bearer token for the taxbuddy lookup-mcp server,
                   # interpolated as ${LOOKUP_MCP_TOKEN} in config.yaml's
                   # mcp_servers headers (taxbuddy#154).
@@ -244,7 +233,7 @@ spec:
                         name: taxbuddy-hermes-credentials
                         key: DASHBOARD_PASSWORD
                   # Dashboard chats run the agent in THIS process, so it
-                  # needs the same provider/memory keys as the gateway.
+                  # needs the same provider credentials as the gateway.
                   # Without them config.yaml's `key_env: LITELLM_API_KEY`
                   # resolves empty and Hermes sends its `no-key-required`
                   # placeholder -> LiteLLM 401 "Virtual Key expected".
@@ -253,11 +242,6 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LITELLM_API_KEY
-                  HONCHO_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: taxbuddy-hermes-credentials
-                        key: HONCHO_API_KEY
                   # Bearer token for the taxbuddy lookup-mcp server,
                   # interpolated as ${LOOKUP_MCP_TOKEN} in config.yaml's
                   # mcp_servers headers (taxbuddy#154).
@@ -322,27 +306,18 @@ spec:
                   # plugin-reported $HERMES_HOME/state.db from THIS
                   # container's filesystem.
                   HERMES_HOME: /opt/data
-                  # The official nousresearch/hermes-agent image (hermes/dashboard
-                  # containers) bakes these in by default; this is a separate,
-                  # plain-Debian image (containers/taxbuddy-hermes-tools) that does
-                  # not, so the native TUI running here never added
-                  # /opt/data/lazy-packages to sys.path. Without it, hermes' lazy
-                  # installer fell back to installing honcho-ai into this image's
-                  # root-owned venv site-packages, which uid 10000 can't write to
-                  # ("Permission denied") — surfacing to the user as Honcho tool
-                  # calls failing with "Honcho session could not be initialized."
-                  # (live finding 2026-10-07). honcho-ai is already present at
-                  # /opt/data/lazy-packages (installed via the hermes container),
-                  # so pointing the target there picks it up without installing
-                  # anything new; disabling lazy installs here too since this
-                  # container's venv can never accept them anyway.
+                  # The official nousresearch/hermes-agent image sets a writable
+                  # lazy-install target by default; this separate plain-Debian
+                  # tools image does not. Keep optional dependencies on the
+                  # existing PVC, and disable lazy installs in the tools container
+                  # because its venv is root-owned and uid 10000 cannot write to it.
                   HERMES_LAZY_INSTALL_TARGET: /opt/data/lazy-packages
                   HERMES_DISABLE_LAZY_INSTALLS: "1"
                   MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
                   MOSHI_STATE_DIR: /opt/data/tools/moshi-state
                   MOSHI_CONFIG_DIR: /opt/data/tools/moshi-config
                   # The native TUI in this container runs the agent in THIS
-                  # process, so it needs the same provider/memory keys as the
+                  # process, so it needs the same provider credentials as the
                   # gateway and dashboard — without them config.yaml's
                   # `key_env: LITELLM_API_KEY` resolves empty and Hermes
                   # sends its `no-key-required` placeholder -> LiteLLM 401
@@ -353,11 +328,6 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LITELLM_API_KEY
-                  HONCHO_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: taxbuddy-hermes-credentials
-                        key: HONCHO_API_KEY
                   LOOKUP_MCP_TOKEN:
                     valueFrom:
                       secretKeyRef:

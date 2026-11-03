@@ -214,6 +214,5 @@ each new digest together — no separate regex/manifest wiring was needed.
 | `TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET` | ingestion-api `INGESTBUDDY_INTAKE_SECRET` for `POST /intake/ingestbuddy` (taxbuddy#109); shared with ingestbuddy's `TAXBUDDY_WEBHOOK_SECRET` |
 | `TAXBUDDY_LITELLM_BASE_URL` / `TAXBUDDY_DOCPIPELINE_LITELLM_KEY` / `TAXBUDDY_LLMCLIENT_LITELLM_KEY` | LLM proxy |
 | `TAXBUDDY_DOCLING_SERVE_API_KEY` | docling-serve |
-| `TAXBUDDY_DOCPIPELINE_HONCHO_API_KEY` | Honcho memory |
 | `ACTUAL_BUDGET_PASSWORD` | Actual server password, file-mounted for the sync worker |
 | `ACTUAL_BUDGET_SYNC_ID` | Actual budget sync ID (matches the live budget; `TAXBUDDY_ACTUAL_SYNC_ID` is stale) |
