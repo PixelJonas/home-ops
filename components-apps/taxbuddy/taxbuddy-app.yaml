@@ -129,22 +129,6 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
-                  # Required at startup with no default (doc_pipeline's
-                  # Settings.from_env(), per
-                  # services/doc_pipeline/src/doc_pipeline/config.py in the
-                  # taxbuddy repo) — added as part of Task 6 to close the
-                  # home-ops gap left by taxbuddy Task 4's HONCHO_* env
-                  # vars. Same in-cluster Honcho service as
-                  # taxbuddy-hermes's honcho.json (honcho-app-honcho, not
-                  # honcho-app — see taxbuddy-hermes-config.yaml).
-                  HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
-                  HONCHO_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: taxbuddy-credentials
-                        key: HONCHO_API_KEY
-                  HONCHO_WORKSPACE: taxbuddy
-                  HONCHO_OWNER_PEER_ID: jjanz
                   OWNER_PROFILE_PATH: /data/owner-profile/owner.md
                 probes:
                   liveness:
@@ -354,22 +338,6 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
-                  # Isolated eval workspace only — the runner refuses to
-                  # seed synthetic profiles or fall back to the synthetic
-                  # default peer against any other workspace
-                  # (self_benchmark.evaluate.require_eval_workspace).
-                  HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
-                  # Workspace-scoped key: in-cluster Honcho runs with
-                  # AUTH_USE_AUTH=true (JWTs are per-workspace), so the
-                  # doc-pipeline key (scoped to "taxbuddy") cannot touch
-                  # the taxbuddy-eval workspace. Separate Doppler key
-                  # TAXBUDDY_EVAL_HONCHO_API_KEY scoped to taxbuddy-eval.
-                  HONCHO_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: taxbuddy-credentials
-                        key: HONCHO_EVAL_API_KEY
-                  HONCHO_WORKSPACE: taxbuddy-eval
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
                   # Baseline-unchanged runs post a create+immediately-closed
