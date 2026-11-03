@@ -145,6 +145,7 @@ spec:
                         key: HONCHO_API_KEY
                   HONCHO_WORKSPACE: taxbuddy
                   HONCHO_OWNER_PEER_ID: jjanz
+                  OWNER_PROFILE_PATH: /data/owner-profile/owner.md
                 probes:
                   liveness:
                     enabled: true
@@ -200,6 +201,7 @@ spec:
                 env:
                   TZ: Europe/Berlin
                   AGENT_RUNTIME: hermes
+                  OWNER_PROFILE_PATH: /data/owner-profile/owner.md
                   QUEUE_URL: redis://taxbuddy-app-valkey:6379/0
                   DATABASE_URL:
                     valueFrom:
@@ -881,6 +883,8 @@ spec:
         persistence:
           valkey-data:
             enabled: true
+            # Preserve the original single-PVC name now that a second PVC exists.
+            forceRename: taxbuddy-app
             accessMode: ReadWriteOnce
             storageClass: lvms-vg1
             size: 1Gi
@@ -888,6 +892,21 @@ spec:
               valkey:
                 valkey:
                   - path: /data
+          # Canonical Markdown owner profile. NFSv4 provides the shared
+          # fcntl.flock semantics required by its coordinated writers.
+          owner-profile:
+            enabled: true
+            accessMode: ReadWriteMany
+            storageClass: synology-nfs-storage
+            size: 1Gi
+            advancedMounts:
+              doc-pipeline:
+                doc-pipeline:
+                  - path: /data/owner-profile
+                    readOnly: true
+              agent-runtime:
+                agent-runtime:
+                  - path: /data/owner-profile
           # ACTUAL_BUDGET_PASSWORD mounted as a file for the sync worker's
           # ACTUAL_PASSWORD_FILE (CLI 26.9.0 has no working _FILE support;
           # the actual_client wrapper reads the file itself).
