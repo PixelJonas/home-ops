@@ -71,11 +71,14 @@ spec:
                 command:
                   - /bin/sh
                   - -c
-                # Seed SOUL.md alongside config.yaml as a writable PVC copy.
+                # Seed SOUL.md and the skill alongside config.yaml as writable PVC copies.
                 args:
                   - >-
                     cp /opt/hermes-config-seed/config.yaml /opt/data/config.yaml &&
-                    cp /opt/hermes-config-seed/SOUL.md /opt/data/SOUL.md
+                    cp /opt/hermes-config-seed/SOUL.md /opt/data/SOUL.md &&
+                    mkdir -p /opt/data/skills/vehicle-pipeline-api &&
+                    cp /opt/hermes-config-seed/vehicle-pipeline-api.SKILL.md /opt/data/skills/vehicle-pipeline-api/SKILL.md &&
+                    chown -R 10000:10000 /opt/data/skills/vehicle-pipeline-api
               # Publishes the static moshi-hook binary onto a shared
               # emptyDir so the moshi-hooks plugin running INSIDE the hermes
               # (and dashboard) container can exec it at the same absolute
@@ -158,6 +161,14 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LITELLM_API_KEY
+                  # Read-only vehicle-pipeline API, skill vehicle-pipeline-api
+                  # (taxbuddy-hermes-config.yaml). Reached in-cluster, no tailnet.
+                  VEHICLE_PIPELINE_URL: http://vehicle-pipeline-app.vehicle-pipeline.svc:8000
+                  VEHICLE_PIPELINE_HERMES_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: VEHICLE_PIPELINE_TOKEN
                   # Bearer token for the taxbuddy lookup-mcp server,
                   # interpolated as ${LOOKUP_MCP_TOKEN} in config.yaml's
                   # mcp_servers headers (taxbuddy#154).
@@ -321,6 +332,14 @@ spec:
                   # plugin-reported $HERMES_HOME/state.db from THIS
                   # container's filesystem.
                   HERMES_HOME: /opt/data
+                  # Read-only vehicle-pipeline API, skill vehicle-pipeline-api
+                  # (taxbuddy-hermes-config.yaml). Reached in-cluster, no tailnet.
+                  VEHICLE_PIPELINE_URL: http://vehicle-pipeline-app.vehicle-pipeline.svc:8000
+                  VEHICLE_PIPELINE_HERMES_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: VEHICLE_PIPELINE_TOKEN
                   # The official nousresearch/hermes-agent image sets a writable
                   # lazy-install target by default; this separate plain-Debian
                   # tools image does not. Keep optional dependencies on the
