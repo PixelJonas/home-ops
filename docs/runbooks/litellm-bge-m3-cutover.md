@@ -67,6 +67,12 @@ Use the Model Management API while the old Honcho backend is still running.
        | jq -er --arg id "$MODEL_ID" \
            '.data[] | select(.model_info.id == $id) | .litellm_params.api_base'
    )"
+   OLD_MODEL="$(
+     curl -fsS "${LITELLM_BASE_URL}/model/info" \
+       -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
+       | jq -er --arg id "$MODEL_ID" \
+           '.data[] | select(.model_info.id == $id) | .litellm_params.model'
+   )"
    ```
 
    If the first command finds zero or multiple deployments, stop and resolve
@@ -84,6 +90,7 @@ Use the Model Management API while the old Honcho backend is still running.
      -d '{
        "model_name": "bge-m3",
        "litellm_params": {
+         "model": "openai/bge-m3",
          "api_base": "http://litellm-bge-m3-app.litellm.svc:8000/v1"
        }
      }' >/dev/null
@@ -96,19 +103,24 @@ Use the Model Management API while the old Honcho backend is still running.
      -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
      | jq -e --arg id "$MODEL_ID" '
        .data[] | select(.model_info.id == $id)
-       | {model_name, api_base: .litellm_params.api_base}
+       | {model_name, model: .litellm_params.model, api_base: .litellm_params.api_base}
        | select(
            .model_name == "bge-m3"
+           and .model == "openai/bge-m3"
            and .api_base == "http://litellm-bge-m3-app.litellm.svc:8000/v1"
          )'
    ```
+
+   The internal `model` must match vLLM's served name. Leaving it as
+   `openai/bge-m3:latest` makes the backend reject requests even though the
+   public model name is correct.
 
    If validation fails while the old backend is still available, roll back the
    same model ID immediately:
 
    ```bash
-   jq -n --arg api_base "$OLD_API_BASE" \
-     '{model_name: "bge-m3", litellm_params: {api_base: $api_base}}' \
+   jq -n --arg api_base "$OLD_API_BASE" --arg model "$OLD_MODEL" \
+     '{model_name: "bge-m3", litellm_params: {model: $model, api_base: $api_base}}' \
      | curl -fsS -X PATCH "${LITELLM_BASE_URL}/model/${MODEL_ID}/update" \
          -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
          -H 'Content-Type: application/json' \
@@ -125,7 +137,7 @@ Use the Model Management API while the old Honcho backend is still running.
      -H 'Content-Type: application/json' \
      -d '{"model":"bge-m3","input":["cutover test"]}' \
      | jq -e '.data[0].embedding | length == 1024' >/dev/null
-   unset LITELLM_MASTER_KEY LITELLM_CONSUMER_KEY MODEL_ID OLD_API_BASE
+   unset LITELLM_MASTER_KEY LITELLM_CONSUMER_KEY MODEL_ID OLD_API_BASE OLD_MODEL
    ```
 
    Complete one normal ingestbuddy indexing/search operation and one Taxbuddy
