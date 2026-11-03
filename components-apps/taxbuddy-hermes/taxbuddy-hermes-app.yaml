@@ -191,6 +191,18 @@ spec:
                         name: taxbuddy-hermes-credentials
                         key: TELEGRAM_OWNER_ID
                   MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
+                  # Voice-note STT through LiteLLM (model whisper-large-v3 ->
+                  # asgard). Hermes reads STT_OPENAI_* once at import; without
+                  # the base URL the OpenAI STT path targets api.openai.com.
+                  # The key is the same LiteLLM virtual key (taxbuddy-hermes,
+                  # allowed models include whisper-large-v3).
+                  STT_OPENAI_BASE_URL: http://litellm-app.litellm.svc:4000/v1
+                  STT_OPENAI_MODEL: whisper-large-v3
+                  VOICE_TOOLS_OPENAI_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: LITELLM_API_KEY
               dashboard:
                 # `hermes gateway run` does not start the web dashboard —
                 # confirmed live (2026-07-29) via `hermes dashboard
