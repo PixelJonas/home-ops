@@ -1,0 +1,89 @@
+---
+# Weekly restic check of the in-cluster rest-server repos.
+#
+# - Wednesday 12:00 UTC, finished by 01:00 UTC: restic check takes an exclusive
+#   lock, so it must stay clear of the nightly mover and tailsafe windows.
+# - On xandar: altus's root SSD also holds etcd, so the temp files must not land
+#   there. The data itself is read over the network from the rest-server.
+# - The script's time budget ends well before activeDeadlineSeconds, so restic
+#   gets a SIGTERM and releases its lock rather than being killed holding it.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-verifier
+  annotations:
+    argocd.argoproj.io/sync-wave: "200"
+spec:
+  schedule: "0 12 * * 3"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 45000
+      template:
+        metadata:
+          annotations:
+            openshift.io/required-scc: restricted-v2
+        spec:
+          serviceAccountName: restic-verifier
+          restartPolicy: Never
+          nodeSelector:
+            kubernetes.io/hostname: xandar
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: verifier
+              image: docker.io/restic/restic:0.19.1@sha256:9940e6c7421ab3a21ee9fdc4e91596d04c792b600d31b102696c75cbf3ac4481
+              command: [/bin/sh, /scripts/restic-verifier.sh]
+              env:
+                - name: SECRETS_DIR
+                  value: /secrets
+                - name: BUDGET_SECONDS
+                  value: "43200"
+                - name: REPO_TIMEOUT_SECONDS
+                  value: "14400"
+                - name: MAX_SNAPSHOT_AGE_SECONDS
+                  value: "172800"
+                # Keys left over from the removed devland apps; their repos are gone.
+                - name: SKIP_KEY_PATTERN
+                  value: "DEVLAND_*"
+                - name: HOME
+                  value: /work
+                - name: TMPDIR
+                  value: /work
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 2Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: secrets
+                  mountPath: /secrets
+                  readOnly: true
+                - name: work
+                  mountPath: /work
+          volumes:
+            - name: script
+              configMap:
+                name: restic-verifier-script
+            - name: secrets
+              secret:
+                secretName: restic-verifier
+            - name: work
+              emptyDir:
+                sizeLimit: 10Gi

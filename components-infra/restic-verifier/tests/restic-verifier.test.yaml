@@ -1,0 +1,72 @@
+---
+# promtool unit tests. Sample every minute or less often than the 5m lookback.
+rule_files:
+  - rules.generated.yaml
+evaluation_interval: 1m
+tests:
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_status_last_successful_time{namespace="restic-verifier",cronjob="restic-verifier"}
+        values: 0x2600
+    alert_rule_test:
+      - alertname: ResticCheckStale
+        eval_time: 7d
+        exp_alerts: []
+      - alertname: ResticCheckStale
+        eval_time: 9d
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: restic-verifier
+              cronjob: restic-verifier
+            exp_annotations:
+              summary: restic-verifier has not succeeded for over 8 days
+              description: >-
+                Repository integrity is unchecked. Check the CronJob in restic-verifier; a
+                failed run's log names the repositories.
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_created{namespace="restic-verifier",cronjob="restic-verifier"}
+        values: 0x2600
+    alert_rule_test:
+      - alertname: ResticCheckNeverSucceeded
+        eval_time: 9d
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: restic-verifier
+              cronjob: restic-verifier
+            exp_annotations:
+              summary: restic-verifier has never succeeded
+              description: The CronJob is over 8 days old and has no successful run.
+  # A run that already succeeded isn't "never succeeded".
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_created{namespace="restic-verifier",cronjob="restic-verifier"}
+        values: 0x2600
+      - series: kube_cronjob_status_last_successful_time{namespace="restic-verifier",cronjob="restic-verifier"}
+        values: 700000x2600
+    alert_rule_test:
+      - alertname: ResticCheckNeverSucceeded
+        eval_time: 9d
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: kube_job_failed{namespace="restic-verifier",job_name="restic-verifier-1",condition="true"}
+        values: 1x10
+      - series: kube_job_failed{namespace="restic-verifier",job_name="restic-verifier-2",condition="true"}
+        values: 0x10
+    alert_rule_test:
+      - alertname: ResticCheckFailed
+        eval_time: 5m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              namespace: restic-verifier
+              job_name: restic-verifier-1
+              condition: "true"
+            exp_annotations:
+              summary: "restic check failed: restic-verifier-1"
+              description: >-
+                A repository failed its check, stopped receiving backups, or wasn't reached in
+                time. The Job's log names which. Delete the Job once handled to clear this.

@@ -1,0 +1,44 @@
+---
+# Same pattern as templates/db-backup-alerts: kube_* comes from the platform
+# Prometheus, so this uses the default scope (Thanos Ruler) and sees its own
+# namespace's series. Routes through the platform Alertmanager.
+#
+# Tests: tests/restic-verifier.test.yaml (scripts/test_prometheus_rules.sh).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: restic-verifier
+spec:
+  groups:
+    - name: restic-verifier
+      rules:
+        - alert: ResticCheckStale
+          expr: time() - kube_cronjob_status_last_successful_time{cronjob="restic-verifier"} > 8 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: restic-verifier has not succeeded for over 8 days
+            description: >-
+              Repository integrity is unchecked. Check the CronJob in restic-verifier; a
+              failed run's log names the repositories.
+        - alert: ResticCheckNeverSucceeded
+          expr: |
+            (time() - kube_cronjob_created{cronjob="restic-verifier"} > 8 * 86400)
+              unless on (namespace, cronjob) kube_cronjob_status_last_successful_time
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: restic-verifier has never succeeded
+            description: The CronJob is over 8 days old and has no successful run.
+        # kube_job_failed{condition="true"} is the Job's final Failed condition.
+        - alert: ResticCheckFailed
+          expr: kube_job_failed{job_name=~"restic-verifier-.*", condition="true"} == 1
+          labels:
+            severity: critical
+          annotations:
+            summary: "restic check failed: {{ $labels.job_name }}"
+            description: >-
+              A repository failed its check, stopped receiving backups, or wasn't reached in
+              time. The Job's log names which. Delete the Job once handled to clear this.

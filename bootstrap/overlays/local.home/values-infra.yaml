@@ -186,6 +186,12 @@ applications:
     source:
       path: components-infra/restic-rest-server
 
+  restic-verifier:
+    annotations:
+      argocd.argoproj.io/sync-wave: "24"
+    source:
+      path: components-infra/restic-verifier
+
   knowhere:
     annotations:
       argocd.argoproj.io/sync-wave: "40"

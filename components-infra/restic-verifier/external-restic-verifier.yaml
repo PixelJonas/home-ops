@@ -1,0 +1,22 @@
+---
+# Finds every *_REST_REPO_LOCAL key, so a new app's repo is checked automatically.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: restic-verifier
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: doppler-cluster
+  target:
+    name: restic-verifier
+  data:
+    - secretKey: RESTIC_PASSWORD
+      remoteRef:
+        key: RESTIC_PASSWORD
+  dataFrom:
+    - find:
+        name:
+          regexp: "_REST_REPO_LOCAL$"
