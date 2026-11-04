@@ -1,0 +1,45 @@
+# Restrict the Hermes webhook port (TCP 8644) to the Gitea server pod. The
+# route runs an agent turn on whatever a signed request carries, so the HMAC
+# secret is the real gate; this keeps every other pod (Gitea Actions runners
+# included) from even reaching the listener.
+#
+# Every other port keeps today's behaviour (allowed from anywhere) via the
+# port-range rules below, so this policy narrows exactly one port. Replies to
+# connections the VM initiates (internet egress, in-cluster Services,
+# Tailscale) are unaffected either way. Same pattern as knx-ets's
+# networkpolicy-knx-mcp.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hermes-webhook-ingress
+  namespace: knowhere
+spec:
+  podSelector:
+    matchLabels:
+      vm.kubevirt.io/name: knowhere
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gitea
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gitea
+      ports:
+        - protocol: TCP
+          port: 8644
+    - ports:
+        - protocol: TCP
+          port: 1
+          endPort: 8643
+        - protocol: TCP
+          port: 8645
+          endPort: 65535
+        - protocol: UDP
+          port: 1
+          endPort: 65535
+        - protocol: SCTP
+          port: 1
+          endPort: 65535

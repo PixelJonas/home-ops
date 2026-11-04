@@ -48,7 +48,7 @@ spec:
             # In-cluster Service DNS (`oc get svc -n paperless`) -- inline
             # per docs/adding-apps.md's Doppler-vs-inline convention,
             # matching how every other in-cluster URL in this repo is
-            # wired (e.g. taxbuddy-app.yaml's DOCLING_URL/HONCHO_BASE_URL).
+            # wired (e.g. taxbuddy-app.yaml's DOCLING_URL).
             - name: PAPERLESS_URL
               value: "http://paperless-ng.paperless.svc.cluster.local:8000"
             - name: PAPERLESS_API_TOKEN

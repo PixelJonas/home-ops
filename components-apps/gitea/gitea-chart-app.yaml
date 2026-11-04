@@ -27,6 +27,15 @@ spec:
         openshift:
           enabled: true
 
+        # One replica on one RWO volume: the chart's RollingUpdate default
+        # (maxSurge 100%, maxUnavailable 0) starts the new pod next to the old
+        # one, which still holds the LevelDB queue lock (/data/queues/common),
+        # so the new pod crash-loops ("unable to lock level db") and the
+        # rollout never finishes (2026-11-03, ALLOWED_HOST_LIST change).
+        # Recreate stops the old pod first (~1 min downtime per rollout).
+        strategy:
+          type: Recreate
+
         gitea:
           admin:
             existingSecret: gitea-admin-secret
@@ -38,6 +47,12 @@ spec:
               DISABLE_REGISTRATION: true
             security:
               REVERSE_PROXY_TRUSTED_PROXIES: "10.42.0.11/32,10.128.0.0/14"
+              # Hosts webhooks (and OAuth2 clients) may call. Default
+              # "external" blocks private addresses, so the in-cluster
+              # Hermes webhook Service (components-infra/knowhere, infra-ops
+              # #354 assistant-requests) is added by exact name; its
+              # ClusterIP stays private and nothing else private opens up.
+              ALLOWED_HOST_LIST: "external,knowhere-hermes-webhook.knowhere.svc.cluster.local"
             actions:
               ENABLED: true
 

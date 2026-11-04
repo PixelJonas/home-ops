@@ -1,0 +1,25 @@
+# Stable in-cluster name for the Hermes webhook listener inside the knowhere
+# VM (knowhere-hermes-webhook.knowhere.svc.cluster.local:8644). Gitea posts
+# assistant-requests issue events here (infra-ops #354, Q18-Q20). The pod
+# network (masquerade, all ports forwarded) reaches the guest's enp1s0, where
+# Hermes binds only that address and ufw opens only this port (infra-ops
+# assistant_agents role). ClusterIP only, no Route: every request must also
+# carry a valid HMAC signature (X-Hub-Signature-256).
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowhere-hermes-webhook
+  namespace: knowhere
+  annotations:
+    # Selects the KubeVirt-created virt-launcher pod, which kube-linter
+    # can't see in the rendered manifests.
+    ignore-check.kube-linter.io/dangling-service: "selects the virt-launcher pod of VM knowhere"
+spec:
+  type: ClusterIP
+  selector:
+    vm.kubevirt.io/name: knowhere
+  ports:
+    - name: http-webhook
+      port: 8644
+      targetPort: 8644
+      protocol: TCP

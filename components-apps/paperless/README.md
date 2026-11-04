@@ -29,9 +29,11 @@ again (including `inbox/`, if `PAPERLESS_CONSUMER_RECURSIVE` is set).
 The claude.ai Paperless MCP connector (`components-apps/paperless-mcp`) reads
 documents as the Paperless user `mcp-readonly`, which is in the group
 `mcp-readers` (view-only model permissions: document, tag, correspondent,
-document type, storage path, custom field, UI settings). Unowned objects are
+document type, storage path, custom field, note, UI settings). Unowned objects are
 visible to every user; objects that have an owner are visible to the group
 only when it holds an explicit view grant.
+The knowhere document reader `friday` (infra-ops #353) reuses the same
+token, so any change to this group's rights applies to both.
 
 The workflow `mcp:grant view to mcp-readers`
 (`workflows/mcp-view-group.workflow.json`, applied by the

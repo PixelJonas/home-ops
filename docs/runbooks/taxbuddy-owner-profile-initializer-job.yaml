@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: taxbuddy-owner-profile-initializer
+  namespace: taxbuddy
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: taxbuddy-db-migrate
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: taxbuddy-ghcr-pull-secret
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+      containers:
+        - name: initialize-owner-profile
+          image: "ghcr.io/pixeljonas/taxbuddy/agent_runtime@sha256:380f963eb462e4e2ec4e73fad16749022a8b88b0c30faa5954939529e45d828b"
+          command: ["python", "-m", "agent_runtime.onboarding.migrate"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: taxbuddy-db-connection
+                  key: uri
+            - name: OWNER_PROFILE_PATH
+              value: /data/owner-profile/owner.md
+          volumeMounts:
+            - name: owner-profile
+              mountPath: /data/owner-profile
+              readOnly: false
+      volumes:
+        - name: owner-profile
+          persistentVolumeClaim:
+            claimName: taxbuddy-app-owner-profile

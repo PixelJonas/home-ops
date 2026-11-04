@@ -169,8 +169,10 @@ applications:
       - CreateNamespace=true
     extraFields: |
       ignoreDifferences:
-        - group: ""
-          kind: Service
+        # No `group:` key: omitted means the core group, and an explicit
+        # `group: ""` is dropped by ArgoCD on write (omitempty), leaving
+        # cluster-config-manager permanently OutOfSync.
+        - kind: Service
           name: litellm-egress
           namespace: tailscale
           jsonPointers:

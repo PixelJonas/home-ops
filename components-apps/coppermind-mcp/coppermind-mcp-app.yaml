@@ -1,0 +1,127 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: coppermind-mcp-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+spec:
+  destination:
+    namespace: coppermind-mcp
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.3.0
+    helm:
+      values: |-
+        defaultPodOptions:
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+
+        controllers:
+          coppermind-mcp:
+            strategy: Recreate
+            containers:
+              mcp:
+                image:
+                  repository: image-registry.openshift-image-registry.svc:5000/coppermind-mcp/coppermind-mcp
+                  tag: 9e4f866
+                  pullPolicy: IfNotPresent
+                env:
+                  QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
+                  COSMERE_QDRANT_COLLECTION: cosmere_knowledge
+                  COPPERMIND_MCP_ALLOWED_HOSTS: coppermind-mcp.apps.altus.janz.digital,coppermind-mcp,coppermind-mcp.coppermind-mcp.svc
+                  QDRANT_API_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: coppermind-mcp-credentials
+                        key: QDRANT_READ_ONLY_API_KEY
+                  COPPERMIND_MCP_PLAYER_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: coppermind-mcp-credentials
+                        key: COPPERMIND_MCP_PLAYER_TOKEN
+                  COPPERMIND_MCP_GM_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: coppermind-mcp-credentials
+                        key: COPPERMIND_MCP_GM_TOKEN
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 1Gi
+                  limits:
+                    cpu: 500m
+                    memory: 1536Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop:
+                      - ALL
+                probes:
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      periodSeconds: 10
+                      failureThreshold: 30
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /livez
+                        port: 8000
+                      periodSeconds: 20
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /healthz
+                        port: 8000
+                      periodSeconds: 10
+
+        service:
+          coppermind-mcp:
+            controller: coppermind-mcp
+            ports:
+              http:
+                port: 8000
+
+        ingress:
+          coppermind-mcp:
+            enabled: true
+            className: openshift-default
+            annotations:
+              route.openshift.io/termination: "edge"
+            hosts:
+              - host: coppermind-mcp.apps.altus.janz.digital
+                paths:
+                  - path: /
+                    service:
+                      identifier: coppermind-mcp
+                      port: http
+
+        persistence:
+          tmp:
+            type: emptyDir
+            advancedMounts:
+              coppermind-mcp:
+                mcp:
+                  - path: /tmp
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true

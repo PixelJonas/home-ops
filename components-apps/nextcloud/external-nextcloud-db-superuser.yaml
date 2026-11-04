@@ -1,8 +1,8 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: honcho-db-honcho-secret
-  namespace: honcho
+  name: nextcloud-db-postgres-secret
+  namespace: nextcloud
   annotations:
     argocd.argoproj.io/sync-wave: "30"
 spec:
@@ -10,14 +10,15 @@ spec:
     kind: ClusterSecretStore
     name: doppler-cluster
   target:
-    name: honcho-db-honcho-secret
+    name: nextcloud-db-postgres-secret
     template:
       engineVersion: v2
       type: kubernetes.io/basic-auth
       data:
-        username: "honcho"
+        username: "postgres"
         password: "{{ .password }}"
+
   data:
     - secretKey: password
       remoteRef:
-        key: HONCHO_POSTGRES_USER_PASSWORD
+        key: NEXTCLOUD_POSTGRES_POSTGRES_PASSWORD

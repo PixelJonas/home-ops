@@ -1,0 +1,33 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: taxbuddy-app-owner-profile
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-owner-profile
+
+# The profile writer's atomic replacement creates owner.md as uid 1000, mode
+# 0600. NFS root_squash prevents the namespace's default root mover from
+# reading it, so run this mover as the same uid instead. The mover ServiceAccount
+# is granted anyuid in ../../anyuid-rolebinding.yaml. Don't enable VolSync's
+# privileged-movers annotation on this namespace: it forces the mover container
+# to run as root, whatever this context says.
+- op: add
+  path: /spec/restic/moverSecurityContext
+  value:
+    runAsUser: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+
+# VolSync gives the cache the source's access modes by default, and lvms-vg1
+# rejects the source's RWX.
+- op: add
+  path: /spec/restic/cacheAccessModes
+  value:
+    - ReadWriteOnce
+
+# nfs-subdir-external-provisioner has no CSI snapshot support, so retain the
+# template's Direct copy method. Atomic replacement keeps each backed-up file
+# whole. Run after the Valkey backup rather than alongside the database dump.
+- op: replace
+  path: /spec/trigger/schedule
+  value: "45 1 * * *"

@@ -1,0 +1,76 @@
+name: build-taxbuddy-hermes-gateway-image
+# Image tag = hermes-agent version, which the taxbuddy-hermes manifest pins.
+# PRs build too, so a Renovate hermes bump (Containerfile + manifest in one
+# PR, merged by Renovate only once every check is green) has its image in
+# the registry before Argo CD rolls the pod (Deployment strategy Recreate).
+# A PR only pushes a tag that does not exist yet: unmerged code never
+# overwrites an image main already runs. main always (re)pushes the version
+# tag, sha-<commit> and latest.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "containers/taxbuddy-hermes-gateway/**"
+      - ".github/workflows/build-taxbuddy-hermes-gateway-image.yaml"
+  pull_request:
+    paths:
+      - "containers/taxbuddy-hermes-gateway/**"
+      - ".github/workflows/build-taxbuddy-hermes-gateway-image.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: build and push
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
+      CTX: containers/taxbuddy-hermes-gateway
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          version="$(grep -oP '^FROM \S+:\K\S+' "$CTX/Containerfile" | head -1)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          push=true
+          if [ "$EVENT" = "pull_request" ] && docker manifest inspect "$IMAGE:$version" >/dev/null 2>&1; then
+            push=false
+          fi
+          echo "push=$push" >> "$GITHUB_OUTPUT"
+          echo "version=$version push=$push"
+
+      - name: Build and push
+        env:
+          EVENT: ${{ github.event_name }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA_SHORT: ${{ steps.meta.outputs.sha_short }}
+          PUSH: ${{ steps.meta.outputs.push }}
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          tags=(-t "$IMAGE:$VERSION")
+          if [ "$EVENT" != "pull_request" ]; then
+            tags+=(-t "$IMAGE:sha-$SHA_SHORT" -t "$IMAGE:latest")
+          fi
+          docker build -f "$CTX/Containerfile" "${tags[@]}" "$CTX"
+          if [ "$PUSH" = "true" ]; then
+            docker push --all-tags "$IMAGE"
+          fi

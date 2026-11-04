@@ -2,5 +2,5 @@
   path: /subjects
   value:
     - kind: ServiceAccount
-      name: database-mariadb-backup
+      name: database-psql-backup
       namespace: nextcloud

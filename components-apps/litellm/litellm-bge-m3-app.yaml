@@ -1,0 +1,172 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "111"
+  name: litellm-bge-m3-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: litellm
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: app-template
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    targetRevision: 5.3.0
+    helm:
+      values: |-
+
+        defaultPodOptions:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+
+        controllers:
+          # Shared CPU-only BAAI/bge-m3 embeddings backend. LiteLLM exposes it
+          # to ingestbuddy and taxbuddy under the served model name "bge-m3".
+          bge-m3:
+            containers:
+              vllm:
+                image:
+                  repository: docker.io/vllm/vllm-openai-cpu
+                  tag: v0.32.0
+                  pullPolicy: IfNotPresent
+                # NOTE: the vllm/vllm-openai-cpu image entrypoint is already
+                # "vllm serve" — args are appended to it directly. A leading
+                # "serve" arg would produce "vllm serve serve ..." and fail
+                # with "unrecognized arguments".
+                args:
+                  - BAAI/bge-m3
+                  # bge-m3's config.json declares XLMRobertaModel, which vLLM
+                  # would load as a vanilla RoBERTa and drop the embedding head.
+                  # Override the architecture so the dense embedding weights load.
+                  # (https://docs.vllm.ai specific model examples, BAAI/bge-m3)
+                  - --hf-overrides
+                  - '{"architectures": ["BgeM3EmbeddingModel"]}'
+                  # Pooling runner (embeddings). Auto-detection would also work,
+                  # but pinning it is explicit. NOTE: --task embed was removed
+                  # in current vLLM; --runner pooling is the correct flag.
+                  - --runner
+                  - pooling
+                  # bge-m3's supported_tasks resolves to the COMBINED
+                  # 'embed&token_classify' task (it can do both dense
+                  # embedding and token classification), and vLLM's
+                  # get_pooling_task() priority list picks that combined
+                  # task first when no explicit task is pinned. The OpenAI
+                  # /v1/embeddings route is only wired up when the resolved
+                  # task is exactly "embed" -- so without this override the
+                  # route registers at startup (visible in the routes dump)
+                  # but every real request 501s with "The model does not
+                  # support Embeddings API" (confirmed on v0.27.1 AND
+                  # v0.28.0, 2026-08-31/09-01). Pin the task explicitly to
+                  # bypass the ambiguous auto-detection.
+                  - --pooler-config
+                  - '{"task": "embed"}'
+                  - --served-model-name
+                  - bge-m3
+                  - --host
+                  - "0.0.0.0"
+                  - --port
+                  - "8000"
+                  # bge-m3 supports up to 8192 tokens of context.
+                  - --max-model-len
+                  - "8192"
+                  # CPU backend: no CUDA graphs / no dtype auto-detect quirks.
+                  - --enforce-eager
+                  # torch CPU has unstable float16; bfloat16 is the docs-recommended
+                  # dtype for CPU serving and halves weight memory vs float32.
+                  # (https://docs.vllm.ai CPU installation FAQ)
+                  - --dtype
+                  - bfloat16
+                env:
+                  # Cap vLLM's CPU KV-cache arena; embeddings don't need much.
+                  - name: VLLM_CPU_KVCACHE_SPACE
+                    value: "4"
+                  # Bind inference threads to all but ~2 cores, reserving the rest
+                  # for the serving framework (16-vCPU node). OMP_NUM_THREADS is
+                  # ignored by vLLM unless VLLM_CPU_OMP_THREADS_BIND=nobind.
+                  - name: VLLM_CPU_OMP_THREADS_BIND
+                    value: "0-13"
+                ports:
+                  - name: http
+                    containerPort: 8000
+                probes:
+                  # Model download + load on first start can take minutes.
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      initialDelaySeconds: 15
+                      periodSeconds: 10
+                      timeoutSeconds: 5
+                      failureThreshold: 60
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      periodSeconds: 30
+                      timeoutSeconds: 5
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      initialDelaySeconds: 15
+                      periodSeconds: 10
+                      timeoutSeconds: 5
+                # Request sized to real usage (14d avg ~0.05, p99 ~0.74, bursts to
+                # ~5 cores while embedding); the 6-core limit still allows bursts.
+                # A 4-core request reserved a quarter of altus for an idle pod.
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 6Gi
+                  limits:
+                    cpu: "6"
+                    memory: 9Gi
+
+        persistence:
+          # Persistent HuggingFace model cache so bge-m3 (~2.3GB) is not
+          # re-downloaded from HF on every vLLM pod restart.
+          hf-cache:
+            type: persistentVolumeClaim
+            storageClass: lvms-vg1
+            accessMode: ReadWriteOnce
+            size: 10Gi
+            advancedMounts:
+              bge-m3:
+                vllm:
+                  - path: /root/.cache/huggingface
+          # torch/vLLM expect an adequate /dev/shm; the default 64Mi container
+          # shm is too small. Back it with memory.
+          dshm:
+            type: emptyDir
+            medium: Memory
+            sizeLimit: 4Gi
+            advancedMounts:
+              bge-m3:
+                vllm:
+                  - path: /dev/shm
+
+        service:
+          bge-m3:
+            controller: bge-m3
+            ports:
+              http:
+                port: 8000
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
