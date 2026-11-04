@@ -26,6 +26,9 @@ spec:
       activeDeadlineSeconds: 45000
       template:
         metadata:
+          labels:
+            # restic-rest-server-ingress admits this label.
+            app.kubernetes.io/name: restic-verifier
           annotations:
             openshift.io/required-scc: restricted-v2
         spec:
