@@ -57,6 +57,7 @@ spec:
                   - paperless-mcp
                   - qdrant
                   - resilio-sync
+                  - restic-verifier
                   - taxbuddy
                   - taxbuddy-hermes
                   - tymeslot
