@@ -156,6 +156,11 @@ spec:
                   # default is wrong. The plan's original HERMES_DATA_DIR
                   # var does not exist in the real image; corrected here.
                   HERMES_HOME: /opt/data
+                  # uv cache on an emptyDir, not the PVC (2026-11-04): uvx
+                  # browser-use and lazy installs built a new ~240MB env per
+                  # release under $HERMES_HOME/home/.cache/uv, never pruned,
+                  # until the 5Gi PVC hit 92% (and VolSync backed it up daily).
+                  UV_CACHE_DIR: /var/cache/uv
                   LITELLM_API_KEY:
                     valueFrom:
                       secretKeyRef:
@@ -245,6 +250,11 @@ spec:
                 env:
                   TZ: Europe/Berlin
                   HERMES_HOME: /opt/data
+                  # uv cache on an emptyDir, not the PVC (2026-11-04): uvx
+                  # browser-use and lazy installs built a new ~240MB env per
+                  # release under $HERMES_HOME/home/.cache/uv, never pruned,
+                  # until the 5Gi PVC hit 92% (and VolSync backed it up daily).
+                  UV_CACHE_DIR: /var/cache/uv
                   # Real env var names confirmed live by reading
                   # /opt/hermes/plugins/dashboard_auth/basic/__init__.py
                   # in the running pod — NOT the DASHBOARD_PASSWORD shape
@@ -411,6 +421,18 @@ spec:
                 init-config:
                   - path: /opt/hermes-config-seed
                     readOnly: true
+          # uv cache (UV_CACHE_DIR) for the hermes and dashboard containers.
+          # Disposable: rebuilt on demand after a pod restart.
+          uv-cache:
+            enabled: true
+            type: emptyDir
+            sizeLimit: 3Gi
+            advancedMounts:
+              hermes:
+                hermes:
+                  - path: /var/cache/uv
+                dashboard:
+                  - path: /var/cache/uv
           # moshi-hook daemon socket, shared between the tools sidecar
           # (runs the daemon) and the hermes/dashboard containers (the
           # moshi-hooks plugin's helper connects here). emptyDir — a
