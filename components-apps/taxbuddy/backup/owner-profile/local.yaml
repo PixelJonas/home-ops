@@ -15,6 +15,13 @@
     runAsGroup: 1000
     runAsNonRoot: true
 
+# VolSync gives the cache the source's access modes by default, and lvms-vg1
+# rejects the source's RWX.
+- op: add
+  path: /spec/restic/cacheAccessModes
+  value:
+    - ReadWriteOnce
+
 # nfs-subdir-external-provisioner has no CSI snapshot support, so retain the
 # template's Direct copy method. Atomic replacement keeps each backed-up file
 # whole. Run after the Valkey backup rather than alongside the database dump.
