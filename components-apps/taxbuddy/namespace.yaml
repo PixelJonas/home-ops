@@ -3,9 +3,4 @@ kind: Namespace
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
-    # VolSync movers use the operator's volsync-privileged-mover SCC (no
-    # fsGroup), so the valkey-backup mover can run as root and read the uid-999
-    # 0600 queue files without fsGroup mutation. The owner-profile mover instead
-    # selects uid 1000 explicitly because NFS root_squash applies even to root.
-    volsync.backube/privileged-movers: "true"
   name: taxbuddy
