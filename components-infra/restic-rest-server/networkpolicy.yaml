@@ -13,6 +13,8 @@
 #      ReplicationDestination are listed.
 #   2. The knowhere VM's in-guest $HOME backup (restic over the pod network;
 #      masquerade binding, so traffic leaves from the virt-launcher pod).
+#   3. The weekly restic-verifier CronJob. It isn't a VolSync mover, so it has
+#      its own rule and pod label.
 #
 # Adding an app whose backup uses templates/volsync/rest (or a restore
 # drill namespace) means adding its namespace to the list below, otherwise
@@ -57,7 +59,6 @@ spec:
                   - paperless-mcp
                   - qdrant
                   - resilio-sync
-                  - restic-verifier
                   - taxbuddy
                   - taxbuddy-hermes
                   - tymeslot
@@ -73,6 +74,12 @@ spec:
             matchLabels:
               kubevirt.io: virt-launcher
               vm.kubevirt.io/name: knowhere
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: restic-verifier
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: restic-verifier
       ports:
         - protocol: TCP
           port: 8000
