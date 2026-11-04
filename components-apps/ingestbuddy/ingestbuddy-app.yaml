@@ -36,8 +36,17 @@ spec:
                   # go in #108. INGESTBUDDY_CONFIG stays unset (image default
                   # /app/ingestbuddy.yaml); PLUGINS_QDRANT_ENABLED defaults true.
                   PLUGINS_TAX_ENABLED: "true"
-                  PLUGINS_TAXBUDDY_ENABLED: "true"
                   PLUGINS_VEHICLE_ENABLED: "true"
+                  # ingestbuddy#62 C4: taxbuddy is a named instance of the
+                  # generic webhook plugin (was the taxbuddy plugin). The
+                  # instance name is the sink name, so it must stay
+                  # `taxbuddy` (sink_dispatches history, re-OCR callback).
+                  # Never also set PLUGINS_TAXBUDDY_ENABLED: both at once fail
+                  # boot on the duplicate `taxbuddy` sink.
+                  PLUGINS_WEBHOOK_ENABLED: "true"
+                  PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__REQUIRES_NAMESPACE: tax
+                  # taxbuddy's review marker: never offered as a topic tag.
+                  PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__MACHINERY_TAGS: reviewed
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
@@ -190,8 +199,17 @@ spec:
                   # go in #108. INGESTBUDDY_CONFIG stays unset (image default
                   # /app/ingestbuddy.yaml); PLUGINS_QDRANT_ENABLED defaults true.
                   PLUGINS_TAX_ENABLED: "true"
-                  PLUGINS_TAXBUDDY_ENABLED: "true"
                   PLUGINS_VEHICLE_ENABLED: "true"
+                  # ingestbuddy#62 C4: taxbuddy is a named instance of the
+                  # generic webhook plugin (was the taxbuddy plugin). The
+                  # instance name is the sink name, so it must stay
+                  # `taxbuddy` (sink_dispatches history, re-OCR callback).
+                  # Never also set PLUGINS_TAXBUDDY_ENABLED: both at once fail
+                  # boot on the duplicate `taxbuddy` sink.
+                  PLUGINS_WEBHOOK_ENABLED: "true"
+                  PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__REQUIRES_NAMESPACE: tax
+                  # taxbuddy's review marker: never offered as a topic tag.
+                  PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__MACHINERY_TAGS: reviewed
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
@@ -234,18 +252,14 @@ spec:
                         name: ingestbuddy-credentials
                         key: QDRANT_API_KEY
                   # taxbuddy's ingestion-api POST /intake/ingestbuddy
-                  # (taxbuddy#109, shipped in taxbuddy#148). Auth is the
-                  # shared ingestbuddy push-transport header
-                  # X-Ingestbuddy-Signature carrying TAXBUDDY_WEBHOOK_SECRET
-                  # (Doppler TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET — the same
-                  # key taxbuddy's INGESTBUDDY_INTAKE_SECRET reads). Known
-                  # remaining gap: TaxbuddySink's envelope is not yet the
-                  # #139 IngestBundle taxbuddy validates, so deliveries 422
-                  # until ingestbuddy grows tax-domain extraction; failures
-                  # are recorded per-bundle as failed SinkDispatches, not
-                  # worker crashes.
-                  PLUGINS_TAXBUDDY_INTAKE_URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/intake/ingestbuddy
-                  PLUGINS_TAXBUDDY_WEBHOOK_SECRET:
+                  # (taxbuddy#109/#148), worker only. Auth is the static
+                  # X-Ingestbuddy-Signature header carrying
+                  # TAXBUDDY_WEBHOOK_SECRET (Doppler
+                  # TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET, the same key
+                  # taxbuddy's INGESTBUDDY_INTAKE_SECRET reads). The re-OCR
+                  # callback (ingestbuddy#36) goes to the same URL.
+                  PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/intake/ingestbuddy
+                  PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__SECRET:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
