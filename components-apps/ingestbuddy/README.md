@@ -39,15 +39,12 @@ The directories are `1000:1000`, mode `0777` (the api runs as uid 1000).
 Two pieces of config here are placeholders, deliberately, because the thing
 they point at doesn't exist yet:
 
-- **`PLUGINS_TAXBUDDY_INTAKE_URL`** (worker env, `ingestbuddy-app.yaml`) points at
-  taxbuddy's real in-cluster `ingestion-api` Service
-  (`taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000`) plus a
-  guessed path (`/webhooks/ingestbuddy`) — taxbuddy's actual intake endpoint
-  (taxbuddy#109) is still open, with no path decided yet. Every dispatch to
-  the `taxbuddy` sink will fail until #109 ships; that failure is caught
-  per-bundle by `dispatch_to_sink` and recorded as a failed `SinkDispatch`,
-  not a worker crash, so this does not block the rest of the pipeline.
-  **Update this URL (and verify the path) once #109 lands.**
+- **`PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__URL`** (worker env,
+  `ingestbuddy-app.yaml`; was `PLUGINS_TAXBUDDY_INTAKE_URL` until
+  ingestbuddy#62 C4) points at taxbuddy's in-cluster `ingestion-api`
+  `POST /intake/ingestbuddy` (taxbuddy#109, shipped in taxbuddy#148). This is
+  no longer a placeholder. A failed delivery is recorded per bundle as a
+  failed `SinkDispatch`, not a worker crash.
 - **`TAXBUDDY_WEBHOOK_SECRET`** (`external-ingestbuddy-credentials.yaml`,
   Doppler key `TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET`) was generated fresh by
   this ticket (#6) since there is nothing on the taxbuddy side to match yet.
