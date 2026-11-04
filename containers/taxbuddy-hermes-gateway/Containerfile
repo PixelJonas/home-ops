@@ -1,0 +1,24 @@
+# TaxBuddy Hermes: the upstream hermes-agent image plus local faster-whisper,
+# so voice notes still get transcribed when the shared ASR (LiteLLM ->
+# asgard whisper-large-v3) is down. The gateway falls back to local STT on
+# its own (gateway/run_inbound.py::_transcribe_one_clip).
+#
+# Baked into the image instead of Hermes' lazy install: the hermes-data PVC
+# is nearly full (5 Gi), and an immutable image needs no network at
+# fallback time. Used for every hermes container of the pod (init-config,
+# hermes, dashboard) so the FROM tag is the single hermes version source.
+FROM docker.io/nousresearch/hermes-agent:v2026.9.24
+
+# Same pins as hermes' own lazy-deps feature "stt.faster_whisper"
+# (tools/lazy_deps.py); sounddevice is only for mic capture, not needed here.
+# av stays on 18.x: av 19 dropped open(metadata_errors=...), which
+# faster-whisper 1.2.1 still passes (verified: "unexpected keyword argument").
+RUN uv pip install --no-cache --python /opt/hermes/.venv/bin/python \
+      faster-whisper==1.2.1 numpy==2.4.3 av==18.1.0 \
+    && /opt/hermes/.venv/bin/python -c "import faster_whisper"
+
+# Pre-download the fallback model (stt.local.model: small, CTranslate2
+# weights) into a read-only cache outside the PVC.
+ENV HF_HUB_CACHE=/opt/whisper-models
+RUN /opt/hermes/.venv/bin/python -c "from faster_whisper.utils import download_model; download_model('small')" \
+    && chmod -R a+rX /opt/whisper-models

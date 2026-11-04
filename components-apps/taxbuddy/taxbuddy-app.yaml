@@ -26,7 +26,7 @@ spec:
               ingestion-api:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/ingestion_api
-                  digest: "sha256:0a21a50335d413c51fbee298c1894293c0cca848ea2f68612f8613dd8bd64106"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:58c619c2143164d30795f3958417decc5e4d2c380aa468dd19083431bf064f56"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -93,7 +93,7 @@ spec:
               doc-pipeline:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/doc_pipeline
-                  digest: "sha256:1b2f7d47123a0847248556b665126c0684dab45d60d691fdcea8f9a9e1f5379d"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:63abb42c4f5e3c8e3dbfc77375fcb0837c40d06d8adc47cc821bd3513f44f559"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -129,22 +129,7 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
-                  # Required at startup with no default (doc_pipeline's
-                  # Settings.from_env(), per
-                  # services/doc_pipeline/src/doc_pipeline/config.py in the
-                  # taxbuddy repo) — added as part of Task 6 to close the
-                  # home-ops gap left by taxbuddy Task 4's HONCHO_* env
-                  # vars. Same in-cluster Honcho service as
-                  # taxbuddy-hermes's honcho.json (honcho-app-honcho, not
-                  # honcho-app — see taxbuddy-hermes-config.yaml).
-                  HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
-                  HONCHO_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: taxbuddy-credentials
-                        key: HONCHO_API_KEY
-                  HONCHO_WORKSPACE: taxbuddy
-                  HONCHO_OWNER_PEER_ID: jjanz
+                  OWNER_PROFILE_PATH: /data/owner-profile/owner.md
                 probes:
                   liveness:
                     enabled: true
@@ -195,11 +180,12 @@ spec:
               agent-runtime:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:55b89701afb76f2d3aad2daa4ecfc662b20f047c455854d3c440b48f067138a3"
+                  digest: "sha256:be43dee6b5ae5c8169fd3a584337b49edb7f72b4a2236b6e6fc94a6e7d974eae"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
                   AGENT_RUNTIME: hermes
+                  OWNER_PROFILE_PATH: /data/owner-profile/owner.md
                   QUEUE_URL: redis://taxbuddy-app-valkey:6379/0
                   DATABASE_URL:
                     valueFrom:
@@ -230,6 +216,13 @@ spec:
                   PACK_STEUERJAHRE: "2025,2026"
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
+                  # taxbuddy ADR-0028: one Telegram-Hinweis per new
+                  # owner-actionable kanban task, sent through the
+                  # taxbuddy-inbox Hermes plugin (needs the plugin + bot
+                  # token in taxbuddy-hermes). First enabled run baselines
+                  # the open board without sending; quiet hours =
+                  # DIGEST_QUIET_HOURS; max 5 notices per poll cycle.
+                  TELEGRAM_NOTICES_ENABLED: "true"
                   # taxbuddy P3-T04 (weekly digest): optional cloud-rendered
                   # Kurzüberblick. The narrator receives only structured
                   # aggregates (counts, category labels, statutory deadline
@@ -331,7 +324,7 @@ spec:
               self-benchmark:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/self_benchmark
-                  digest: "sha256:f3aecfa93a6cf4295c1bde14e8dbf2e724920b64f562fb82af2aae30f3426921"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
+                  digest: "sha256:bad20e481d7396403704024faf870c8de309ed685ed8487b7595d5d122e772c1"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the self_benchmark image (HARD-T02)
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -345,22 +338,6 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: TAXBUDDY_LLMCLIENT_LITELLM_KEY
-                  # Isolated eval workspace only — the runner refuses to
-                  # seed synthetic profiles or fall back to the synthetic
-                  # default peer against any other workspace
-                  # (self_benchmark.evaluate.require_eval_workspace).
-                  HONCHO_BASE_URL: http://honcho-app-honcho.honcho.svc:8000
-                  # Workspace-scoped key: in-cluster Honcho runs with
-                  # AUTH_USE_AUTH=true (JWTs are per-workspace), so the
-                  # doc-pipeline key (scoped to "taxbuddy") cannot touch
-                  # the taxbuddy-eval workspace. Separate Doppler key
-                  # TAXBUDDY_EVAL_HONCHO_API_KEY scoped to taxbuddy-eval.
-                  HONCHO_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: taxbuddy-credentials
-                        key: HONCHO_EVAL_API_KEY
-                  HONCHO_WORKSPACE: taxbuddy-eval
                   HERMES_NAMESPACE: taxbuddy-hermes
                   HERMES_DEPLOYMENT: taxbuddy-hermes-app
                   # Baseline-unchanged runs post a create+immediately-closed
@@ -398,7 +375,7 @@ spec:
               bmf-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:4ce4fc165fc047c61d598860aba2fc92bfaad589b3ac395811c777598518354c"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
+                  digest: "sha256:f3682ea0f652d4c608f66d615f3df5ced9158265003d00e99ffce9ca7b9d6031"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
@@ -463,7 +440,7 @@ spec:
               bgbl-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:4ce4fc165fc047c61d598860aba2fc92bfaad589b3ac395811c777598518354c"   # taxbuddy@bc79f4b (release run 38442907648, includes #206); release.yml bumps all knowledge_service digests together
+                  digest: "sha256:f3682ea0f652d4c608f66d615f3df5ced9158265003d00e99ffce9ca7b9d6031"   # taxbuddy@bc79f4b (release run 38442907648, includes #206); release.yml bumps all knowledge_service digests together
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
@@ -513,7 +490,7 @@ spec:
               knowledge-service:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:4ce4fc165fc047c61d598860aba2fc92bfaad589b3ac395811c777598518354c"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
+                  digest: "sha256:f3682ea0f652d4c608f66d615f3df5ced9158265003d00e99ffce9ca7b9d6031"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -565,7 +542,7 @@ spec:
               lookup-mcp:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/lookup_mcp
-                  digest: "sha256:fd39d69dbc7905cd30513afa833da8c87147df139c244364caf1213e57113f29"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
+                  digest: "sha256:95d531303d39ba129047e46ca2e49850dc3d4c3ef701bdb5d3db303c07159298"   # taxbuddy@b76951c (release run 36858356279); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -637,7 +614,7 @@ spec:
               web-ui:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/web_ui
-                  digest: "sha256:cae5bbc1d65abbafd718c0ba51d55997c9a90179d29c57bb47e397b72d27d4b0"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
+                  digest: "sha256:2835c707d03dad4bbad918895d19c232e63200a398de0f86f72a69cdd2aee1ff"   # taxbuddy@880356a (P3-T07 merge, release run 35509422405); later bumps come from release.yml
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -724,7 +701,7 @@ spec:
               sync-worker:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/sync_worker
-                  digest: "sha256:a704fc0168f2f3b0e0e74c764e8f550f28ef715f8da881a090b856b60ffa0d04"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
+                  digest: "sha256:c6480f4129af7fd929e6acbe37f417ba88e2bce8b3bd872916dbb029618982ce"   # sync_worker image built from taxbuddy@6828175 (release run 35439547642); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -787,7 +764,7 @@ spec:
               matching-engine:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/matching_engine
-                  digest: "sha256:a7f05257ae41b2a4a5221a580d94452641895af73659ca139583e7e148c89975"
+                  digest: "sha256:9ac2470b536ee9cc3f81ac353cc17740a5b72a962a07afec35baf2a545ad65f1"
                   pullPolicy: IfNotPresent
                 command: ["python", "-m", "matching_engine.main", "--once"]
                 env:
@@ -874,6 +851,8 @@ spec:
         persistence:
           valkey-data:
             enabled: true
+            # Preserve the original single-PVC name now that a second PVC exists.
+            forceRename: taxbuddy-app
             accessMode: ReadWriteOnce
             storageClass: lvms-vg1
             size: 1Gi
@@ -881,6 +860,21 @@ spec:
               valkey:
                 valkey:
                   - path: /data
+          # Canonical Markdown owner profile. NFSv4 provides the shared
+          # fcntl.flock semantics required by its coordinated writers.
+          owner-profile:
+            enabled: true
+            accessMode: ReadWriteMany
+            storageClass: synology-nfs-storage
+            size: 1Gi
+            advancedMounts:
+              doc-pipeline:
+                doc-pipeline:
+                  - path: /data/owner-profile
+                    readOnly: true
+              agent-runtime:
+                agent-runtime:
+                  - path: /data/owner-profile
           # ACTUAL_BUDGET_PASSWORD mounted as a file for the sync worker's
           # ACTUAL_PASSWORD_FILE (CLI 26.9.0 has no working _FILE support;
           # the actual_client wrapper reads the file itself).

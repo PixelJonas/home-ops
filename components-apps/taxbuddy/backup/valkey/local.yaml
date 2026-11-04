@@ -26,8 +26,13 @@
   path: /spec/restic/volumeSnapshotClassName
   value: lvms-vg1
 
-# No moverSecurityContext/fsGroup: the files are uid 999, mode 0600, so an
-# unprivileged mover could only read them through an injected fsGroup,
-# which rewrites group/mode in the backup. The namespace instead enables
-# VolSync privileged movers (../../namespace.yaml), which read as root and
-# keep the original ownership in the snapshot and on restore.
+# The files are uid 999, mode 0600, so the mover runs as that uid. The mover
+# ServiceAccount is granted anyuid in ../../anyuid-rolebinding.yaml. No fsGroup:
+# runAsUser alone reads every file, and an fsGroup walk would rewrite group/mode
+# in the snapshot clone and so in the backup. anyuid injects none. A restore
+# needs the same moverSecurityContext.
+- op: add
+  path: /spec/restic/moverSecurityContext
+  value:
+    runAsUser: 999
+    runAsGroup: 999

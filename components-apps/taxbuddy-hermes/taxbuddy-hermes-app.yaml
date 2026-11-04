@@ -20,8 +20,8 @@ spec:
             replicas: 1
             pod:
               # Live finding (2026-10-01): hermes lazy-installs optional
-              # deps (e.g. honcho-ai for memory.provider: honcho) with uv,
-              # a static musl binary. With the default ndots:5, "pypi.org"
+              # dependencies with uv, a static musl binary. With the default
+              # ndots:5, "pypi.org"
               # is first tried with search suffixes, and
               # pypi.org.altus.janz.digital answers NOERROR/NODATA — glibc
               # moves on, musl stops ("Name has no usable address"). ndots:1
@@ -61,20 +61,24 @@ spec:
               # into the main container.
               init-config:
                 image:
-                  repository: nousresearch/hermes-agent
+                  # Upstream hermes-agent + local faster-whisper (STT
+                  # fallback). Tag = hermes version (FROM line of
+                  # containers/taxbuddy-hermes-gateway/Containerfile); Renovate
+                  # bumps both together, the PR build pushes the tag first.
+                  repository: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
                   tag: v2026.9.24
-                  pullPolicy: IfNotPresent
+                  pullPolicy: Always
                 command:
                   - /bin/sh
                   - -c
-                # Extended (Task 6) to also seed honcho.json and SOUL.md
-                # alongside config.yaml — same one-container, one-seed-step
-                # pattern as before, just a &&-chained shell one-liner.
+                # Seed SOUL.md and the skill alongside config.yaml as writable PVC copies.
                 args:
                   - >-
                     cp /opt/hermes-config-seed/config.yaml /opt/data/config.yaml &&
-                    cp /opt/hermes-config-seed/honcho.json /opt/data/honcho.json &&
-                    cp /opt/hermes-config-seed/SOUL.md /opt/data/SOUL.md
+                    cp /opt/hermes-config-seed/SOUL.md /opt/data/SOUL.md &&
+                    mkdir -p /opt/data/skills/vehicle-pipeline-api &&
+                    cp /opt/hermes-config-seed/vehicle-pipeline-api.SKILL.md /opt/data/skills/vehicle-pipeline-api/SKILL.md &&
+                    chown -R 10000:10000 /opt/data/skills/vehicle-pipeline-api
               # Publishes the static moshi-hook binary onto a shared
               # emptyDir so the moshi-hooks plugin running INSIDE the hermes
               # (and dashboard) container can exec it at the same absolute
@@ -89,7 +93,7 @@ spec:
               tools-bin-init:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy-hermes-tools
-                  tag: latest
+                  tag: v2026.9.24
                   pullPolicy: Always
                 command:
                   - /bin/sh
@@ -99,12 +103,41 @@ spec:
                     cp /usr/local/bin/moshi-hook /opt/tools-bin/moshi-hook &&
                     chown 10000:10000 /run/moshi &&
                     mkdir -p /run/sshd
+              # taxbuddy ADR-0028: installs the taxbuddy-inbox Hermes plugin
+              # (Telegram notices, review buttons, reply routing) from the
+              # agent_runtime image, which ships it at
+              # /app/hermes-plugins/taxbuddy-inbox. Pin the SAME digest as
+              # agent-runtime in components-apps/taxbuddy/taxbuddy-app.yaml and
+              # bump both together. Runs as root (anyuid SCC) and chowns to
+              # the hermes uid: agent_runtime's `oc exec` runs the hermes CLI
+              # as root, so a root-written __pycache__ could otherwise be left
+              # in the plugin dir and break a uid-10000 `rm -rf` on restart.
+              install-taxbuddy-inbox:
+                image:
+                  repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
+                  digest: "sha256:be43dee6b5ae5c8169fd3a584337b49edb7f72b4a2236b6e6fc94a6e7d974eae"
+                  pullPolicy: IfNotPresent
+                command:
+                  - /bin/sh
+                  - -c
+                args:
+                  - >-
+                    rm -rf /opt/data/plugins/taxbuddy-inbox &&
+                    mkdir -p /opt/data/plugins &&
+                    cp -r /app/hermes-plugins/taxbuddy-inbox /opt/data/plugins/taxbuddy-inbox &&
+                    chown -R 10000:10000 /opt/data/plugins/taxbuddy-inbox
+                securityContext:
+                  runAsUser: 0
             containers:
               hermes:
                 image:
-                  repository: nousresearch/hermes-agent
+                  # Upstream hermes-agent + local faster-whisper (STT
+                  # fallback). Tag = hermes version (FROM line of
+                  # containers/taxbuddy-hermes-gateway/Containerfile); Renovate
+                  # bumps both together, the PR build pushes the tag first.
+                  repository: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
                   tag: v2026.9.24
-                  pullPolicy: IfNotPresent
+                  pullPolicy: Always
                 # The image's ENTRYPOINT is a fixed s6-overlay wrapper
                 # (/init main-wrapper.sh); it needs an explicit `gateway
                 # run` argument to boot the long-running gateway process
@@ -128,14 +161,14 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LITELLM_API_KEY
-                  # Falls back into honcho.json's HonchoClientConfig when
-                  # honcho.json omits apiKey (Task 6 live finding — see
-                  # taxbuddy-hermes-config.yaml).
-                  HONCHO_API_KEY:
+                  # Read-only vehicle-pipeline API, skill vehicle-pipeline-api
+                  # (taxbuddy-hermes-config.yaml). Reached in-cluster, no tailnet.
+                  VEHICLE_PIPELINE_URL: http://vehicle-pipeline-app.vehicle-pipeline.svc:8000
+                  VEHICLE_PIPELINE_HERMES_TOKEN:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
-                        key: HONCHO_API_KEY
+                        key: VEHICLE_PIPELINE_TOKEN
                   # Bearer token for the taxbuddy lookup-mcp server,
                   # interpolated as ${LOOKUP_MCP_TOKEN} in config.yaml's
                   # mcp_servers headers (taxbuddy#154).
@@ -149,7 +182,38 @@ spec:
                   # itself runs in the tools sidecar). Verified upstream:
                   # the plugin execs its helper with the inherited process
                   # env, and the helper honors MOSHI_SOCKET_PATH.
+                  # taxbuddy ADR-0028: Telegram gateway (long polling, owner-only).
+                  TELEGRAM_BOT_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: TELEGRAM_BOT_TOKEN
+                  TELEGRAM_ALLOWED_USERS:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: TELEGRAM_OWNER_ID
+                  TELEGRAM_HOME_CHANNEL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: TELEGRAM_OWNER_ID
                   MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
+                  # Voice-note STT through LiteLLM (model whisper-large-v3 ->
+                  # asgard). Hermes reads STT_OPENAI_* once at import; without
+                  # the base URL the OpenAI STT path targets api.openai.com.
+                  # The key is the same LiteLLM virtual key (taxbuddy-hermes,
+                  # allowed models include whisper-large-v3).
+                  STT_OPENAI_BASE_URL: http://litellm-app.litellm.svc:4000/v1
+                  STT_OPENAI_MODEL: whisper-large-v3
+                  # Local fallback model (faster-whisper small) is baked into
+                  # the image under this read-only cache.
+                  HF_HUB_CACHE: /opt/whisper-models
+                  VOICE_TOOLS_OPENAI_KEY:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: LITELLM_API_KEY
               dashboard:
                 # `hermes gateway run` does not start the web dashboard —
                 # confirmed live (2026-07-29) via `hermes dashboard
@@ -164,9 +228,13 @@ spec:
                 # mounted by one pod at a time, so both processes must
                 # share this pod.
                 image:
-                  repository: nousresearch/hermes-agent
+                  # Upstream hermes-agent + local faster-whisper (STT
+                  # fallback). Tag = hermes version (FROM line of
+                  # containers/taxbuddy-hermes-gateway/Containerfile); Renovate
+                  # bumps both together, the PR build pushes the tag first.
+                  repository: ghcr.io/pixeljonas/taxbuddy-hermes-gateway
                   tag: v2026.9.24
-                  pullPolicy: IfNotPresent
+                  pullPolicy: Always
                 args:
                   - dashboard
                   - --host
@@ -191,7 +259,7 @@ spec:
                         name: taxbuddy-hermes-credentials
                         key: DASHBOARD_PASSWORD
                   # Dashboard chats run the agent in THIS process, so it
-                  # needs the same provider/memory keys as the gateway.
+                  # needs the same provider credentials as the gateway.
                   # Without them config.yaml's `key_env: LITELLM_API_KEY`
                   # resolves empty and Hermes sends its `no-key-required`
                   # placeholder -> LiteLLM 401 "Virtual Key expected".
@@ -200,11 +268,6 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LITELLM_API_KEY
-                  HONCHO_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: taxbuddy-hermes-credentials
-                        key: HONCHO_API_KEY
                   # Bearer token for the taxbuddy lookup-mcp server,
                   # interpolated as ${LOOKUP_MCP_TOKEN} in config.yaml's
                   # mcp_servers headers (taxbuddy#154).
@@ -213,6 +276,23 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LOOKUP_MCP_TOKEN
+                  # ADR-0028: agent_runtime's `oc exec … hermes taxbuddy-inbox notify` lands in
+                  # this (first) container, so the plugin CLI needs the bot env here too.
+                  TELEGRAM_BOT_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: TELEGRAM_BOT_TOKEN
+                  TELEGRAM_ALLOWED_USERS:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: TELEGRAM_OWNER_ID
+                  TELEGRAM_HOME_CHANNEL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: TELEGRAM_OWNER_ID
                   # Same as on the hermes container: dashboard-spawned chat
                   # sessions load the moshi-hooks plugin too.
                   MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
@@ -234,7 +314,7 @@ spec:
               tools:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy-hermes-tools
-                  tag: latest
+                  tag: v2026.9.24
                   pullPolicy: Always
                 command:
                   - /opt/tools/entrypoint.sh
@@ -252,27 +332,26 @@ spec:
                   # plugin-reported $HERMES_HOME/state.db from THIS
                   # container's filesystem.
                   HERMES_HOME: /opt/data
-                  # The official nousresearch/hermes-agent image (hermes/dashboard
-                  # containers) bakes these in by default; this is a separate,
-                  # plain-Debian image (containers/taxbuddy-hermes-tools) that does
-                  # not, so the native TUI running here never added
-                  # /opt/data/lazy-packages to sys.path. Without it, hermes' lazy
-                  # installer fell back to installing honcho-ai into this image's
-                  # root-owned venv site-packages, which uid 10000 can't write to
-                  # ("Permission denied") — surfacing to the user as Honcho tool
-                  # calls failing with "Honcho session could not be initialized."
-                  # (live finding 2026-10-07). honcho-ai is already present at
-                  # /opt/data/lazy-packages (installed via the hermes container),
-                  # so pointing the target there picks it up without installing
-                  # anything new; disabling lazy installs here too since this
-                  # container's venv can never accept them anyway.
+                  # Read-only vehicle-pipeline API, skill vehicle-pipeline-api
+                  # (taxbuddy-hermes-config.yaml). Reached in-cluster, no tailnet.
+                  VEHICLE_PIPELINE_URL: http://vehicle-pipeline-app.vehicle-pipeline.svc:8000
+                  VEHICLE_PIPELINE_HERMES_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: VEHICLE_PIPELINE_TOKEN
+                  # The official nousresearch/hermes-agent image sets a writable
+                  # lazy-install target by default; this separate plain-Debian
+                  # tools image does not. Keep optional dependencies on the
+                  # existing PVC, and disable lazy installs in the tools container
+                  # because its venv is root-owned and uid 10000 cannot write to it.
                   HERMES_LAZY_INSTALL_TARGET: /opt/data/lazy-packages
                   HERMES_DISABLE_LAZY_INSTALLS: "1"
                   MOSHI_SOCKET_PATH: /run/moshi/moshi-hook.sock
                   MOSHI_STATE_DIR: /opt/data/tools/moshi-state
                   MOSHI_CONFIG_DIR: /opt/data/tools/moshi-config
                   # The native TUI in this container runs the agent in THIS
-                  # process, so it needs the same provider/memory keys as the
+                  # process, so it needs the same provider credentials as the
                   # gateway and dashboard — without them config.yaml's
                   # `key_env: LITELLM_API_KEY` resolves empty and Hermes
                   # sends its `no-key-required` placeholder -> LiteLLM 401
@@ -283,16 +362,27 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LITELLM_API_KEY
-                  HONCHO_API_KEY:
-                    valueFrom:
-                      secretKeyRef:
-                        name: taxbuddy-hermes-credentials
-                        key: HONCHO_API_KEY
                   LOOKUP_MCP_TOKEN:
                     valueFrom:
                       secretKeyRef:
                         name: taxbuddy-hermes-credentials
                         key: LOOKUP_MCP_TOKEN
+                  # ADR-0028: TUI sessions in this container load the taxbuddy-inbox plugin too.
+                  TELEGRAM_BOT_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: TELEGRAM_BOT_TOKEN
+                  TELEGRAM_ALLOWED_USERS:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: TELEGRAM_OWNER_ID
+                  TELEGRAM_HOME_CHANNEL:
+                    valueFrom:
+                      secretKeyRef:
+                        name: taxbuddy-hermes-credentials
+                        key: TELEGRAM_OWNER_ID
 
         persistence:
           hermes-data:
@@ -305,6 +395,8 @@ spec:
                 hermes:
                   - path: /opt/data
                 init-config:
+                  - path: /opt/data
+                install-taxbuddy-inbox:
                   - path: /opt/data
                 dashboard:
                   - path: /opt/data

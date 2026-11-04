@@ -47,7 +47,7 @@ spec:
               influxdb3:
                 image:
                   repository: docker.io/library/influxdb
-                  tag: 3.11.4-core
+                  tag: 3.12.2-core
                   pullPolicy: IfNotPresent
                 args:
                   - serve

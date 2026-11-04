@@ -16,6 +16,14 @@ subjects:
   - kind: ServiceAccount
     name: taxbuddy-db-migrate
     namespace: taxbuddy
+  # VolSync movers that must run as the uid owning their source files; VolSync
+  # names the mover SA after the source.
+  - kind: ServiceAccount
+    name: volsync-src-valkey-backup
+    namespace: taxbuddy
+  - kind: ServiceAccount
+    name: volsync-src-owner-profile-backup
+    namespace: taxbuddy
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - external-coppermind-mcp-credentials.yaml
+  - coppermind-mcp-app.yaml
+  - networkpolicy.yaml

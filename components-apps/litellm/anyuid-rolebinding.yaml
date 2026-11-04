@@ -8,6 +8,9 @@ subjects:
   - kind: ServiceAccount
     name: litellm-app
     namespace: litellm
+  - kind: ServiceAccount
+    name: litellm-bge-m3-app
+    namespace: litellm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

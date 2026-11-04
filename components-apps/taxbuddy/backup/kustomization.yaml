@@ -3,4 +3,5 @@ kind: Kustomization
 
 resources:
   - ./database
+  - ./owner-profile
   - ./valkey

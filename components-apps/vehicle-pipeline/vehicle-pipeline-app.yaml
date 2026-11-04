@@ -77,6 +77,19 @@ spec:
                   INGESTBUDDY_HANDOFF_SECRET:
                     valueFrom:
                       secretKeyRef: {name: vehicle-pipeline-credentials, key: INGESTBUDDY_HANDOFF_SECRET}
+                  # Machine API (vehicle-pipeline ADR 0005): read-only bearer
+                  # tokens for the Hermes agents, as SHA-256 hashes.
+                  API_TOKENS:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: API_TOKENS}
+                  # Closes the tailnet path to /api/v1 (see the Service below):
+                  # a request needs a token or Caddy's X-Proxy-Auth plus
+                  # Remote-User. Caddy sends the header (infra-ops
+                  # INFRA_PROXY_AUTH_SECRETS); "false" is the way back.
+                  REQUIRE_AUTH: "true"
+                  PROXY_AUTH_SHA256:
+                    valueFrom:
+                      secretKeyRef: {name: vehicle-pipeline-credentials, key: PROXY_AUTH_SHA256}
                 probes:
                   liveness:
                     enabled: true
