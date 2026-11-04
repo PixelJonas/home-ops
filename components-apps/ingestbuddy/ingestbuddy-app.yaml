@@ -26,7 +26,7 @@ spec:
               api:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_api
-                  digest: "sha256:3869b5d96ddf9ed4b289cb3ec1bf4dfe506d5fa47d08970ef696e35a743d8a47"
+                  digest: "sha256:80292aeb83473f1ab38ffb297c7b8a8ac78739cc3e4294fee03d581941c3f5fb"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
@@ -180,7 +180,7 @@ spec:
               worker:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_worker
-                  digest: "sha256:a5b0721e3aa4a5fb7d4f120d12eeca9297a4ad91a7d465f3ba86930a0eb3f578"
+                  digest: "sha256:577f4bd3a33df0e6dd4a98c23ea72e9d799b5fe06c74fa1b8442fe2645a3a21a"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
