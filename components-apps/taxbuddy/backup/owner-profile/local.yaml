@@ -7,7 +7,10 @@
 
 # The profile writer's atomic replacement creates owner.md as uid 1000, mode
 # 0600. NFS root_squash prevents the namespace's default root mover from
-# reading it, so run this mover as the same uid instead.
+# reading it, so run this mover as the same uid instead. The mover ServiceAccount
+# is granted anyuid in ../../anyuid-rolebinding.yaml. Don't enable VolSync's
+# privileged-movers annotation on this namespace: it forces the mover container
+# to run as root, whatever this context says.
 - op: add
   path: /spec/restic/moverSecurityContext
   value:
