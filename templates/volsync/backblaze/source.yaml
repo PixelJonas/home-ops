@@ -8,8 +8,13 @@ spec:
   # The PVC to be backed up
   sourcePVC: syno-template-backup
   trigger:
-    # Take a backup everyday at 5am
-    schedule: "0 5 * * *"
+    # Placeholder only: every consumer patches its own slot (UTC) from
+    # docs/volsync-schedules.md. Synology iSCSI clone sources sit on a 4-minute grid,
+    # all others on odd minutes, b2 legs after the rest legs. All RSes on
+    # one time overloaded the Synology CSI on 05.11.2026 (CreateVolume
+    # DeadlineExceeded, stuck movers). An RS still showing this value has
+    # no slot yet.
+    schedule: "6 7 * * *"
   restic:
     # Prune the repository (repack to free space) every 2 weeks
     pruneIntervalDays: 14
