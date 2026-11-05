@@ -20,3 +20,14 @@ patches:
       kind: ExternalSecret
       name: external-restic-config
     path: local-secret.yaml
+
+  # Backup slot 05:29 UTC (non-iSCSI grid), see docs/volsync-schedules.md.
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    patch: |-
+      - op: replace
+        path: /spec/trigger/schedule
+        value: "29 5 * * *"

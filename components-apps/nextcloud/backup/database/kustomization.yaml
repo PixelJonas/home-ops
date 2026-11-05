@@ -56,3 +56,25 @@ patches:
       kind: RoleBinding
       name: psql-backup
     path: rolebinding.yaml
+
+  # Backup slot 05:16 UTC (Synology iSCSI clone grid), see docs/volsync-schedules.md.
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    patch: |-
+      - op: replace
+        path: /spec/trigger/schedule
+        value: "16 5 * * *"
+
+  # Backup slot 06:16 UTC (Synology iSCSI clone grid), see docs/volsync-schedules.md.
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup-b2
+    patch: |-
+      - op: replace
+        path: /spec/trigger/schedule
+        value: "16 6 * * *"

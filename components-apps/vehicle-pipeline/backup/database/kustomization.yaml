@@ -39,3 +39,14 @@ patches:
       kind: PersistentVolumeClaim
       name: syno-db-backup
     path: pvc.yaml
+
+  # Backup slot 05:36 UTC (Synology iSCSI clone grid), see docs/volsync-schedules.md.
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    patch: |-
+      - op: replace
+        path: /spec/trigger/schedule
+        value: "36 5 * * *"
