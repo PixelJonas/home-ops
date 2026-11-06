@@ -1,0 +1,38 @@
+# Root disk: Ubuntu 24.04 LTS (noble) cloud image, OS + apt packages only.
+# Disposable by design (infra-ops #278): everything that must survive lives on
+# hogwarts-home, and Ansible (infra-ops stacks/knowhere roles, host hogwarts)
+# rebuilds the rest. 30Gi Block on lvms-vg1; cloud-init's growpart extends the
+# root partition to the full disk on first boot.
+#
+# Pinned to a dated release, never .../current/, so a recreated DataVolume
+# imports the same image. SHA256 from the release's SHA256SUMS:
+# 04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94. CDI on
+# altus supports spec.source.http.checksum, but the CRD schema CI validates
+# against (datreeio catalog) doesn't know the field yet, so it is not set;
+# check the hash by hand when bumping the release. DataVolume spec is immutable
+# after creation, so bumping this release does nothing to a running VM
+# (ignoreDifferences on /spec, values-infra.yaml); a root-disk rebuild is a
+# deliberate delete of this DataVolume followed by a sync.
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: hogwarts-rootdisk
+  namespace: hogwarts
+  annotations:
+    # CDI CRDs come from openshift-virtualization. Prune=false/Delete=false:
+    # never garbage-collect a VM disk because a manifest left git or the
+    # Application was deleted.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true,Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  source:
+    http:
+      url: https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    volumeMode: Block
+    resources:
+      requests:
+        storage: 30Gi
+    storageClassName: lvms-vg1

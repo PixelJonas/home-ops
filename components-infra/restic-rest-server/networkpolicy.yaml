@@ -45,6 +45,7 @@ spec:
                   - actual-budget
                   - gitea
                   - happier
+                  - hogwarts
                   - immich
                   - influxdb3
                   - ingestbuddy

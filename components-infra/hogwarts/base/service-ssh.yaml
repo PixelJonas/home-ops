@@ -1,0 +1,22 @@
+# Stable in-cluster name for SSH to the Hogwarts VM from knowhere
+# (hogwarts-ssh.hogwarts.svc.cluster.local:22): first Ansible contact before
+# Tailscale is installed, and fallback when Tailscale is down. ClusterIP only,
+# no Route; networkpolicy-ingress.yaml admits only the knowhere VM.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hogwarts-ssh
+  namespace: hogwarts
+  annotations:
+    # Selects the KubeVirt-created virt-launcher pod, which kube-linter
+    # can't see in the rendered manifests.
+    ignore-check.kube-linter.io/dangling-service: "selects the virt-launcher pod of VM hogwarts"
+spec:
+  type: ClusterIP
+  selector:
+    vm.kubevirt.io/name: hogwarts
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: 22
+      protocol: TCP

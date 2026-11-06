@@ -1,0 +1,34 @@
+# Ingress for the Hogwarts VM on the pod network: SSH (22) from the knowhere
+# VM only, nothing else (spec #277: inbound only SSH from knowhere and Jonas's
+# admin devices). The normal SSH path is Tailscale (tag:knowhere / owner
+# devices -> tag:hogwarts:22, infra-ops #459), which arrives inside the
+# WireGuard tunnel and is unaffected here. This pod-network path exists for
+# the first Ansible contact before Tailscale is installed (#461) and as a
+# fallback when Tailscale is down; the hogwarts-ssh Service gives it a stable
+# name. sshd on Hogwarts admits only the admin account (cloud-init AllowUsers).
+#
+# Replies to connections the VM opens itself (egress policy) are allowed by
+# the CNI's connection tracking regardless of this policy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hogwarts-ingress
+  namespace: hogwarts
+spec:
+  podSelector:
+    matchLabels:
+      vm.kubevirt.io/name: hogwarts
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: knowhere
+          podSelector:
+            matchLabels:
+              kubevirt.io: virt-launcher
+              vm.kubevirt.io/name: knowhere
+      ports:
+        - protocol: TCP
+          port: 22
