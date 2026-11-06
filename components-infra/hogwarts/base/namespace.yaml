@@ -6,4 +6,9 @@ kind: Namespace
 metadata:
   name: hogwarts
   annotations:
+    # Prune=false/Delete=false: removing this file or deleting the Argo
+    # Application must never delete the namespace, which would take both VM
+    # disks (and Julia's /home) with it. Retiring Hogwarts is a deliberate,
+    # separately approved `oc delete namespace` after a final backup.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
     argocd.argoproj.io/sync-wave: "-1"

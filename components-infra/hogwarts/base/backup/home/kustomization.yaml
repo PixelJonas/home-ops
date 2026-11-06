@@ -10,6 +10,7 @@ kind: Kustomization
 # What restic sees is the PVC's disk.img (the guest's whole ext4 /home as one
 # image file, deduplicated in chunks), not single files: a restore brings back
 # the disk, and the restore drill (spec section 10) boots a scratch VM from it.
+# Procedure (drill and in-place restore): docs/runbooks/hogwarts-home-restore.md.
 namePrefix: home-
 namespace: hogwarts
 
