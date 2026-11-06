@@ -1,7 +1,7 @@
 # Ingress for the Hogwarts VM on the pod network: SSH (22) from the knowhere
 # VM only, nothing else (spec #277: inbound only SSH from knowhere and Jonas's
-# admin devices). The normal SSH path is Tailscale (tag:knowhere / owner
-# devices -> tag:hogwarts:22, infra-ops #459), which arrives inside the
+# admin devices). The normal SSH path is Tailscale (narrow grants from
+# knowhere and Jonas's admin devices, infra-ops #459), which arrives inside the
 # WireGuard tunnel and is unaffected here. This pod-network path exists for
 # the first Ansible contact before Tailscale is installed (#461) and as a
 # fallback when Tailscale is down; the hogwarts-ssh Service gives it a stable
