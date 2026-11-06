@@ -28,10 +28,10 @@
 #
 # Tailscale (D3 check): the tailnet itself (WireGuard over UDP to public
 # endpoints and DERP relays) is internet traffic and allowed by rule 3. LAN
-# peers (Home Assistant, the NAS's tag:router node) advertise LAN endpoints
+# peers (Home Assistant, the NAS's Tailscale node) advertise LAN endpoints
 # in RFC 1918, which rule 3 denies, so those peers are expected to be reached
 # through a DERP relay. Measured before the VM exists (2026-11-06): a
-# pod-network tailscaled without an egress policy (tailscale/egress-proxies-0)
+# pod-network tailscaled on altus without an egress policy
 # reaches both peers only directly via their LAN endpoints, and netcheck
 # reports MappingVariesByDestIP=true, so a direct path over the public
 # address is unlikely. The real check (tailscale ping from Hogwarts) runs
