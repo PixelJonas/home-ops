@@ -59,6 +59,11 @@ applications:
       argocd.argoproj.io/sync-wave: "11"
     source:
       path: components-infra/claude-admin/base
+  mordo-admin:
+    annotations:
+      argocd.argoproj.io/sync-wave: "11"
+    source:
+      path: components-infra/mordo-admin/base
 
   openshift-monitoring:
     annotations:
