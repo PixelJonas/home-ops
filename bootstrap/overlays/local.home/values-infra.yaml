@@ -237,14 +237,31 @@ applications:
       namespace: hogwarts
     source:
       path: components-infra/hogwarts/base
-    # DataVolume spec is immutable after creation: ArgoCD must never try to
-    # reconcile it (a rejected patch, or a Replace/recreate, would risk the VM
-    # disks), e.g. after a bump of the pinned cloud-image release. A root-disk
-    # rebuild is a deliberate delete + sync. RespectIgnoreDifferences makes a
-    # sync honour this too (see knowhere/knx-ets).
-    syncOptions:
-      - RespectIgnoreDifferences=true
+    # Stage 1 (infra-ops #458): no auto-sync, no prune, no selfHeal. Merging
+    # this only creates the Application (OutOfSync); the namespace, disks and
+    # the VM come up with the first MANUAL sync after Jonas's go
+    # (`argocd app sync hogwarts` or Sync in the UI, never Replace/Force).
+    # The chart renders syncPolicy only when auto-sync is on, so
+    # RespectIgnoreDifferences sits in extraFields below while it is off.
+    # Stage 2, once the VM is accepted: delete `enableAutoSync: false` and the
+    # `syncPolicy:` block from extraFields, and add back
+    #   syncOptions:
+    #     - RespectIgnoreDifferences=true
+    # here (same PR), so the app gets the repo standard (automated, prune,
+    # selfHeal) without ever losing RespectIgnoreDifferences.
+    enableAutoSync: false
     extraFields: |
+      syncPolicy:
+        syncOptions:
+          - RespectIgnoreDifferences=true
+      # DataVolume spec is immutable after creation: ArgoCD must never try to
+      # reconcile it (a rejected patch, or a Replace/recreate, would risk the
+      # VM disks), e.g. after a bump of the pinned cloud-image release. A
+      # root-disk rebuild is a deliberate delete + sync.
+      # runStrategy is the VM's power switch: restarts and stops are human
+      # only, and a `virtctl stop` must stick instead of being reverted to
+      # the git default (Always) by the next sync or selfHeal (knx-ets
+      # pattern). RespectIgnoreDifferences makes a sync honour all of this.
       ignoreDifferences:
         - group: cdi.kubevirt.io
           kind: DataVolume
@@ -258,6 +275,12 @@ applications:
           namespace: hogwarts
           jsonPointers:
             - /spec
+        - group: kubevirt.io
+          kind: VirtualMachine
+          name: hogwarts
+          namespace: hogwarts
+          jsonPointers:
+            - /spec/runStrategy
 
   knx-ets:
     annotations:
