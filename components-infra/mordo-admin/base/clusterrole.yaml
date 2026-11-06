@@ -1,0 +1,37 @@
+# Operate, don't destroy: no delete on namespaces, PVCs/PVs, nodes, CRDs or
+# ArgoCD Applications; no RBAC/SCC edits; no secret reads.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mordo-operate
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale", "statefulsets/scale"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods/exec", "pods/portforward"]
+    verbs: ["create", "get"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applicationsets", "appprojects"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets", "clusterexternalsecrets"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["volsync.backube"]
+    resources: ["replicationsources", "replicationdestinations"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
