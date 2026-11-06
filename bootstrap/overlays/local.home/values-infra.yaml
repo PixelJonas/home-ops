@@ -229,6 +229,36 @@ applications:
           jsonPointers:
             - /spec
 
+  hogwarts:
+    annotations:
+      argocd.argoproj.io/sync-wave: "40"
+      argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    destination:
+      namespace: hogwarts
+    source:
+      path: components-infra/hogwarts/base
+    # DataVolume spec is immutable after creation: ArgoCD must never try to
+    # reconcile it (a rejected patch, or a Replace/recreate, would risk the VM
+    # disks), e.g. after a bump of the pinned cloud-image release. A root-disk
+    # rebuild is a deliberate delete + sync. RespectIgnoreDifferences makes a
+    # sync honour this too (see knowhere/knx-ets).
+    syncOptions:
+      - RespectIgnoreDifferences=true
+    extraFields: |
+      ignoreDifferences:
+        - group: cdi.kubevirt.io
+          kind: DataVolume
+          name: hogwarts-rootdisk
+          namespace: hogwarts
+          jsonPointers:
+            - /spec
+        - group: cdi.kubevirt.io
+          kind: DataVolume
+          name: hogwarts-home
+          namespace: hogwarts
+          jsonPointers:
+            - /spec
+
   knx-ets:
     annotations:
       argocd.argoproj.io/sync-wave: "40"

@@ -1,0 +1,9 @@
+# Hogwarts: Julia's family host (infra-ops docs/agents/hogwarts-spec-2026-11-06.md,
+# build issue infra-ops #458). Own namespace so its egress NetworkPolicy,
+# VolSync source and Doppler-backed cloud-init stay separate from knowhere.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hogwarts
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"

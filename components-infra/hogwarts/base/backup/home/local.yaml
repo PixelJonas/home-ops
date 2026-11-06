@@ -1,0 +1,21 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: hogwarts-home
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-home
+# 04:15 daily (#278): off knowhere's 05:00 run and the other 05:00 template
+# jobs, so the two VM disks never stream at the same time on altus.
+- op: replace
+  path: /spec/trigger/schedule
+  value: "15 4 * * *"
+# copyMethod Snapshot, never Direct: Direct mounts the live VM disk PVC in the
+# mover pod, and the mover's SELinux relabel paused knowhere in a loop
+# (2026-08-28). Snapshot backs up a point-in-time copy (crash-consistent
+# image of the guest's ext4; no guest freeze).
+- op: replace
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: lvms-vg1
