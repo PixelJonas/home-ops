@@ -119,9 +119,11 @@ The production VM keeps running. Budget about one hour (60Gi image).
    - both NetworkPolicies (`networkpolicy-egress.yaml`,
      `networkpolicy-ingress.yaml`) with the namespace changed and the pod
      selector `vm.kubevirt.io/name: hogwarts-restore`, and the egress copy
-     **without the internet rule** (only DNS and the in-cluster Services stay).
-     cloud-init's package step then fails; that is expected and harmless (use
-     `virtctl console` or SSH from knowhere instead of the guest agent);
+     **without the internet rule and without the Nextcloud, Paperless, Qdrant
+     and Gitea rules** (only DNS and LiteLLM stay), so a restored agent can't
+     write into Julia's live data. cloud-init's package step then fails; that
+     is expected and harmless (use `virtctl console` or SSH from knowhere
+     instead of the guest agent);
    - the VM: copy `virtualmachine.yaml`, `name: hogwarts-restore`, volumes
      pointing at `hogwarts-restore-rootdisk`, `home-test` (as a
      `persistentVolumeClaim` volume, the PVC is not a DataVolume) and the
@@ -139,11 +141,42 @@ The production VM keeps running. Budget about one hour (60Gi image).
      newest session time matches the snapshot time;
    - the canary checks of spec section 10 (canary session resumes, kanban
      card, cron job with `next_run_at`, memory fact, user-installed tool,
-     approval record). Before the first `hermes` command, empty the Telegram
-     bot token lines in every profile `.env` **of this scratch copy** and
-     confirm no gateway process runs afterwards (`pgrep -af hermes`).
+     approval record).
 
-7. **Cleanup.** `virtctl stop`, delete the namespace, revert the
+   **Before the first `hermes` command** (any `hermes` call auto-spawns a
+   gateway, and that gateway runs the cron scheduler and the kanban
+   dispatcher), in **this scratch copy** only, as root on the scratch VM:
+   1. empty the Telegram bot token lines in every profile `.env`;
+   2. read the cron canary straight from the files, without Hermes:
+      `jq -r '.jobs[] | [.name, .next_run_at, (.repeat|tostring)] | @tsv'
+      <home>/.hermes/profiles/*/cron/jobs.json` (and the default profile's
+      `<home>/.hermes/cron/jobs.json`), and record it;
+   3. pause every cron job by moving each `cron/jobs.json` aside
+      (`mv jobs.json jobs.json.drill-paused`), so the spawned gateway finds
+      no job to run;
+   4. read the kanban canary read-only: `sqlite3 -readonly
+      <home>/.hermes/kanban.db "select id, status, assignee from tasks
+      order by created_at desc limit 5"`; note any `ready` card (the spawned
+      dispatcher could start it; with only DNS and LiteLLM reachable it
+      can't act outside the VM);
+   5. only now run the `hermes` checks, and confirm afterwards that no
+      gateway keeps running (`pgrep -af hermes`).
+
+7. **Revert-path rehearsal (VolumeSnapshot).** Part B's revert point is
+   untested until this step has passed once; record the result. With
+   `hogwarts-restore` stopped (`virtctl stop`, VMI gone):
+   - VolumeSnapshot `home-test-snap` of `home-test` (class `lvms-vg1`), wait
+     for `readyToUse: true`;
+   - PVC `home-test-revert` from it (60Gi, `lvms-vg1`, `ReadWriteOnce`,
+     Filesystem, `dataSource: {apiGroup: snapshot.storage.k8s.io, kind:
+     VolumeSnapshot, name: home-test-snap}`);
+   - copy the content back with the copy Job of part B step 4, run in
+     `hogwarts-restore` with the helper ServiceAccount of step 5 (source
+     `home-test-revert`, destination `home-test`);
+   - start the VM again: `findmnt /home` on the home disk, `ls -ln /home`
+     owners 1000/1001, `pragma integrity_check` `ok`.
+
+8. **Cleanup.** `virtctl stop`, delete the namespace, revert the
    restic-rest-server namespace entry (or unfreeze its app), remove the
    `anyuid` grant, and check that `home-backup` in `hogwarts` still has its
    schedule and no manual trigger. Record the result (snapshot, timings,
@@ -177,9 +210,45 @@ steps below with exact names, the pre-restore backup, revert path.
      source: {persistentVolumeClaimName: hogwarts-home}
    ```
 
-   Wait for `readyToUse: true`. Revert = a new PVC from this snapshot
-   (`dataSource` VolumeSnapshot, same size and class) restored back the same
-   way, or simply the restic snapshot taken before the incident.
+   Wait for `readyToUse: true`. An lvms snapshot lives in the same thin pool
+   as the disk: it protects against a bad restore, not against losing the
+   pool (the restic snapshots stay the real backup).
+
+   **Revert** (untested until part A step 7 has passed once):
+   1. VM stopped, RD paused or deleted.
+   2. PVC `hogwarts-home-revert` from the snapshot:
+
+      ```yaml
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: hogwarts-home-revert
+        namespace: hogwarts
+      spec:
+        storageClassName: lvms-vg1
+        accessModes: [ReadWriteOnce]
+        volumeMode: Filesystem
+        resources: {requests: {storage: 60Gi}}
+        dataSource:
+          apiGroup: snapshot.storage.k8s.io
+          kind: VolumeSnapshot
+          name: hogwarts-home-pre-restore-<ts>
+      ```
+
+   3. **Never delete or swap `hogwarts-home`.** It belongs to the DataVolume
+      `hogwarts-home` (CDI): a deleted PVC comes back blank on the next sync,
+      and pointing the VM at another claim is a Git change. Copy the content
+      back instead, with a helper Job in `hogwarts` (same ServiceAccount and
+      temporary `anyuid` grant as step 6) that mounts `hogwarts-home-revert`
+      read-only at `/src` and `hogwarts-home` at `/dst` and runs
+      `cp --sparse=always /src/disk.img /dst/disk.img && chown 107:107
+      /dst/disk.img && stat -c '%s %u:%g' /dst/disk.img`. Interrupted: run it
+      again (the snapshot is untouched).
+   4. Start and check as in step 7; once accepted delete
+      `hogwarts-home-revert` and the VolumeSnapshot.
+
+   Alternatively restore the restic snapshot taken before the incident
+   (step 5 with that `restoreAsOf`).
 5. **Restore** in place with an RD in `hogwarts` (`destinationPVC:
    hogwarts-home`, `repository: restic-config-home`, `copyMethod: Direct`,
    `restoreAsOf` pinned, manual trigger), wait as in part A step 4, then
@@ -201,5 +270,32 @@ by hand (it carries `Prune=false,Delete=false`, so ArgoCD never deletes it),
 then sync `hogwarts` (manual sync in stage 1). CDI imports the pinned image
 again; cloud-init recreates both accounts with the pinned UIDs and mounts the
 existing `/home` (`partition: auto` reuses the ext4 labelled `home`). Then run
-the infra-ops Ansible for the hogwarts host from knowhere. Check `/home`
-before Ansible runs: if cloud-init had formatted it, stop and go to part B.
+the infra-ops Ansible for the hogwarts host from knowhere. Before Ansible
+runs, do the [first-boot checks](#first-boot-checks-first-sync-and-every-root-disk-rebuild):
+if cloud-init had formatted `/home`, stop and go to part B.
+
+## First-boot checks (first sync and every root-disk rebuild)
+
+Run before the first Ansible run against the VM. From knowhere, SSH in over
+the pod network with the admin key (`ssh <admin>@hogwarts-ssh.hogwarts.svc`);
+`<admin>` and `<julia>` are the two account names from Doppler. Every line
+must show the expected result; on any mismatch stop the VM
+(`virtctl stop hogwarts -n hogwarts`) and run no Ansible.
+
+| Check | Command | Expected |
+|---|---|---|
+| VM up, guest agent | `oc get vmi hogwarts -n hogwarts -o jsonpath='{.status.phase} {.status.conditions[?(@.type=="AgentConnected")].status}'` | `Running True` |
+| cloud-init finished | `cloud-init status --long` | `status: done`, no errors |
+| exactly the two accounts | `getent passwd 1000 1001 \| cut -d: -f1,3,6` | `<admin>:1000:/home/<admin>` and `<julia>:1001:/home/<julia>`, nothing else |
+| no image default user | `id ubuntu` | `no such user` |
+| `/home` on the home disk | `[ "$(findmnt -no SOURCE /home)" = "$(readlink -f /dev/disk/by-id/virtio-homedisk)" ] && echo ok` and `sudo blkid -s LABEL -o value /dev/disk/by-id/virtio-homedisk` | `ok`, `home` |
+| home owners | `stat -c '%u:%g %n' /home/*` | `1000:1000 /home/<admin>`, `1001:1001 /home/<julia>` |
+| Julia without sudo | `sudo -l -U <julia>` and `id -nG <julia>` | "not allowed to run sudo"; only her own group |
+| passwords locked | `sudo passwd -S <admin> <julia>` | second field `L` on both lines |
+| no keys for Julia | `sudo test -e /home/<julia>/.ssh/authorized_keys && echo FOUND \|\| echo none` | `none` |
+| sshd admits only the admin | `sudo sshd -T \| grep -E '^(allowusers\|passwordauthentication) '` | `allowusers <admin>`, `passwordauthentication no` |
+
+UIDs taken or the `ubuntu` user present: the pinned image changed behaviour;
+fix cloud-init, delete the root disk DataVolume and sync again. `/home` not on
+the home disk: the VM must not keep running (Julia's state would land on the
+disposable root disk).
