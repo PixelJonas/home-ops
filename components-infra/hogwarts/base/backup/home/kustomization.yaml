@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# VolSync on the /home disk only (infra-ops #278, spec section 10): the root
+# disk is disposable. In-cluster restic REST server, shared RESTIC_PASSWORD and
+# the shared default retention (tier B) from templates/volsync/rest. Offsite
+# through tailsafe's cluster-backups copy of the rest-server repos on the NAS;
+# no B2 (decision #278).
+#
+# What restic sees is the PVC's disk.img (the guest's whole ext4 /home as one
+# image file, deduplicated in chunks), not single files: a restore brings back
+# the disk, and the restore drill (spec section 10) boots a scratch VM from it.
+# Procedure (drill and in-place restore): docs/runbooks/hogwarts-home-restore.md.
+namePrefix: home-
+namespace: hogwarts
+
+resources:
+  - ../../../../../templates/volsync/rest
+
+patches:
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    path: local.yaml
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: external-restic-config
+    path: local-secret.yaml

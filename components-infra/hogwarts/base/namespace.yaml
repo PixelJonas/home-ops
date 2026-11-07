@@ -1,0 +1,14 @@
+# Hogwarts: Julia's family host (infra-ops docs/agents/hogwarts-spec-2026-11-06.md,
+# build issue infra-ops #458). Own namespace so its egress NetworkPolicy,
+# VolSync source and Doppler-backed cloud-init stay separate from knowhere.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hogwarts
+  annotations:
+    # Prune=false/Delete=false: removing this file or deleting the Argo
+    # Application must never delete the namespace, which would take both VM
+    # disks (and Julia's /home) with it. Retiring Hogwarts is a deliberate,
+    # separately approved `oc delete namespace` after a final backup.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "-1"

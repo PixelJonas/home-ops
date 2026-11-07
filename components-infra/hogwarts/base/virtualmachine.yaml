@@ -1,0 +1,82 @@
+# Hogwarts: Julia's family host (infra-ops spec section 2.2, sizing #278).
+# 4 vCPU / 4 GiB (+ 4 GiB zram in the guest, Ansible). Growth rule from #278:
+# an OOM kill or <10 % available memory for 15 min -> 6 GiB via PR + restart.
+#
+# One NIC only: the pod network (masquerade) plus Tailscale inside the guest.
+# No br0, no LAN localnet (unlike knowhere): the LAN is reachable only through
+# narrow Tailscale tag grants (infra-ops #459), and the egress NetworkPolicy
+# (networkpolicy-egress.yaml) denies every private range from the pod network.
+#
+# Both disks are local lvms-vg1 volumes on the altus node, so the VM can't
+# live-migrate: it is down while the altus node reboots (accepted in #278,
+# part of Julia's onboarding). evictionStrategy None says so explicitly, so a
+# node drain stops the VM instead of waiting forever for a migration.
+#
+# runStrategy Always: KubeVirt restarts the VM after a crash or node reboot.
+# Restarts and stops are human-initiated only (hogwarts:restart from knowhere,
+# never an agent). ArgoCD ignores /spec/runStrategy (values-infra.yaml), so a
+# `virtctl stop hogwarts -n hogwarts` (runStrategy Halted) sticks until a
+# human runs `virtctl start`; git only sets the value at creation. Before a
+# disk restore, stop the VM this way (docs/runbooks/hogwarts-home-restore.md).
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: hogwarts
+  namespace: hogwarts
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # After the cloud-init Secret (ExternalSecret, wave 0): the VM's
+    # cloudInitNoCloud volume references it by name.
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        kubevirt.io/domain: hogwarts
+    spec:
+      evictionStrategy: None
+      domain:
+        cpu:
+          # Same model as knowhere: both VMs only ever run on the altus node.
+          model: Skylake-Client-noTSX-IBRS
+          cores: 4
+        resources:
+          requests:
+            memory: 4Gi
+          limits:
+            memory: 4Gi
+        devices:
+          rng: {}
+          disks:
+            - name: rootdisk
+              bootOrder: 1
+              disk:
+                bus: virtio
+            - name: homedisk
+              disk:
+                bus: virtio
+              # Stable /dev/disk/by-id/virtio-homedisk in the guest; cloud-init
+              # (fs_setup, mounts) and the Ansible roles refer to this path.
+              serial: homedisk
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: rootdisk
+          dataVolume:
+            name: hogwarts-rootdisk
+        - name: homedisk
+          dataVolume:
+            name: hogwarts-home
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            # Only userData; one NIC with DHCP needs no networkData.
+            secretRef:
+              name: hogwarts-cloudinit
