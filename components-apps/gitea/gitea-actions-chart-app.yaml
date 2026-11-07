@@ -97,7 +97,7 @@ spec:
         # only matches objects no container uses, so running jobs are safe.
         postExtraInitContainers:
           - name: docker-prune
-            image: docker.io/library/docker:29.9.2-cli # renovate
+            image: docker.io/library/docker:29.9.3-cli # renovate
             restartPolicy: Always
             env:
               - name: DOCKER_HOST
