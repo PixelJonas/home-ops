@@ -21,7 +21,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install tools
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d  # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
         with:
           cache: true
       - name: yamllint
@@ -35,7 +35,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install tools
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d  # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
         with:
           cache: true
       - name: actionlint
@@ -49,7 +49,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install tools
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d  # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
         with:
           cache: true
       - name: zizmor
@@ -64,7 +64,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Install tools
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d  # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
         with:
           cache: true
       - name: gitleaks
@@ -78,7 +78,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install tools
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d  # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
         with:
           cache: true
       - name: shellcheck
@@ -92,7 +92,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install tools
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d  # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
         with:
           cache: true
       - name: hadolint
@@ -106,7 +106,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install tools
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d  # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
         with:
           cache: true
       - name: Validate Manifests
@@ -120,7 +120,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install tools
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d  # v5.2.4
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
         with:
           cache: true
       - name: Test Prometheus rules
