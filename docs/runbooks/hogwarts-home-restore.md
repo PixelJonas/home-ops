@@ -267,12 +267,45 @@ steps below with exact names, the pre-restore backup, revert path.
 
 No restore: rebuild. Stop the VM, delete the DataVolume `hogwarts-rootdisk`
 by hand (it carries `Prune=false,Delete=false`, so ArgoCD never deletes it),
-then sync `hogwarts` (manual sync in stage 1). CDI imports the pinned image
-again; cloud-init recreates both accounts with the pinned UIDs and mounts the
-existing `/home` (`partition: auto` reuses the ext4 labelled `home`). Then run
-the infra-ops Ansible for the hogwarts host from knowhere. Before Ansible
-runs, do the [first-boot checks](#first-boot-checks-first-sync-and-every-root-disk-rebuild):
+then sync `hogwarts` (manual sync in stage 1). The VM is still `Halted`, so
+the new DataVolume has no consumer yet and waits in `PendingPopulation`, and
+the sync operation stays `Running` in wave 1 (see
+[sync order](#sync-order-first-sync-and-rebuilds)). Start the VM
+(`virtctl start hogwarts -n hogwarts`): CDI imports the pinned image again,
+the VM boots and the sync finishes. cloud-init recreates both accounts with
+the pinned UIDs and mounts the existing `/home` (`partition: auto` reuses the
+ext4 labelled `home`). Then run the infra-ops Ansible for the hogwarts host
+from knowhere. Before Ansible runs, do the
+[first-boot checks](#first-boot-checks-first-sync-and-every-root-disk-rebuild):
 if cloud-init had formatted `/home`, stop and go to part B.
+
+## Sync order (first sync and rebuilds)
+
+Both disks are on `lvms-vg1`, a `WaitForFirstConsumer` StorageClass: a new
+DataVolume stays in `PendingPopulation` (no PVC bound, no import) until a pod
+uses its PVC, and the only such pod is the VM's virt-launcher. ArgoCD's
+built-in DataVolume health check reports that phase as `Progressing`, and a
+sync waits for every resource of a wave to be healthy before the next wave.
+So the DataVolumes sit in the same wave as the VM:
+
+| Wave | Objects |
+|---|---|
+| -1 | Namespace |
+| 0 | cloud-init ExternalSecret, NetworkPolicies, Service |
+| 1 | both DataVolumes and the VirtualMachine |
+| 30, 200 | restic ExternalSecret, ReplicationSource `home-backup` (VolSync template) |
+
+A first sync (or a sync after both disks were lost) applies wave 1 at once:
+the VM binds both PVCs, CDI imports the root image and creates the blank
+home disk, the VM boots, and once DataVolumes and VM are healthy the sync
+goes on to the backup objects (so `home-backup` never exists before the
+disk). With the DataVolumes in an earlier wave than the VM, the first sync
+hung for good in that wave and applied neither the VM nor the backup
+objects (2026-11-08).
+
+A sync that waits on a DataVolume in `PendingPopulation` while the VM is
+`Halted` (root-disk rebuild above) is not stuck: start the VM. Never sync
+with Replace or Force to get past it.
 
 ## First-boot checks (first sync and every root-disk rebuild)
 

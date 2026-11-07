@@ -23,7 +23,14 @@ metadata:
     # never garbage-collect a VM disk because a manifest left git or the
     # Application was deleted.
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true,Prune=false,Delete=false
-    argocd.argoproj.io/sync-wave: "0"
+    # Wave 1, together with the VM: lvms-vg1 is WaitForFirstConsumer, so the
+    # DataVolume stays in PendingPopulation until a pod uses its PVC, and only
+    # the VM (virt-launcher) is that consumer. ArgoCD's built-in DataVolume
+    # health reports that phase as Progressing; in an earlier wave than the VM,
+    # a sync waits for it forever and never applies the VM (first sync of
+    # hogwarts, 2026-11-08). In the same wave ArgoCD applies both, then waits
+    # for both to become healthy.
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   source:
     http:
