@@ -21,7 +21,9 @@ metadata:
   namespace: hogwarts
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true,Prune=false,Delete=false
-    argocd.argoproj.io/sync-wave: "0"
+    # Wave 1 with the VM, its only consumer (WaitForFirstConsumer): see
+    # datavolume-rootdisk.yaml.
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   source:
     blank: {}
