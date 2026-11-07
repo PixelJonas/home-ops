@@ -1,0 +1,10 @@
+resources:
+  - namespace.yaml
+  - datavolume-rootdisk.yaml
+  - datavolume-home.yaml
+  - external-secret-cloudinit.yaml
+  - virtualmachine.yaml
+  - networkpolicy-egress.yaml
+  - networkpolicy-ingress.yaml
+  - service-ssh.yaml
+  - ./backup
