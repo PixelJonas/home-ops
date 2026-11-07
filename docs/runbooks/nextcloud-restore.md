@@ -100,17 +100,90 @@ the DB dump's window closing within seconds while the data backup's own
 schedule left a ~2-hour gap where the two were never point-in-time
 consistent with each other at all.**
 
-**What this does NOT guarantee:** the app-data `ReplicationSource` uses
-`copyMethod: Direct` (no snapshot/clone step — restic reads straight off
-the live PVC for the duration of its own backup run), the same pattern
-every other Direct-copyMethod app in this fleet already uses (immich,
-paperless). For a very large app-data PVC, the restic transfer itself
-could still be running after the 03:12 maintenance-mode hold ends — this
-fix closes the previous multi-hour non-overlap gap, it does not add
-sub-second atomicity beyond what `copyMethod: Direct` already provides
-fleet-wide. If the app-data PVC grows large enough that this becomes a
-real concern, revisit with either a longer hold or `copyMethod: Snapshot`
-(a genuine point-in-time clone) for this component specifically.
+**What this does NOT guarantee:** the window only lines up the *capture*
+times. The app-data `ReplicationSource`s (`data-backup`, `data-backup-b2`)
+use `copyMethod: Snapshot` (`lvms-vg1` VolumeSnapshot at the 03:10 trigger,
+confirmed live 2026-11-07), so their image is a genuine point-in-time clone
+taken while maintenance mode is on. The dump itself is uploaded later: the
+`database-backup`/`database-backup-b2` `ReplicationSource`s snapshot the
+`database-syno-db-backup` PVC on their own schedule (05:00 UTC on
+2026-11-07; see `docs/volsync-schedules.md` if that moved), so the dump of
+night D only reaches restic around two hours after the app-data snapshot of
+night D. The two halves land in **different restic repositories with
+different snapshot times and no shared tag**. Pairing them is a manual step
+of the restore, see the next section. The user-file PVC
+(`nextcloud-app-nextcloud-data`, `data-nfs-backup` at 03:15, `Direct`) is
+outside the window altogether.
+
+## DB and config.php belong together (`secret`)
+
+The database and `config/config.php` are one unit. Restore them from the
+**same night**, never one of them alone and never a DB dump onto a freshly
+generated `config.php`. `config.php` lives only on the app-data PVC
+(`nextcloud-app-nextcloud`, subPath `config`, mounted at
+`/var/www/html/config`); there is no copy in Git or Doppler, and the
+Nextcloud image writes a brand-new one with a new random `secret` whenever
+it finds the PVC empty and installs.
+
+What in `config.php` the database depends on:
+
+| Key | What depends on it | Effect of a mismatch |
+|---|---|---|
+| `secret` | `ICrypto` key for every value Nextcloud encrypts in the DB: `oc_appconfig` rows starting with `$AppConfigEncryption$` (2026-11-07: `notifications/webpush_vapid_privkey`, `contacts/federations_cache`), TOTP secrets (`oc_twofactor_totp_secrets`), files_external credentials (`oc_storages_credentials`), OAuth2 client secrets, app_api/webhook_listeners secrets. Also hashes and encrypts every row in `oc_authtoken` (sessions and app passwords; 13 app passwords on 2026-11-07). | `HMAC does not match` (HTTP 500 on WebDAV writes, shares, notifications; incident 2026-11-07), TOTP codes rejected, every app password and session invalid, external-storage mounts fail. |
+| `passwordsalt` | Only legacy SHA1 user password hashes (current hashes are bcrypt/argon2 and self-contained). | Old-style hashes stop verifying; current ones are unaffected. |
+| `instanceid` | Name of `appdata_<instanceid>` in the data dir (user-file PVC) and the cookie names. | App data (previews, theming, app caches) "disappears" and is rebuilt; sessions drop. |
+| `version` | Must match the DB schema and the image tag of that night. | `needsDbUpgrade` or a refused downgrade. |
+| `dbtype`/`dbhost`/`dbname`/`dbuser` | Must point at `pgsql` / `nextcloud-db-rw` / `nextcloud` (since 2026-11-03). `config.php.pre-pgsql` next to it still points at MariaDB: never restore that one as `config.php`. | Nextcloud talks to a database that no longer exists. |
+| `dbpassword` | Comes from `nextcloud-db-nextcloud-secret` (ESO/CNPG), not from the backup; must equal the `POSTGRES_PASSWORD` env of the pod. | Login to Postgres fails. |
+| `installed` | Must be `true` before the first start, or the entrypoint runs `maintenance:install` and wipes the data dir (infra-ops `kubernetes-argocd.md`, "Restoring into a fresh PVC"). | Data loss. |
+
+Share passwords and 2FA backup codes are hashes, not `secret`-encrypted;
+they survive a `secret` mismatch.
+
+`secret` itself only changes when Nextcloud installs anew, so any
+`config.php` from the same installation decrypts the DB. Same-night pairing
+still matters for `version`, `instanceid`/app data and for not mixing app
+state from two different days. The real danger is an app-data PVC that is
+recreated empty (migration, storage-class change, lost PVC) and then
+installed fresh: that is how the 2026-11-07 incident started (app-data PVC
+moved to `lvms-vg1` in 61ad049 on 2026-08-09, new `config.php` and new
+`secret` the same day, old encrypted rows stayed in the DB). Any move of
+`nextcloud-app-nextcloud` must carry `config/config.php` over, restored from
+the backup or copied, before Nextcloud first starts on the new PVC.
+
+### Picking a matching pair of snapshots
+
+Both halves are VolSync/restic with the same tier A retention
+(`within: 7d`, 14 daily, 8 weekly, 12 monthly, 2 yearly), so a pair for
+every kept night exists in both repos as long as both legs ran that night.
+For a restore of night **D** (all times UTC):
+
+1. List the snapshots of both repos as in
+   [volsync-restore.md](volsync-restore.md) step 4 (local repos
+   `restic-config-data` / `restic-config-database`, B2 repos
+   `restic-config-data-b2` / `restic-config-database-b2`) and record the IDs.
+2. App data: the snapshot taken at about **D 03:10**.
+3. Database: the **first snapshot after D 03:00 and before D+1 03:00**
+   (05:00 on 2026-11-07). It contains the dump the 03:00 CronJob of D wrote.
+4. Pin each RD with `restoreAsOf` after its chosen snapshot and before that
+   repo's next one (VolSync takes the newest snapshot at or before the time;
+   e.g. data `D T03:20:00Z`, database `D T07:00:00Z`, which also covers the
+   05:16/06:16 schedule proposed in PR #1211). Check the pick against the
+   recorded snapshot ID in the mover log. **Never restore
+   "latest" on both sides**: between 03:10 and the database snapshot of the
+   same night, "latest" pairs tonight's `config.php` with last night's dump.
+5. Before Nextcloud starts, check the pair (step 5b): `backup.sql` must
+   carry an mtime of D 03:0x, `config.php` an mtime ≤ D 03:12. A
+   `backup.sql` from an earlier night means the dump CronJob failed on D
+   (the pipeline keeps the previous file and VolSync uploads it again):
+   pick an older D where both match, or accept the gap knowingly.
+6. Use the image tag that ran on D (`nextcloud-app.yaml` at the Git commit
+   of that day) so `version` in `config.php` matches the code.
+
+If `secret` cannot be recovered at all (app-data repos lost, DB survived),
+see "Recovering from a `secret` mismatch" under the checklist below.
+
+## Restore steps
 
 1. **Disable ArgoCD auto-sync on both Applications** — parent
    (`cluster-config-manager`) first, then the `nextcloud-app` Application
@@ -142,7 +215,11 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
 
 4. **Restore the database-dump PVC** from B2 (or the local REST tier if
    Altus itself is intact and it's just data corruption, not a full
-   disaster):
+   disaster). Steps 4 and 5 restore **one pair from the same night D**:
+   pick both snapshots first (see "Picking a matching pair of snapshots"
+   above) and set `restoreAsOf` in both RDs. The YAML below shows the
+   database leg; without `restoreAsOf` VolSync restores the latest snapshot,
+   which is only safe when both latest snapshots belong to the same night:
 
    ```bash
    cat <<EOF | oc apply -f -
@@ -158,6 +235,8 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
        repository: restic-config-database-b2
        destinationPVC: database-syno-db-backup
        copyMethod: Direct
+       # first database snapshot after D 03:00 (see the pairing section)
+       restoreAsOf: "<D>T07:00:00Z"
    EOF
    ```
 
@@ -168,7 +247,9 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
      -n nextcloud --timeout=15m
    ```
 
-5. **Restore the app-data PVC**, same shape, different names:
+5. **Restore the app-data PVC** (webroot, `config/config.php` with
+   `secret`, `custom_apps`, `themes`), same shape, different names, pinned to
+   the 03:10 snapshot of the **same night D** as step 4:
 
    ```bash
    cat <<EOF | oc apply -f -
@@ -184,6 +265,8 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
        repository: restic-config-data-b2
        destinationPVC: nextcloud-app-nextcloud
        copyMethod: Direct
+       # the D 03:10 snapshot (see the pairing section)
+       restoreAsOf: "<D>T03:20:00Z"
    EOF
    ```
 
@@ -227,6 +310,56 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
     uid 33/`www-data`, never as root**, per the `root_squash` caution
     above. A plain `oc exec ... tar xzf ...` as root will silently produce
     files the real app can't read.
+
+5b. **Check that the restored dump and `config.php` are a pair** before
+    anything loads or starts. Mount both restored PVCs read-only in a
+    one-shot pod (Nextcloud is at 0 replicas, so the RWO PVCs are free) and
+    print only timestamps, sizes and key names, never values:
+
+    ```bash
+    cat <<EOF | oc apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nextcloud-pair-check
+      namespace: nextcloud
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: check
+          image: docker.io/library/nextcloud:<tag that ran on D>
+          command: ["sleep", "1800"]
+          volumeMounts:
+            - {name: dump, mountPath: /dump, readOnly: true}
+            - {name: app, mountPath: /app, readOnly: true}
+      volumes:
+        - name: dump
+          persistentVolumeClaim: {claimName: database-syno-db-backup}
+        - name: app
+          persistentVolumeClaim: {claimName: nextcloud-app-nextcloud}
+    EOF
+    oc wait --for=condition=Ready pod/nextcloud-pair-check -n nextcloud --timeout=5m
+
+    # Both must point at night D: backup.sql ~D 03:0x, config.php <= D 03:12.
+    oc exec -n nextcloud nextcloud-pair-check -- \
+      stat -c '%y %s %n' /dump/backup.sql /app/config/config.php
+
+    # Keys present, correct DB wiring, installed flag (prints no secrets).
+    oc exec -n nextcloud nextcloud-pair-check -- php -r '
+      include "/app/config/config.php";
+      foreach (["secret","passwordsalt","instanceid"] as $k)
+        echo $k, " present=", var_export(!empty($CONFIG[$k]), true), "\n";
+      foreach (["installed","version","dbtype","dbhost","dbname","dbuser"] as $k)
+        echo $k, "=", var_export($CONFIG[$k] ?? null, true), "\n";'
+    oc delete pod nextcloud-pair-check -n nextcloud
+    ```
+
+    Expected: `secret`/`passwordsalt`/`instanceid` present, `installed=true`,
+    `dbtype='pgsql'`, `dbhost='nextcloud-db-rw'`, `dbname='nextcloud'`,
+    `version` equal to the image of night D. If the timestamps belong to
+    different nights, go back to steps 4/5 with a matching pair. After step 6
+    the "encrypted values readable" check below is the real proof that
+    `secret` and the database match.
 
 6. **Load the restored dump into PostgreSQL (`nextcloud-db`).** The dump is a
    `pg_dumpall` of the whole cluster, replayed as the superuser into an empty
@@ -323,8 +456,10 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
    oc scale deployment/nextcloud-app --replicas=1 -n nextcloud
    ```
 
-8. **Verify:**
-   - Web login works for both `jonas` and `julia`.
+8. **Verify:** run the full [post-restore checklist](#post-restore-checklist)
+   below. In short:
+   - Web login works for both `jonas` and `julia`, including the TOTP second
+     factor.
    - The shared calendar is present with its events.
    - Contacts are present.
    - `oc exec deploy/nextcloud-app -n nextcloud --container nextcloud -- php occ status`
@@ -332,6 +467,7 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
      `occ` script is not on `$PATH` in the official Nextcloud image —
      always invoke it as `php occ`, run from the container's default
      working directory `/var/www/html`.)
+   - Encrypted values decrypt, WebDAV writes and a share work.
 
 9. **Re-enable ArgoCD auto-sync** on both Applications (order-independent
    for re-enabling, unlike disabling):
@@ -348,8 +484,150 @@ real concern, revisit with either a longer hold or `copyMethod: Snapshot`
     ```bash
     oc delete replicationdestination nextcloud-database-restore nextcloud-data-restore -n nextcloud
     # delete any throwaway debug pod from step 6c if it wasn't already removed
-    oc delete pod nextcloud-restore-debug -n nextcloud --ignore-not-found
+    oc delete pod nextcloud-restore-debug nextcloud-pair-check -n nextcloud --ignore-not-found
     ```
+
+## Post-restore checklist
+
+Run this after every restore (and after any event that may have recreated
+`config.php`, e.g. an empty app-data PVC). Nextcloud should still be in
+maintenance mode for the household (see "Startup order" below) except for
+items 4-6, which need it off for the duration of the test. `occ` always runs
+as `www-data`; no command below prints a secret.
+
+```bash
+occ() { oc exec -n nextcloud deploy/nextcloud-app -c nextcloud -- \
+          su -s /bin/sh www-data -c "php occ $*"; }
+```
+
+1. **Status and version.** `occ status`: `installed: true`,
+   `needsDbUpgrade: false`, `version` equal to the image of night D.
+   `occ maintenance:data-fingerprint` once, so sync clients notice the
+   restore and re-check their local state instead of uploading stale files
+   as new.
+
+2. **Encrypted values are readable (`secret` matches the DB).** This is the
+   check that would have caught the 2026-11-07 incident. It tries to decrypt
+   every `secret`-encrypted value and prints only names and OK/FAIL:
+
+   ```bash
+   cat > /tmp/nc-crypto-check.php <<'PHP'
+   <?php
+   // Read-only: decrypt every secret-encrypted value, print names + OK/FAIL only.
+   require "/var/www/html/lib/base.php";
+   $crypto = \OC::$server->get(\OCP\Security\ICrypto::class);
+   $db = \OC::$server->get(\OCP\IDBConnection::class);
+   $fail = 0;
+   $try = function (string $label, string $cipher) use ($crypto, &$fail) {
+       try { $crypto->decrypt($cipher); $s = "OK"; } catch (\Throwable $e) { $s = "FAIL"; $fail++; }
+       echo $label, " ", $s, "\n";
+   };
+   $p = '$AppConfigEncryption$';
+   $r = $db->executeQuery("SELECT appid, configkey, configvalue FROM *PREFIX*appconfig WHERE configvalue LIKE ?", [$p . "%"]);
+   while ($row = $r->fetch()) { $try("appconfig " . $row["appid"] . "/" . $row["configkey"], substr($row["configvalue"], strlen($p))); }
+   $r = $db->executeQuery("SELECT user_id, secret FROM *PREFIX*twofactor_totp_secrets");
+   while ($row = $r->fetch()) { $try("totp user#" . substr(sha1($row["user_id"]), 0, 8), $row["secret"]); }
+   $r = $db->executeQuery("SELECT id, credentials FROM *PREFIX*storages_credentials");
+   while ($row = $r->fetch()) { if ((string) $row["credentials"] !== "") { $try("storages_credentials id=" . $row["id"], $row["credentials"]); } }
+   echo "FAILED=", $fail, "\n";
+   exit($fail > 0 ? 1 : 0);
+   PHP
+   oc exec -i -n nextcloud deploy/nextcloud-app -c nextcloud -- su -s /bin/sh www-data -c \
+     'cat > /tmp/nc-crypto-check.php && php /tmp/nc-crypto-check.php; rc=$?; rm -f /tmp/nc-crypto-check.php; echo rc=$rc' \
+     < /tmp/nc-crypto-check.php
+   rm -f /tmp/nc-crypto-check.php
+   ```
+
+   Expected: every line `OK`, `FAILED=0`, `rc=0` (2026-11-07 baseline: two
+   appconfig rows and two TOTP secrets, all OK). Any `FAIL` means `config.php`
+   and the database come from different installations or nights: stop, go
+   back to the pairing section. Also note the count of
+   `oc exec -n nextcloud deploy/nextcloud-app -c nextcloud -- su -s /bin/sh www-data -c 'grep -c "HMAC does not match" /var/www/html/data/nextcloud.log'`
+   (the data dir is not readable as root on the NFS PVC); it must not grow
+   while you run the tests below.
+
+3. **Logins and tokens.** Web login with password and TOTP code for both
+   users. An existing app password still works (it is stored hashed and
+   encrypted with `secret` in `oc_authtoken`): a `PROPFIND` with one of
+   them returns `207`, e.g. the Home Assistant CalDAV or contacts sync
+   password from Doppler, read into a netrc file as in the Secrets rules,
+   never onto the command line.
+
+4. **WebDAV write test (MKCOL/PUT/DELETE).** With an app password of a real
+   account in a netrc file (`machine nextcloud.janz.digital login <user>
+   password <app password>`, mode 600) and `U=<user>`:
+
+   ```bash
+   B="https://nextcloud.janz.digital/remote.php/dav/files/$U"
+   T="restore-check-$(date +%s)"
+   curl -s -o /dev/null -w 'MKCOL  %{http_code}\n' --netrc-file "$NETRC" -X MKCOL "$B/$T"
+   echo restore-check | curl -s -o /dev/null -w 'PUT    %{http_code}\n' --netrc-file "$NETRC" -T - "$B/$T/probe.txt"
+   curl -s --netrc-file "$NETRC" "$B/$T/probe.txt"
+   curl -s -o /dev/null -w 'MOVE   %{http_code}\n' --netrc-file "$NETRC" -X MOVE \
+     -H "Destination: $B/$T/probe-moved.txt" "$B/$T/probe.txt"
+   curl -s -o /dev/null -w 'DELETE %{http_code}\n' --netrc-file "$NETRC" -X DELETE "$B/$T"
+   ```
+
+   Expected: `MKCOL 201`, `PUT 201`, the content `restore-check`,
+   `MOVE 201`, `DELETE 204`. A `500` on any write is the `HMAC does not
+   match` pattern (check item 2 and the log). Empty the test folder from the
+   trash bin afterwards if you want no trace.
+
+5. **Share test.** Create a password-protected public link on a test file,
+   open it, delete the share (OCS API, same netrc):
+
+   ```bash
+   echo share-check | curl -s -o /dev/null --netrc-file "$NETRC" -T - "$B/$T-share.txt"
+   SP="$(openssl rand -hex 12)"   # throwaway, never reused
+   SID="$(curl -s --netrc-file "$NETRC" -H 'OCS-APIRequest: true' \
+     -X POST 'https://nextcloud.janz.digital/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json' \
+     --data-urlencode "path=/$T-share.txt" -d shareType=3 --data-urlencode "password=$SP" \
+     | jq -r '.ocs.meta.statuscode, .ocs.data.id' | paste -sd' ')"
+   echo "create: $SID"           # expect "200 <id>"
+   curl -s -o /dev/null -w 'DELETE share %{http_code}\n' --netrc-file "$NETRC" -H 'OCS-APIRequest: true' \
+     -X DELETE "https://nextcloud.janz.digital/ocs/v2.php/apps/files_sharing/api/v1/shares/${SID#* }"
+   curl -s -o /dev/null -w 'DELETE file %{http_code}\n' --netrc-file "$NETRC" -X DELETE "$B/$T-share.txt"
+   unset SP
+   ```
+
+   Expected: `create: 200 <id>`, `DELETE share 200`, `DELETE file 204`.
+   Then check existing shares are still listed (`occ share:list`, count
+   equal to the value recorded at backup time) and, in the browser, that a
+   user share between `jonas` and `julia` (the shared calendar) still opens.
+
+6. **Notifications / push.** `occ config:app:get notifications
+   webpush_vapid_pubkey` returns a value (do not print the privkey) and the
+   web UI's notification bell loads without a 500.
+
+7. **Data dir matches the DB.** The user-file PVC is backed up at 03:15
+   (`Direct`), not inside the window. If it was restored from a different
+   point than the DB, run `occ files:scan --all` and
+   `occ files:cleanup` so the file cache matches what is on disk; check
+   that `appdata_<instanceid>` exists for the `instanceid` in `config.php`
+   (`ls -d /var/www/html/data/appdata_*` as `www-data`).
+
+8. **Background jobs and backups.** The `nextcloud-app-cron` CronJob runs
+   green, then trigger one fresh backup of every `ReplicationSource`
+   (`data-backup*`, `database-backup*`, `data-nfs-backup`) after a manual
+   `database-psql-backup` run, so the first post-restore pair exists.
+
+### Recovering from a `secret` mismatch
+
+Only when no matching `config.php` exists any more (app-data repos lost,
+or the mismatch was found weeks later). The values encrypted with the old
+`secret` are gone; reset them, do not try to "fix" `secret` by hand. Take a
+fresh dump first.
+
+| Broken value | Reset |
+|---|---|
+| `notifications/webpush_vapid_privkey` + `_pubkey` | Delete both rows (`occ config:app:delete notifications webpush_vapid_privkey` and `..._pubkey`); the app generates a new pair (the 2026-11-07 fix). Browsers re-subscribe to push. |
+| `contacts/federations_cache` | `occ config:app:delete contacts federations_cache`; it is a cache. |
+| Other `$AppConfigEncryption$` rows | Find with the crypto check; delete if the app regenerates them, otherwise re-enter the value in the app's settings. |
+| TOTP secrets | `occ twofactorauth:disable <user> totp`, user re-enrolls (backup codes stay valid, they are hashes). |
+| App passwords / sessions (`oc_authtoken`) | Unusable: delete in Settings → Security (or `occ user:auth-tokens:delete`) and create new ones; update Doppler (`*_APP_PASSWORD`) and every client that used one (CalDAV/CardDAV, Home Assistant, desktop and mobile sync). |
+| files_external credentials, OAuth2 clients | Re-enter the credentials / recreate the client. |
+
+Then rerun the post-restore checklist.
 
 ## Startup order in a mass restore
 
