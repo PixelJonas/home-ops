@@ -42,7 +42,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: verifier
-              image: docker.io/restic/restic:0.19.1@sha256:9940e6c7421ab3a21ee9fdc4e91596d04c792b600d31b102696c75cbf3ac4481
+              image: docker.io/restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               command: [/bin/sh, /scripts/restic-verifier.sh]
               env:
                 - name: SECRETS_DIR
