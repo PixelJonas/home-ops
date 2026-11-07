@@ -1,0 +1,35 @@
+# /home disk: Julia's real state (Hermes profiles, sessions, memory, kanban,
+# cron, workspaces, user-level tools, the Claude login dir) and the admin
+# account's home. 60Gi on lvms-vg1, backed up by VolSync (./backup/home).
+# Blank: cloud-init formats it (ext4, label "home") on first boot only and
+# mounts it on /home before it creates the users, so both homes live on this
+# disk from the first boot (external-secret-cloudinit.yaml).
+#
+# volumeMode Filesystem on purpose: VolSync's restic mover mounts the source
+# (snapshot) PVC as a filesystem; a Block PVC fails the mover with "volume ...
+# has volumeMode Block, but is specified in volumeMounts" (seen on knowhere).
+# KubeVirt serves the PVC's disk.img to the guest as a virtio disk either way.
+#
+# Watch on first boot (knowhere-projects, 2026-08): CDI's blank-image
+# populator once left disk.img as 107:<namespace gid> and libvirt failed with
+# "Cannot access storage file ... Permission denied". If the VM doesn't start,
+# check `ls -ln disk.img` from a helper Job and fix ownership to 107:107.
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: hogwarts-home
+  namespace: hogwarts
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true,Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  source:
+    blank: {}
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    volumeMode: Filesystem
+    resources:
+      requests:
+        storage: 60Gi
+    storageClassName: lvms-vg1

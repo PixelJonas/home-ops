@@ -10,8 +10,9 @@ Related runbooks:
   PVC itself is restored with this runbook first).
 - [storage-rebuild-playbook.md](storage-rebuild-playbook.md): restoring many apps
   after a storage pool rebuild (freeze, waves, unfreeze).
-- [nextcloud-restore.md](nextcloud-restore.md) and
-  [knx-ets-volsync-restore-test.md](knx-ets-volsync-restore-test.md): app-specific
+- [nextcloud-restore.md](nextcloud-restore.md),
+  [knx-ets-volsync-restore-test.md](knx-ets-volsync-restore-test.md) and
+  [hogwarts-home-restore.md](hogwarts-home-restore.md): app-specific
   procedures built on this pattern.
 
 The backup side lives in `templates/volsync/` (ReplicationSource + ExternalSecret
