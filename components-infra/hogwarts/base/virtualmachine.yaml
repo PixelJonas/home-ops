@@ -26,7 +26,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     # After the cloud-init Secret (ExternalSecret, wave 0): the VM's
-    # cloudInitNoCloud volume references it by name.
+    # cloudInitNoCloud volume references it by name. Same wave as both
+    # DataVolumes: the VM is their first consumer (WaitForFirstConsumer), see
+    # datavolume-rootdisk.yaml.
     argocd.argoproj.io/sync-wave: "1"
 spec:
   runStrategy: Always
