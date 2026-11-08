@@ -1,0 +1,11 @@
+# Scratch namespace of the Hogwarts restore drill (README.md). Lives only for
+# the drill: the drill script deletes it at the end (and from its EXIT trap),
+# which removes the restored copy of Julia's /home with it. The copy holds her
+# profile .env files (bot tokens, LiteLLM and Cookidoo credentials), so the
+# namespace must never outlive the drill.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hogwarts-restore
+  labels:
+    app.kubernetes.io/part-of: hogwarts-restore-drill

@@ -41,7 +41,24 @@ from its WAL. Expect the state of up to one day before the snapshot time.
 
 ## Part A: rehearsal in a scratch namespace (restore drill)
 
-The production VM keeps running. Budget about one hour (60Gi image).
+The production VM keeps running. Budget about two hours: one for the restore
+and boot (60Gi image), the rest for the canary checks, the revert rehearsal
+(step 7) and the cleanup.
+
+**Scripted path.** infra-ops `mise run hogwarts:restore-drill` on knowhere
+runs the whole drill (spec section 10): canaries on the live host, a fresh
+backup, steps 2 to 8 below with the scratch objects from
+[components-infra/hogwarts/drill](../../components-infra/hogwarts/drill/README.md)
+(not part of any Argo Application), timings per phase, a cleanup from its
+EXIT trap, and a result file that `hogwarts:verify` reports. Like
+`hogwarts:restart` it runs only on Jonas's word: his own terminal with a
+typed confirmation, or Wong's chat session with his go. The steps below are
+what the script does, and the manual fallback.
+
+**Not covered by this drill:** a restore from the offsite copy. tailsafe
+copies the whole rest-server directory to the NAS-side target; getting the
+repo back from there (first the directory, then the restic restore) is a
+separate drill that has not been run yet.
 
 1. **Preflight.** `oc get replicationsource home-backup -n hogwarts` shows a
    recent `LAST SYNC`; the lvms thin pool has room for a 60Gi copy
@@ -69,11 +86,10 @@ The production VM keeps running. Budget about one hour (60Gi image).
          remoteRef: {key: RESTIC_PASSWORD}
    ```
 
-   Add `hogwarts-restore` to the mover namespaces of
-   `components-infra/restic-rest-server/networkpolicy.yaml` for the duration
-   (a live patch is reverted by selfHeal; use a short-lived PR, or freeze the
-   `restic-rest-server` app per volsync-restore.md step 1), otherwise the
-   mover hangs on connect.
+   `hogwarts-restore` is listed permanently among the mover namespaces of
+   `components-infra/restic-rest-server/networkpolicy.yaml` (the namespace
+   exists only during a drill); a drill under another namespace name would
+   hang on connect until it is added there.
 
 3. **Destination PVC** `home-test`: 60Gi, `lvms-vg1`, `ReadWriteOnce`,
    `volumeMode: Filesystem`, no `dataSource`.
@@ -121,52 +137,90 @@ The production VM keeps running. Budget about one hour (60Gi image).
      selector `vm.kubevirt.io/name: hogwarts-restore`, and the egress copy
      **without the internet rule and without the Nextcloud, Paperless, Qdrant
      and Gitea rules** (only DNS and LiteLLM stay), so a restored agent can't
-     write into Julia's live data. cloud-init's package step then fails; that
-     is expected and harmless (use `virtctl console` or SSH from knowhere
-     instead of the guest agent);
+     write into Julia's live data. Without internet, cloud-init's package
+     step (`package_update`, `qemu-guest-agent`) **fails, as expected**:
+     `cloud-init status` reports `error` with
+     `package-update-upgrade-install` as the only failed module, and the VM
+     has no guest agent. Everything else (accounts, `/home` mount, sshd
+     config) runs before that step;
    - the VM: copy `virtualmachine.yaml`, `name: hogwarts-restore`, volumes
      pointing at `hogwarts-restore-rootdisk`, `home-test` (as a
      `persistentVolumeClaim` volume, the PVC is not a DataVolume) and the
      scratch cloud-init Secret, `runStrategy: Halted`; start it with
      `virtctl start hogwarts-restore -n hogwarts-restore`.
 
-   Success criteria (console or SSH from knowhere with the admin key):
+   Access: SSH from knowhere as the admin account (both passwords are
+   locked, so `virtctl console` shows the boot but allows no login). The
+   scratch VM generates new host keys; pin one instead of trusting on first
+   use: generate a throwaway ed25519 host key on knowhere, add it to the
+   scratch cloud-init as `ssh_keys: {ed25519_private: ..., ed25519_public:
+   ...}` and connect with only that key in a scratch `known_hosts`. The
+   drill script does exactly this (`components-infra/hogwarts/drill/boot`
+   renders the template; the script adds the key).
+
+   The guest has **no `sqlite3` CLI**; it has `python3`, `jq` and `git`.
+   Read SQLite files with the Python module, as Julia (so no file in her
+   home becomes root's), e.g. the integrity check:
+
+   ```sh
+   runuser -u <julia> -- python3 -I -c 'import sqlite3, sys
+   con = sqlite3.connect("file:" + sys.argv[1] + "?mode=ro", uri=True)
+   print(con.execute("pragma integrity_check").fetchone()[0])' \
+     /home/<julia>/.hermes/state.db
+   ```
+
+   Success criteria (SSH from knowhere with the admin key):
    - `findmnt /home` shows the virtio-homedisk device, and `dmesg` / the
      journal shows no `mkfs` and no ext4 errors beyond a journal replay;
    - both homes exist with their pinned owners (`ls -ln /home`: 1000, 1001);
    - `loginctl show-user <julia>` reports no linger and none of Julia's
      `systemctl --user` units runs;
-   - Julia's Hermes state is readable: `sqlite3 <home>/.hermes/state.db
-     'pragma integrity_check'` (as root, read-only) answers `ok`, and the
-     newest session time matches the snapshot time;
+   - Julia's Hermes state is readable: `pragma integrity_check` (Python
+     module as above, read-only) answers `ok` for the default and every
+     profile `state.db` and for `kanban.db`, and the newest session time
+     matches the snapshot time;
    - the canary checks of spec section 10 (canary session resumes, kanban
      card, cron job with `next_run_at`, memory fact, user-installed tool,
      approval record).
 
    **Before the first `hermes` command** (any `hermes` call auto-spawns a
    gateway, and that gateway runs the cron scheduler and the kanban
-   dispatcher), in **this scratch copy** only, as root on the scratch VM:
+   dispatcher), in **this scratch copy** only, as root on the scratch VM, in
+   this order:
    1. empty the Telegram bot token lines in every profile `.env`;
    2. read the cron canary straight from the files, without Hermes:
       `jq -r '.jobs[] | [.name, .next_run_at, (.repeat|tostring)] | @tsv'
       <home>/.hermes/profiles/*/cron/jobs.json` (and the default profile's
-      `<home>/.hermes/cron/jobs.json`), and record it;
+      `<home>/.hermes/cron/jobs.json`), and record it. **Read first, then
+      move:** after step 3 neither `jq` nor `hermes cron list` can see it;
    3. pause every cron job by moving each `cron/jobs.json` aside
       (`mv jobs.json jobs.json.drill-paused`), so the spawned gateway finds
       no job to run;
-   4. read the kanban canary read-only: `sqlite3 -readonly
-      <home>/.hermes/kanban.db "select id, status, assignee from tasks
-      order by created_at desc limit 5"`; note any `ready` card (the spawned
-      dispatcher could start it; with only DNS and LiteLLM reachable it
-      can't act outside the VM);
-   5. only now run the `hermes` checks, and confirm afterwards that no
-      gateway keeps running (`pgrep -af hermes`).
+   4. read the kanban canary read-only with the Python module (`select id,
+      status, assignee from tasks order by created_at desc limit 5` on
+      `<home>/.hermes/kanban.db`, `mode=ro`); note any `ready` card (the
+      spawned dispatcher could start it; with only DNS and LiteLLM reachable
+      it can't act outside the VM);
+   5. move Julia's Claude login aside: `mv <home>/.claude-hogwarts
+      <home>/.claude-hogwarts.drill-aside`. The copy holds the same OAuth
+      refresh token as the live VM; a refresh from the copy would rotate it
+      and log out the live gateway. Without internet a refresh can't reach
+      Anthropic anyway, but the directory must not be usable at all;
+   6. only now run the `hermes` checks. The default model (Claude through
+      the login) is unreachable without internet and its login is moved
+      aside, so the canary session runs on the LiteLLM fallback: `hermes -p
+      hermione chat -Q --resume <canary session id> --provider
+      custom:litellm -m <assistant_agents_fallback_model> -q "..."`. Confirm
+      afterwards that no gateway keeps running (`pgrep -af hermes`).
 
 7. **Revert-path rehearsal (VolumeSnapshot).** Part B's revert point is
    untested until this step has passed once; record the result. With
    `hogwarts-restore` stopped (`virtctl stop`, VMI gone):
    - VolumeSnapshot `home-test-snap` of `home-test` (class `lvms-vg1`), wait
      for `readyToUse: true`;
+   - start the VM, write a marker that must NOT survive the revert (as root:
+     `date -u > /home/.drill-revert-marker`), stop it again; without such a
+     change the copy back would prove nothing;
    - PVC `home-test-revert` from it (60Gi, `lvms-vg1`, `ReadWriteOnce`,
      Filesystem, `dataSource: {apiGroup: snapshot.storage.k8s.io, kind:
      VolumeSnapshot, name: home-test-snap}`);
@@ -174,12 +228,14 @@ The production VM keeps running. Budget about one hour (60Gi image).
      `hogwarts-restore` with the helper ServiceAccount of step 5 (source
      `home-test-revert`, destination `home-test`);
    - start the VM again: `findmnt /home` on the home disk, `ls -ln /home`
-     owners 1000/1001, `pragma integrity_check` `ok`.
+     owners 1000/1001, `pragma integrity_check` `ok`, and the marker is
+     gone.
 
-8. **Cleanup.** `virtctl stop`, delete the namespace, revert the
-   restic-rest-server namespace entry (or unfreeze its app), remove the
-   `anyuid` grant, and check that `home-backup` in `hogwarts` still has its
-   schedule and no manual trigger. Record the result (snapshot, timings,
+8. **Cleanup.** `virtctl stop`, delete the namespace (the restored copy,
+   its Secrets and the `anyuid` RoleBinding go with it), and check that
+   `home-backup` in `hogwarts` still has its schedule and no manual trigger.
+   Remove the canaries from the live host (card, memory entry, tool,
+   approval entry, canary session). Record the result (snapshot, timings,
    criteria) on the Hogwarts backup issue in infra-ops (spec section 10).
 
 ## Part B: restore over the live `/home` (needs Jonas's go)

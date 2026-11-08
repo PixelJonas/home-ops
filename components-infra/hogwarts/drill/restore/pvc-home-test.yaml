@@ -1,0 +1,17 @@
+# Destination of the restore: same size, class and mode as hogwarts-home
+# (../../base/datavolume-home.yaml). A plain PVC, not a DataVolume: the
+# restored disk.img must never be "populated" by CDI. lvms-vg1 is
+# WaitForFirstConsumer, so the VolSync mover pod binds it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: home-test
+  namespace: hogwarts-restore
+spec:
+  storageClassName: lvms-vg1
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 60Gi

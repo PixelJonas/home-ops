@@ -46,6 +46,10 @@ spec:
                   - gitea
                   - happier
                   - hogwarts
+                  # Scratch namespace of the Hogwarts restore drill
+                  # (components-infra/hogwarts/drill): exists only while a
+                  # drill runs; its restore mover reads the hogwarts repo.
+                  - hogwarts-restore
                   - immich
                   - influxdb3
                   - ingestbuddy
