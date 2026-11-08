@@ -1,11 +1,9 @@
 # Ingress allow-list for the in-cluster restic REST server (altus).
 #
-# The server runs without authentication and without --append-only, so any
-# client that can reach TCP 8000 can delete repository files. This policy
-# admits only the clients that use it today (evidence: every Secret whose
-# RESTIC_REPOSITORY points at restic-rest-server-app, 2026-11-02, matched
-# 1:1 to the ReplicationSources below; no CronJob, Deployment, Route or
-# ServiceMonitor references the server):
+# It admits only the clients that use the server today (evidence: every
+# Secret whose RESTIC_REPOSITORY points at restic-rest-server-app,
+# 2026-11-02, matched 1:1 to the ReplicationSources below; no CronJob,
+# Deployment, Route or ServiceMonitor references the server):
 #
 #   1. VolSync mover pods (backup volsync-src-*, restore volsync-dst-*).
 #      VolSync labels every mover Job pod app.kubernetes.io/created-by:
@@ -49,6 +47,8 @@ spec:
                   # Scratch namespace of the Hogwarts restore drill
                   # (components-infra/hogwarts/drill): exists only while a
                   # drill runs; its restore mover reads the hogwarts repo.
+                  # CI (scripts/check_hogwarts_drill.py rest-server-policy)
+                  # keeps it in this mover peer only.
                   - hogwarts-restore
                   - immich
                   - influxdb3

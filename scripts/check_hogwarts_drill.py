@@ -2,6 +2,7 @@
 """Assertions on the rendered Hogwarts restore-drill objects.
 
     check_hogwarts_drill.py <stage> [--require-restore-target] < objects.jsonl
+    check_hogwarts_drill.py rest-server-policy < objects.jsonl
     check_hogwarts_drill.py --self-test
 
 <stage> is a directory under components-infra/hogwarts/drill (restore,
@@ -19,14 +20,23 @@ otherwise one line per violation and exit 1.
 What is asserted (components-infra/hogwarts/drill/README.md):
   - exactly the expected objects per stage, all in hogwarts-restore;
   - nothing that names the live namespace or the live home disk, no Secret,
-    no ReplicationSource, no Telegram or Tailscale reference;
+    no ReplicationSource, no Telegram or Tailscale reference, no host
+    namespaces (hostNetwork/hostPID/hostIPC) and no privileged container;
+  - ExternalSecrets: exactly secretStoreRef + target + data (no dataFrom, so
+    never a whole Doppler config), the store and target pinned, exactly the
+    expected keys;
   - the VM is hogwarts-restore, Halted, home disk = PVC home-test, pod network
-    only;
-  - egress = cluster DNS + LiteLLM only (no ipBlock, no Nextcloud, Paperless,
-    Qdrant, Gitea); ingress = SSH from the knowhere VM only;
+    with exactly one masquerade interface;
+  - egress = exactly the DNS pods (5353) and the LiteLLM pods (4000), whole
+    peers compared (namespaceSelector + podSelector + ports); ingress =
+    exactly the knowhere VM's launcher pod on TCP 22;
   - cloud-init keeps partition: auto and sets hostname hogwarts-restore;
-  - the helper Jobs run as drill-helper with anyuid pinned and touch only the
+  - the helper Jobs run as drill-helper with anyuid pinned, one container
+    with the pinned command, image digest and runAsUser 0, and touch only the
     scratch claims.
+rest-server-policy (components-infra/restic-rest-server): hogwarts-restore
+appears at most in the VolSync-mover peer (namespace list + pod label
+app.kubernetes.io/created-by: volsync), nowhere else in the policy.
 """
 
 import copy
@@ -63,6 +73,66 @@ EXPECTED = {
         ("Job", "revert-copy"),
     },
 }
+
+
+SECRET_STORE = {"kind": "ClusterSecretStore", "name": "doppler-cluster"}
+# Every ExternalSecret of the drill: target name, template keys (None = no
+# template) and the exact secretKey -> Doppler key mapping.
+EXTERNAL_SECRETS = {
+    "home-external-restic-config": (
+        "restic-config-home",
+        None,
+        {"RESTIC_REPOSITORY": "HOGWARTS_HOME_REST_REPO_LOCAL", "RESTIC_PASSWORD": "RESTIC_PASSWORD"},
+    ),
+    "hogwarts-restore-cloudinit-template": (
+        "hogwarts-restore-cloudinit-template",
+        {"engineVersion", "data"},
+        {"sshUser": "HOGWARTS_SSH_USER", "primaryUser": "HOGWARTS_PRIMARY_USER",
+         "sshPublicKey": "HOGWARTS_SSH_PUBLIC_KEY"},
+    ),
+}
+DNS_PEER = {
+    "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "openshift-dns"}},
+    "podSelector": {"matchLabels": {"dns.operator.openshift.io/daemonset-dns": "default"}},
+}
+LITELLM_PEER = {
+    "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "litellm"}},
+    "podSelector": {"matchLabels": {"app.kubernetes.io/controller": "litellm",
+                                    "app.kubernetes.io/name": "litellm-app"}},
+}
+KNOWHERE_PEER = {
+    "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "knowhere"}},
+    "podSelector": {"matchLabels": {"kubevirt.io": "virt-launcher", "vm.kubevirt.io/name": "knowhere"}},
+}
+EGRESS_RULES = [
+    {"to": [DNS_PEER], "ports": [{"protocol": "UDP", "port": 5353}, {"protocol": "TCP", "port": 5353}]},
+    {"to": [LITELLM_PEER], "ports": [{"protocol": "TCP", "port": 4000}]},
+]
+JOB_IMAGE_PREFIX = "registry.redhat.io/openshift4/ose-cli-rhel9:"
+# The helper Jobs' exact scripts: a change here is a change of what runs as
+# root on the restored disk, so it needs a change of this checker too.
+JOB_SCRIPTS = {
+    "fix-owner": (
+        "set -euo pipefail\n"
+        "f=/restore/disk.img\n"
+        "test -f \"$f\"\n"
+        "chown 107:107 \"$f\"\n"
+        "echo \"RESULT $(stat -c '%s %u:%g' \"$f\")\"\n"
+    ),
+    "revert-copy": (
+        "set -euo pipefail\n"
+        "test -f /src/disk.img\n"
+        "cp --sparse=always /src/disk.img /dst/disk.img\n"
+        "chown 107:107 /dst/disk.img\n"
+        "echo \"RESULT $(stat -c '%s %u:%g' /dst/disk.img)\"\n"
+    ),
+}
+JOB_MOUNTS = {
+    "fix-owner": [{"name": "restore", "mountPath": "/restore"}],
+    "revert-copy": [{"name": "src", "mountPath": "/src", "readOnly": True},
+                    {"name": "dst", "mountPath": "/dst"}],
+}
+MOVER_LABELS = {"app.kubernetes.io/created-by": "volsync"}
 
 
 def walk(value):
@@ -125,6 +195,44 @@ def check_common(stage, objs, errors):
                     errors.append(f"{kind}/{name} selects namespace {v}")
             if d.get("claimName") == "hogwarts-home" or d.get("persistentVolumeClaimName") == "hogwarts-home":
                 errors.append(f"{kind}/{name} uses the live claim hogwarts-home")
+            for key in ("hostNetwork", "hostPID", "hostIPC", "privileged", "allowPrivilegeEscalation"):
+                if key in d and d[key] is not False:
+                    errors.append(f"{kind}/{name} sets {key}")
+        if kind == "ExternalSecret":
+            check_external_secret(o, errors)
+
+
+def check_external_secret(es, errors):
+    name = get(es, "metadata", "name")
+    spec = get(es, "spec", default={})
+    if name not in EXTERNAL_SECRETS:
+        errors.append(f"ExternalSecret/{name} is not one of the drill's ExternalSecrets")
+        return
+    target_name, template_keys, mapping = EXTERNAL_SECRETS[name]
+    if not isinstance(spec, dict) or set(spec) != {"secretStoreRef", "target", "data"}:
+        keys = sorted(spec) if isinstance(spec, dict) else spec
+        errors.append(f"ExternalSecret/{name} spec must be exactly secretStoreRef, target, data "
+                      f"(no dataFrom: never a whole Doppler config), got {keys}")
+    if spec.get("secretStoreRef") != SECRET_STORE:
+        errors.append(f"ExternalSecret/{name} must read the ClusterSecretStore doppler-cluster")
+    target = spec.get("target") or {}
+    want_target = {"name"} | ({"template"} if template_keys else set())
+    if not isinstance(target, dict) or set(target) != want_target or target.get("name") != target_name:
+        errors.append(f"ExternalSecret/{name} target must be exactly {sorted(want_target)} "
+                      f"with name {target_name}")
+    elif template_keys and set(target.get("template") or {}) != template_keys:
+        errors.append(f"ExternalSecret/{name} template keys must be {sorted(template_keys)}")
+    data = spec.get("data")
+    got = {}
+    if isinstance(data, list):
+        for item in data:
+            if (not isinstance(item, dict) or set(item) != {"secretKey", "remoteRef"}
+                    or not isinstance(item.get("remoteRef"), dict) or set(item["remoteRef"]) != {"key"}):
+                errors.append(f"ExternalSecret/{name} data entries must be secretKey + remoteRef.key only")
+                continue
+            got[item["secretKey"]] = item["remoteRef"]["key"]
+    if got != mapping or not isinstance(data, list) or len(data) != len(mapping):
+        errors.append(f"ExternalSecret/{name} reads {sorted(got.values())}, expected {sorted(mapping.values())}")
 
 
 def check_restore(objs, errors, require_target):
@@ -145,12 +253,7 @@ def check_restore(objs, errors, require_target):
                 errors.append("RD home-restore still carries the sentinel restoreAsOf/trigger")
         elif when != SENTINEL_TIME or token != SENTINEL_TOKEN:
             errors.append("RD home-restore in git must carry the sentinels (the drill script sets them)")
-    for es in by_kind(objs, "ExternalSecret", "home-external-restic-config"):
-        keys = sorted(str(get(d, "remoteRef", "key")) for d in get(es, "spec", "data", default=[]))
-        if keys != ["HOGWARTS_HOME_REST_REPO_LOCAL", "RESTIC_PASSWORD"]:
-            errors.append(f"restic ExternalSecret reads unexpected keys: {keys}")
-        if get(es, "spec", "target", "name") != "restic-config-home":
-            errors.append("restic ExternalSecret must target restic-config-home")
+    # The ExternalSecret is checked in check_common (check_external_secret).
     for rb in by_kind(objs, "RoleBinding"):
         if get(rb, "roleRef", "name") != "system:openshift:scc:anyuid":
             errors.append("RoleBinding must grant only the anyuid SCC")
@@ -173,6 +276,25 @@ def check_job(objs, errors, name, claims):
                 for v in get(pod, "spec", "volumes", default=[])}
         if used != claims:
             errors.append(f"Job {name} mounts {sorted(used)}, expected {sorted(claims)}")
+        pspec = get(pod, "spec", default={})
+        if "initContainers" in pspec or "ephemeralContainers" in pspec:
+            errors.append(f"Job {name} must have no init or ephemeral containers")
+        containers = pspec.get("containers") or []
+        if len(containers) != 1:
+            errors.append(f"Job {name} must have exactly one container")
+            continue
+        c = containers[0]
+        if c.get("command") != ["/bin/bash", "-c", JOB_SCRIPTS[name]] or "args" in c:
+            errors.append(f"Job {name} runs another command than the pinned script")
+        if c.get("securityContext") != {"runAsUser": 0}:
+            errors.append(f"Job {name} securityContext must be exactly runAsUser 0")
+        image = str(c.get("image", ""))
+        if not image.startswith(JOB_IMAGE_PREFIX) or "@sha256:" not in image:
+            errors.append(f"Job {name} must use the digest-pinned ose-cli image")
+        if c.get("volumeMounts") != JOB_MOUNTS[name]:
+            errors.append(f"Job {name} volumeMounts differ from the pinned mounts")
+        if "env" in c or "envFrom" in c:
+            errors.append(f"Job {name} must not get env (no secrets in the helper)")
 
 
 def check_boot(objs, errors):
@@ -194,6 +316,8 @@ def check_boot(objs, errors):
         nets = tspec.get("networks", [])
         if nets != [{"name": "default", "pod": {}}]:
             errors.append("VM must have exactly the pod network")
+        if get(tspec, "domain", "devices", "interfaces") != [{"name": "default", "masquerade": {}}]:
+            errors.append("VM must have exactly one masquerade interface on the pod network")
         if get(spec, "template", "metadata", "labels", "kubevirt.io/domain") != "hogwarts-restore":
             errors.append("VM domain label must be hogwarts-restore")
     for dv in by_kind(objs, "DataVolume"):
@@ -214,37 +338,73 @@ def check_boot(objs, errors):
             errors.append("egress policy must be policyTypes [Egress]")
         if get(spec, "podSelector", "matchLabels") != {"vm.kubevirt.io/name": "hogwarts-restore"}:
             errors.append("egress policy must select the hogwarts-restore VM")
+        if set(spec) != {"podSelector", "policyTypes", "egress"}:
+            errors.append(f"egress policy spec keys are {sorted(spec)}")
         rules = spec.get("egress", [])
-        allowed = []
-        for rule in rules:
-            for peer in rule.get("to", []):
-                if "ipBlock" in peer:
-                    errors.append("egress policy has an ipBlock rule (internet or LAN)")
-                allowed.append(str(get(peer, "namespaceSelector", "matchLabels", "kubernetes.io/metadata.name")))
-        if sorted(allowed) != ["litellm", "openshift-dns"] or len(rules) != 2:
-            errors.append(f"egress must allow only openshift-dns and litellm, got {allowed}")
-        ports = {get(peer, "namespaceSelector", "matchLabels", "kubernetes.io/metadata.name"):
-                 sorted((p.get("protocol"), p.get("port")) for p in rule.get("ports", []))
-                 for rule in rules for peer in rule.get("to", [])}
-        if ports.get("openshift-dns") not in (None, [("TCP", 5353), ("UDP", 5353)]):
-            errors.append("DNS rule must be port 5353 only")
-        if ports.get("litellm") not in (None, [("TCP", 4000)]):
-            errors.append("LiteLLM rule must be TCP 4000 only")
+        if any("ipBlock" in peer for rule in rules for peer in rule.get("to", []) or []):
+            errors.append("egress policy has an ipBlock rule (internet or LAN)")
+        # Whole rules: namespaceSelector AND podSelector of each peer, and the
+        # ports. A missing podSelector would open every pod of the namespace,
+        # a missing `to` every destination on that port.
+        got = sorted((normalise_rule(r, "to") for r in rules), key=json.dumps)
+        want = sorted((normalise_rule(r, "to") for r in EGRESS_RULES), key=json.dumps)
+        if got != want:
+            errors.append("egress must be exactly the DNS pods on 5353 and the LiteLLM pods on TCP 4000 "
+                          f"(whole peers compared), got {got}")
     for np in by_kind(objs, "NetworkPolicy", "hogwarts-restore-ingress"):
         spec = get(np, "spec", default={})
-        ok = (spec.get("policyTypes") == ["Ingress"]
-              and get(spec, "podSelector", "matchLabels") == {"vm.kubevirt.io/name": "hogwarts-restore"}
-              and len(spec.get("ingress", [])) == 1
-              and get(spec, "ingress", 0, "ports") == [{"protocol": "TCP", "port": 22}]
-              and get(spec, "ingress", 0, "from", 0, "podSelector", "matchLabels", "vm.kubevirt.io/name") == "knowhere"
-              and len(get(spec, "ingress", 0, "from", default=[])) == 1)
+        ok = (set(spec) == {"podSelector", "policyTypes", "ingress"}
+              and spec.get("policyTypes") == ["Ingress"]
+              and get(spec, "podSelector") == {"matchLabels": {"vm.kubevirt.io/name": "hogwarts-restore"}}
+              and spec.get("ingress") == [{"from": [KNOWHERE_PEER], "ports": [{"protocol": "TCP", "port": 22}]}])
         if not ok:
-            errors.append("ingress policy must admit only the knowhere VM on TCP 22 to hogwarts-restore")
+            errors.append("ingress policy must admit exactly the knowhere VM launcher (namespace knowhere) "
+                          "on TCP 22 to hogwarts-restore")
     for svc in by_kind(objs, "Service", "hogwarts-restore-ssh"):
         if get(svc, "spec", "selector") != {"vm.kubevirt.io/name": "hogwarts-restore"}:
             errors.append("SSH Service must select only hogwarts-restore")
         if get(svc, "spec", "type", default="ClusterIP") != "ClusterIP":
             errors.append("SSH Service must be ClusterIP")
+
+
+def normalise_rule(rule, peers_key):
+    """A NetworkPolicy rule as comparable data: peers as given, ports as sorted tuples."""
+    if not isinstance(rule, dict):
+        return {"invalid": repr(rule)}
+    ports = rule.get("ports")
+    norm_ports = None if ports is None else sorted(
+        (p.get("protocol"), p.get("port")) if isinstance(p, dict) and set(p) <= {"protocol", "port"}
+        else ("invalid", json.dumps(p, sort_keys=True))
+        for p in ports
+    )
+    return {"keys": sorted(rule), peers_key: rule.get(peers_key), "ports": norm_ports}
+
+
+def check_rest_server_policy(objs):
+    """hogwarts-restore may appear only in the VolSync-mover peer of the rest-server policy."""
+    errors = []
+    pols = by_kind(objs, "NetworkPolicy", "restic-rest-server-ingress")
+    if len(pols) != 1:
+        return ["expected exactly one NetworkPolicy restic-rest-server-ingress in the render"]
+    for o in objs:
+        if o is not pols[0] and NS in json.dumps(o):
+            errors.append(f"{o.get('kind')}/{get(o, 'metadata', 'name')} mentions {NS}")
+    for i, rule in enumerate(get(pols[0], "spec", "ingress", default=[])):
+        for j, peer in enumerate(rule.get("from", []) or []):
+            if NS not in json.dumps(peer):
+                continue
+            exprs = get(peer, "namespaceSelector", "matchExpressions", default=[])
+            mover = (set(peer) == {"namespaceSelector", "podSelector"}
+                     and set(peer["namespaceSelector"]) == {"matchExpressions"}
+                     and len(exprs) == 1
+                     and exprs[0].get("key") == "kubernetes.io/metadata.name"
+                     and exprs[0].get("operator") == "In"
+                     and NS in (exprs[0].get("values") or [])
+                     and peer.get("podSelector") == {"matchLabels": MOVER_LABELS})
+            if not mover:
+                errors.append(f"ingress[{i}].from[{j}] names {NS} outside the VolSync-mover peer "
+                              f"(namespace list + podSelector {MOVER_LABELS})")
+    return errors
 
 
 def check_revert_snapshot(objs, errors):
@@ -262,6 +422,8 @@ def check_revert_copy(objs, errors):
 
 def check(stage, objs, require_target=False):
     errors = []
+    if stage == "rest-server-policy":
+        return check_rest_server_policy(objs)
     if stage not in EXPECTED:
         return [f"unknown stage {stage!r}"]
     check_common(stage, objs, errors)
@@ -300,6 +462,25 @@ def self_test(renders):
     def find(objs, kind, name=None):
         return by_kind(objs, kind, name)[0]
 
+    def egress(objs):
+        return find(objs, "NetworkPolicy", "hogwarts-restore-egress")["spec"]["egress"]
+
+    def ingress_peer(objs):
+        return find(objs, "NetworkPolicy", "hogwarts-restore-ingress")["spec"]["ingress"][0]["from"][0]
+
+    def job_container(objs):
+        return find(objs, "Job")["spec"]["template"]["spec"]["containers"][0]
+
+    def rest_rule(objs):
+        return find(objs, "NetworkPolicy", "restic-rest-server-ingress")["spec"]["ingress"][0]
+
+    def rest_peer(objs, namespace):
+        return next(p for p in rest_rule(objs)["from"]
+                    if get(p, "namespaceSelector", "matchLabels", "kubernetes.io/metadata.name") == namespace)
+
+    def rest_mover(objs):
+        return next(p for p in rest_rule(objs)["from"] if p.get("podSelector") == {"matchLabels": MOVER_LABELS})
+
     cases = {
         "internet egress": ("boot", lambda o: find(o, "NetworkPolicy", "hogwarts-restore-egress")["spec"]["egress"].append(
             {"to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}]})),
@@ -329,6 +510,70 @@ def self_test(renders):
         "job SCC": ("fix-owner", lambda o: find(o, "Job")["spec"]["template"]["metadata"].update(annotations={})),
         "revert source writable": ("revert-copy", lambda o: find(o, "Job")["spec"]["template"]["spec"]["volumes"][0][
             "persistentVolumeClaim"].update(readOnly=False)),
+        # NetworkPolicy peers compared whole (namespaceSelector + podSelector + ports).
+        "DNS peer without podSelector": ("boot", lambda o: egress(o)[0]["to"][0].pop("podSelector")),
+        "LiteLLM peer without podSelector": ("boot", lambda o: egress(o)[1]["to"][0].pop("podSelector")),
+        "LiteLLM podSelector widened": ("boot", lambda o: egress(o)[1]["to"][0].update(podSelector={})),
+        "LiteLLM peer without namespaceSelector": ("boot", lambda o: egress(o)[1]["to"][0].pop(
+            "namespaceSelector")),
+        "DNS rule without to": ("boot", lambda o: egress(o)[0].pop("to")),
+        "LiteLLM extra port": ("boot", lambda o: egress(o)[1]["ports"].append({"protocol": "TCP", "port": 22})),
+        "DNS rule without ports": ("boot", lambda o: egress(o)[0].pop("ports")),
+        "ingress without namespaceSelector": ("boot", lambda o: ingress_peer(o).pop("namespaceSelector")),
+        "ingress namespaceSelector widened": ("boot", lambda o: ingress_peer(o).update(namespaceSelector={})),
+        "ingress launcher label dropped": ("boot", lambda o: ingress_peer(o)["podSelector"]["matchLabels"].pop(
+            "kubevirt.io")),
+        "ingress extra peer": ("boot", lambda o: find(o, "NetworkPolicy", "hogwarts-restore-ingress")["spec"][
+            "ingress"][0]["from"].append({"podSelector": {}})),
+        # ExternalSecrets: never a whole Doppler config, pinned store and target.
+        "restic dataFrom extract": ("restore", lambda o: find(o, "ExternalSecret")["spec"].update(
+            dataFrom=[{"extract": {"key": "homelab"}}])),
+        "restic template": ("restore", lambda o: find(o, "ExternalSecret")["spec"]["target"].update(
+            template={"data": {"x": "{{ .RESTIC_PASSWORD }}"}})),
+        "restic other store": ("restore", lambda o: find(o, "ExternalSecret")["spec"]["secretStoreRef"].update(
+            name="other-store")),
+        "restic other target": ("restore", lambda o: find(o, "ExternalSecret")["spec"]["target"].update(
+            name="restic-config-other")),
+        "restic extra key": ("restore", lambda o: find(o, "ExternalSecret")["spec"]["data"].append(
+            {"secretKey": "X", "remoteRef": {"key": "LITELLM_MASTER_KEY"}})),
+        "restic remoteRef property": ("restore", lambda o: find(o, "ExternalSecret")["spec"]["data"][0][
+            "remoteRef"].update(property="x")),
+        "cloud-init dataFrom": ("boot", lambda o: find(o, "ExternalSecret")["spec"].update(
+            dataFrom=[{"find": {"name": {"regexp": ".*"}}}])),
+        "cloud-init extra key": ("boot", lambda o: find(o, "ExternalSecret")["spec"]["data"].append(
+            {"secretKey": "k", "remoteRef": {"key": "HOGWARTS_HOME_REST_REPO_LOCAL"}})),
+        # VM network and helper Jobs pinned.
+        "VM bridge interface": ("boot", lambda o: find(o, "VirtualMachine")["spec"]["template"]["spec"]["domain"][
+            "devices"].update(interfaces=[{"name": "default", "bridge": {}}])),
+        "VM second interface": ("boot", lambda o: find(o, "VirtualMachine")["spec"]["template"]["spec"]["domain"][
+            "devices"]["interfaces"].append({"name": "x", "masquerade": {}})),
+        "job hostNetwork": ("fix-owner", lambda o: find(o, "Job")["spec"]["template"]["spec"].update(
+            hostNetwork=True)),
+        "job privileged": ("revert-copy", lambda o: job_container(o)["securityContext"].update(privileged=True)),
+        "job other command": ("fix-owner", lambda o: job_container(o)["command"].__setitem__(
+            2, "chown -R 107:107 /restore")),
+        "job args": ("fix-owner", lambda o: job_container(o).update(args=["x"])),
+        "job not root": ("revert-copy", lambda o: job_container(o).update(securityContext={"runAsUser": 1000})),
+        "job image tag only": ("fix-owner", lambda o: job_container(o).update(image=JOB_IMAGE_PREFIX + "latest")),
+        "job init container": ("fix-owner", lambda o: find(o, "Job")["spec"]["template"]["spec"].update(
+            initContainers=[{"name": "x", "image": "busybox"}])),
+        "job env": ("revert-copy", lambda o: job_container(o).update(
+            envFrom=[{"secretRef": {"name": "restic-config-home"}}])),
+        "job mount writable": ("revert-copy", lambda o: job_container(o)["volumeMounts"][0].pop("readOnly")),
+        # rest-server policy: hogwarts-restore only in the mover peer.
+        "rest-server: in the knowhere peer": ("rest-server-policy", lambda o: rest_peer(o, "knowhere")[
+            "namespaceSelector"].update(matchExpressions=[{"key": "kubernetes.io/metadata.name",
+                                                            "operator": "In", "values": [NS]}])),
+        "rest-server: own peer without podSelector": ("rest-server-policy", lambda o: rest_rule(o)["from"].append(
+            {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": NS}}})),
+        "rest-server: mover peer without podSelector": ("rest-server-policy", lambda o: rest_mover(o).pop(
+            "podSelector")),
+        "rest-server: mover podSelector widened": ("rest-server-policy", lambda o: rest_mover(o).update(
+            podSelector={})),
+        "rest-server: second policy rule": ("rest-server-policy", lambda o: find(
+            o, "NetworkPolicy", "restic-rest-server-ingress")["spec"]["ingress"].append(
+            {"from": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": NS}},
+                       "podSelector": {}}]})),
     }
     failed = 0
     for label, (stage, fn) in cases.items():
@@ -359,7 +604,7 @@ def self_test(renders):
 def main(argv):
     if argv[1:2] == ["--self-test"]:
         # stdin: "<stage>\t<json object>" lines of the good renders.
-        renders = {s: [] for s in EXPECTED}
+        renders = {s: [] for s in (*EXPECTED, "rest-server-policy")}
         for line in sys.stdin:
             if not line.strip():
                 continue
@@ -371,7 +616,8 @@ def main(argv):
                 print(f"FAIL  the good render of {stage} is refused: {errors}")
                 return 1
         return 1 if self_test(renders) else 0
-    if len(argv) not in (2, 3) or (len(argv) == 3 and argv[2] != "--require-restore-target"):
+    if (len(argv) not in (2, 3) or (len(argv) == 3 and argv[2] != "--require-restore-target")
+            or (len(argv) == 3 and argv[1] != "restore")):
         print((__doc__ or "").strip().splitlines()[2], file=sys.stderr)
         return 2
     errors = check(argv[1], read_objects(sys.stdin), require_target=len(argv) == 3)

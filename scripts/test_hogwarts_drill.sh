@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # CI job hogwarts-drill: render every stage of the Hogwarts restore drill
 # (components-infra/hogwarts/drill) and assert the guard rails with
-# scripts/check_hogwarts_drill.py, then prove the checker refuses known-bad
-# variants (self-test). Needs kustomize and yq (mise.toml) and python3.
+# scripts/check_hogwarts_drill.py, check the rest-server allow-list's drill
+# entry, then prove the checker refuses known-bad variants (self-test). Needs kustomize and yq (mise.toml) and python3.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -25,5 +25,10 @@ for stage in "${stages[@]}"; do
   python3 -I "$CHECK" "$stage" <"$work/$stage.jsonl" || rc=1
   sed "s/^/$stage\t/" "$work/$stage.jsonl" >>"$work/all.tsv"
 done
+# The rest-server allow-list admits the drill's movers: hogwarts-restore may
+# appear only in the VolSync-mover peer (altus overlay = the root dir).
+kustomize build components-infra/restic-rest-server | yq -o=json -I=0 '.' >"$work/rest-server.jsonl"
+python3 -I "$CHECK" rest-server-policy <"$work/rest-server.jsonl" || rc=1
+sed "s/^/rest-server-policy\t/" "$work/rest-server.jsonl" >>"$work/all.tsv"
 python3 -I "$CHECK" --self-test <"$work/all.tsv" || rc=1
 exit "$rc"
