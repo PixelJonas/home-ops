@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Drill stage 2: scratch namespace, restic Secret, destination PVC and the
+# restore itself (README.md). Not part of any Argo Application.
+namespace: hogwarts-restore
+
+resources:
+  - namespace.yaml
+  - external-secret-restic.yaml
+  - pvc-home-test.yaml
+  - replicationdestination.yaml
+  - helper-serviceaccount.yaml

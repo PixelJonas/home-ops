@@ -1,0 +1,12 @@
+# Same kind of revert point as part B step 4 (hogwarts-home-pre-restore-<ts>),
+# here of the scratch copy: the drill proves that a snapshot of the home disk
+# can be turned back into a bootable /home.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: home-test-snap
+  namespace: hogwarts-restore
+spec:
+  volumeSnapshotClassName: lvms-vg1
+  source:
+    persistentVolumeClaimName: home-test
