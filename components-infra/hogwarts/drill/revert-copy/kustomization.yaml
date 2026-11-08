@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Drill stage 5: copy the snapshot back over home-test (part B's revert path,
+# runbook part A step 7). Apply only once home-test-snap is readyToUse and the
+# scratch VM is stopped.
+namespace: hogwarts-restore
+
+resources:
+  - pvc-home-test-revert.yaml
+  - job.yaml

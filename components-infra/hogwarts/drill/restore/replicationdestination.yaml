@@ -1,0 +1,22 @@
+# The restore (shape: templates/replicationdestination.yaml, runbook part A
+# step 4). copyMethod Direct writes straight into home-test.
+#
+# restoreAsOf and the trigger token are SENTINELS. Applied unchanged, restic
+# finds no snapshot older than 1970 and restores nothing. The drill script
+# sets restoreAsOf to the time right after its fresh backup and a unique
+# token, and refuses to apply a render that still carries either sentinel.
+# Never trigger: {} (continuous sync).
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationDestination
+metadata:
+  name: home-restore
+  namespace: hogwarts-restore
+spec:
+  trigger:
+    manual: drill-sentinel-unset
+  restic:
+    repository: restic-config-home
+    destinationPVC: home-test
+    copyMethod: Direct
+    cacheStorageClassName: lvms-vg1
+    restoreAsOf: "1970-01-01T00:00:00Z"

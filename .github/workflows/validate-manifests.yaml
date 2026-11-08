@@ -112,6 +112,20 @@ jobs:
       - name: Validate Manifests
         run: mise exec -- ./scripts/validate_manifests.sh
 
+  hogwarts-drill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install tools
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
+        with:
+          cache: true
+      - name: Hogwarts restore-drill guard rails
+        run: mise exec -- ./scripts/test_hogwarts_drill.sh
+
   prometheus-rules:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,188 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Drill stage 3: the scratch VM hogwarts-restore (README.md, runbook part A
+# step 6). Built from the PRODUCTION manifests in ../../base, so the drill
+# boots exactly the VM, root image and cloud-init that a root-disk rebuild of
+# Hogwarts would use, then narrowed:
+#   - no Namespace hogwarts, no blank home DataVolume, no VolSync source/secret
+#     (the restored PVC home-test is the home disk; the scratch copy is never
+#     backed up);
+#   - VM hogwarts-restore, runStrategy Halted (the drill script starts it),
+#     home disk = PVC home-test, root disk = a fresh hogwarts-restore-rootdisk,
+#     cloud-init = the Secret hogwarts-restore-cloudinit, which the drill
+#     script builds from the rendered template below plus a throwaway SSH host
+#     key (no TOFU: the script pins the key it generated);
+#   - cloud-init template with hostname hogwarts-restore, otherwise the
+#     production template (partition: auto must REUSE the restored ext4);
+#   - egress: cluster DNS and LiteLLM only. No internet (Telegram, Tailscale,
+#     package mirrors), no Nextcloud, Paperless, Qdrant or Gitea, so a
+#     restored agent can't poll Julia's bots or write into her live data.
+#     cloud-init's package step fails without internet: expected;
+#   - ingress: SSH from the knowhere VM only (the drill script's checks).
+# scripts/check_hogwarts_drill.py asserts all of this on the render.
+namespace: hogwarts-restore
+
+resources:
+  - ../../base
+  - hostname.yaml
+
+replacements:
+  # Line 1 of the production userData is "hostname: hogwarts" (line 0 is
+  # "#cloud-config"); the check script fails if the render has any other
+  # hostname line.
+  - source:
+      kind: ConfigMap
+      name: drill-hostname
+      fieldPath: data.line
+    targets:
+      - select:
+          kind: ExternalSecret
+          name: hogwarts-cloudinit
+        fieldPaths:
+          - spec.target.template.data.userData
+        options:
+          delimiter: "\n"
+          index: 1
+
+patches:
+  - target:
+      kind: Namespace
+      name: hogwarts
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: hogwarts
+  - target:
+      kind: DataVolume
+      name: hogwarts-home
+    patch: |-
+      $patch: delete
+      apiVersion: cdi.kubevirt.io/v1beta1
+      kind: DataVolume
+      metadata:
+        name: hogwarts-home
+  - target:
+      kind: ReplicationSource
+    patch: |-
+      $patch: delete
+      apiVersion: volsync.backube/v1alpha1
+      kind: ReplicationSource
+      metadata:
+        name: unused
+  - target:
+      kind: ExternalSecret
+      name: home-external-restic-config
+    patch: |-
+      $patch: delete
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: home-external-restic-config
+  - target:
+      kind: DataVolume
+      name: hogwarts-rootdisk
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: hogwarts-restore-rootdisk
+  - target:
+      kind: ExternalSecret
+      name: hogwarts-cloudinit
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: hogwarts-restore-cloudinit-template
+      - op: replace
+        path: /spec/target/name
+        value: hogwarts-restore-cloudinit-template
+  - target:
+      kind: VirtualMachine
+      name: hogwarts
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: hogwarts-restore
+      - op: replace
+        path: /spec/runStrategy
+        value: Halted
+      - op: replace
+        path: /spec/template/metadata/labels/kubevirt.io~1domain
+        value: hogwarts-restore
+      - op: test
+        path: /spec/template/spec/volumes/0/name
+        value: rootdisk
+      - op: replace
+        path: /spec/template/spec/volumes/0/dataVolume/name
+        value: hogwarts-restore-rootdisk
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: homedisk
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: homedisk
+          persistentVolumeClaim:
+            claimName: home-test
+      - op: test
+        path: /spec/template/spec/volumes/2/name
+        value: cloudinitdisk
+      - op: replace
+        path: /spec/template/spec/volumes/2/cloudInitNoCloud/secretRef/name
+        value: hogwarts-restore-cloudinit
+  - target:
+      kind: NetworkPolicy
+      name: hogwarts-egress
+    # Keep rule 0 (DNS) and rule 1 (LiteLLM) from the base, remove the rest.
+    # The test ops make the build fail if the base reorders its rules.
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: hogwarts-restore-egress
+      - op: replace
+        path: /spec/podSelector/matchLabels/vm.kubevirt.io~1name
+        value: hogwarts-restore
+      - op: test
+        path: /spec/egress/0/to/0/namespaceSelector/matchLabels/kubernetes.io~1metadata.name
+        value: openshift-dns
+      - op: test
+        path: /spec/egress/1/to/0/namespaceSelector/matchLabels/kubernetes.io~1metadata.name
+        value: litellm
+      - op: test
+        path: /spec/egress/6/to/0/ipBlock/cidr
+        value: 0.0.0.0/0
+      - op: remove
+        path: /spec/egress/6
+      - op: remove
+        path: /spec/egress/5
+      - op: remove
+        path: /spec/egress/4
+      - op: remove
+        path: /spec/egress/3
+      - op: remove
+        path: /spec/egress/2
+  - target:
+      kind: NetworkPolicy
+      name: hogwarts-ingress
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: hogwarts-restore-ingress
+      - op: replace
+        path: /spec/podSelector/matchLabels/vm.kubevirt.io~1name
+        value: hogwarts-restore
+  - target:
+      kind: Service
+      name: hogwarts-ssh
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: hogwarts-restore-ssh
+      - op: replace
+        path: /spec/selector/vm.kubevirt.io~1name
+        value: hogwarts-restore
+      - op: replace
+        path: /metadata/annotations/ignore-check.kube-linter.io~1dangling-service
+        value: selects the virt-launcher pod of VM hogwarts-restore

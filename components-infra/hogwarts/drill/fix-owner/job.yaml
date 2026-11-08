@@ -1,0 +1,41 @@
+# The VolSync mover writes disk.img as its arbitrary UID; qemu (107) can't
+# open it then (knx-ets, 2026-10-11). Runbook part A step 5: chown that one
+# file (not -R), then print size and owner for the drill script to compare
+# with the live disk.img. Root in the pod through the drill-helper
+# ServiceAccount's anyuid grant (../restore/helper-serviceaccount.yaml); the
+# drill script checks the admitted SCC.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fix-owner
+  namespace: hogwarts-restore
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      annotations:
+        openshift.io/required-scc: anyuid
+    spec:
+      serviceAccountName: drill-helper
+      restartPolicy: Never
+      containers:
+        - name: fix-owner
+          image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.22@sha256:58e37785e922707a6f47cdbd415dbfa3ffa33c657a6e807aadacc9bc7ed2e0cd
+          securityContext:
+            runAsUser: 0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              f=/restore/disk.img
+              test -f "$f"
+              chown 107:107 "$f"
+              echo "RESULT $(stat -c '%s %u:%g' "$f")"
+          volumeMounts:
+            - name: restore
+              mountPath: /restore
+      volumes:
+        - name: restore
+          persistentVolumeClaim:
+            claimName: home-test

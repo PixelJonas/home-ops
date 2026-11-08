@@ -1,0 +1,18 @@
+# The revert point as a volume (part B step 4, revert 2).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: home-test-revert
+  namespace: hogwarts-restore
+spec:
+  storageClassName: lvms-vg1
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 60Gi
+  dataSource:
+    apiGroup: snapshot.storage.k8s.io
+    kind: VolumeSnapshot
+    name: home-test-snap

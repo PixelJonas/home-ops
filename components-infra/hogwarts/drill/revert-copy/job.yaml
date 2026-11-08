@@ -1,0 +1,45 @@
+# Part B's revert copy (revert 3), rehearsed on the scratch disk: the content
+# of the snapshot goes back into the existing claim (the live claim is never
+# deleted or swapped), sparse, owner qemu. Same helper identity as fix-owner.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: revert-copy
+  namespace: hogwarts-restore
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      annotations:
+        openshift.io/required-scc: anyuid
+    spec:
+      serviceAccountName: drill-helper
+      restartPolicy: Never
+      containers:
+        - name: revert-copy
+          image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.22@sha256:58e37785e922707a6f47cdbd415dbfa3ffa33c657a6e807aadacc9bc7ed2e0cd
+          securityContext:
+            runAsUser: 0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              test -f /src/disk.img
+              cp --sparse=always /src/disk.img /dst/disk.img
+              chown 107:107 /dst/disk.img
+              echo "RESULT $(stat -c '%s %u:%g' /dst/disk.img)"
+          volumeMounts:
+            - name: src
+              mountPath: /src
+              readOnly: true
+            - name: dst
+              mountPath: /dst
+      volumes:
+        - name: src
+          persistentVolumeClaim:
+            claimName: home-test-revert
+            readOnly: true
+        - name: dst
+          persistentVolumeClaim:
+            claimName: home-test
