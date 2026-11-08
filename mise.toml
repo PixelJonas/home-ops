@@ -1,6 +1,8 @@
 [tools]
 "github:utkuozdemir/pv-migrate" = "latest"
 "aqua:kubernetes-sigs/kustomize" = "5.8.1"
+# yq: JSON for scripts/check_hogwarts_drill.py (CI job hogwarts-drill)
+"aqua:mikefarah/yq" = "4.54.2"
 # helm: kustomize's helmCharts inflator shells out to the helm CLI. v4.3.0 validated 2026-10-21: byte-identical kustomize --enable-helm output vs v3.22.0 for all helmCharts dirs
 "aqua:helm/helm" = "4.3.1"
 "aqua:yannh/kubeconform" = "0.8.0"

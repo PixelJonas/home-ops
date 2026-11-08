@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Drill stage 2, after the restore: disk.img back to qemu's owner (README.md).
+namespace: hogwarts-restore
+
+resources:
+  - job.yaml

@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Drill stage 5: revert point of the restored disk (runbook part A step 7),
+# taken with hogwarts-restore stopped.
+namespace: hogwarts-restore
+
+resources:
+  - volumesnapshot.yaml
