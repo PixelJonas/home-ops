@@ -25,9 +25,20 @@ Hard-wired, checked by `scripts/check_hogwarts_drill.py` (CI job
 - every object is in `hogwarts-restore` (or is that Namespace);
 - the VM is `hogwarts-restore`, `runStrategy: Halted`, its home disk is the
   PVC `home-test`, never `hogwarts-home`;
-- the egress policy allows only cluster DNS and LiteLLM: no `ipBlock`
-  (internet), no Nextcloud, Paperless, Qdrant or Gitea;
-- no Secret, no bot token key, no Tailscale, no VolSync ReplicationSource.
+- the egress policy allows exactly the cluster DNS pods (5353) and the
+  LiteLLM pods (TCP 4000), whole peers compared (namespace and pod selector,
+  ports): no `ipBlock` (internet), no Nextcloud, Paperless, Qdrant or Gitea;
+  ingress is exactly the knowhere VM's launcher pod on TCP 22;
+- the VM has exactly one masquerade interface on the pod network; no object
+  uses host namespaces or a privileged container;
+- each ExternalSecret is exactly `secretStoreRef` + `target` + `data` (no
+  `dataFrom`, so never a whole Doppler config), with the store, target and
+  keys pinned;
+- the helper Jobs run one container with the pinned script, digest-pinned
+  image, `runAsUser: 0` and no env;
+- no Secret, no bot token key, no Tailscale, no VolSync ReplicationSource;
+- in the rest-server allow-list (`components-infra/restic-rest-server`),
+  `hogwarts-restore` appears only in the VolSync-mover peer.
 
 `boot/` reuses `../base` on purpose: the drill boots the production VM and
 cloud-init spec (`partition: auto` must reuse the restored ext4), and any
