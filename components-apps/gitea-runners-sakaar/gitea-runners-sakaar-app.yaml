@@ -1,4 +1,5 @@
-# Gitea Actions runner pool on sakaar, phase A0: one canary runner.
+# Gitea Actions runner pool on sakaar, phase A: one canary runner that also
+# takes ordinary ubuntu-* jobs.
 #
 # Same chart and pod layout as altus' runners (components-apps/gitea/
 # gitea-actions-chart-app.yaml): dind sidecar on a per-pod LVMS volume, socket
@@ -7,9 +8,10 @@
 # in-cluster Service here), a smaller dind store, an explicit StorageClass
 # (sakaar has no default one, so /data would never bind), runner 5.x.
 #
-# Label: the runner carries ONLY `sakaar`, so no existing workflow
-# (runs-on: ubuntu-latest etc.) lands on it; a job opts in with
-# `runs-on: sakaar`. When a later phase adds shared labels, preference for
+# Labels: the shared ubuntu-* labels (same job images as altus) plus
+# `sakaar` for jobs that must run here. Jobs that need the Docker socket or
+# the home network say `runs-on: altus`, which only altus' runners serve
+# (components-apps/gitea/gitea-actions-chart-app.yaml). Preference for
 # sakaar comes from polling: this runner fetches every 1-2 s, altus' runners
 # move to 20 s in phase B, so sakaar picks up a waiting job first.
 #
@@ -20,6 +22,8 @@
 # containers or bind host paths to escape into dind (privileged) and from there
 # to the node. Image builds (docker build/push) therefore stay on altus.
 #
+# Back to opt-in only: drop the ubuntu-* labels (the config change restarts
+# the pod, which declares the shorter list to Gitea).
 # Rollback: set statefulset.replicas to 0 (stops polling at once; the runner
 # stays registered as offline in Gitea, delete it under Site Administration ->
 # Actions -> Runners). Then remove the `gitea-runners-sakaar` key from
@@ -122,6 +126,9 @@ spec:
                 fetch_interval: 1s
                 fetch_interval_max: 2s
                 labels:
+                  - "ubuntu-latest:docker://docker.gitea.com/runner-images:ubuntu-latest"
+                  - "ubuntu-24.04:docker://docker.gitea.com/runner-images:ubuntu-24.04"
+                  - "ubuntu-22.04:docker://docker.gitea.com/runner-images:ubuntu-22.04"
                   - "sakaar:docker://docker.gitea.com/runner-images:ubuntu-latest"
               cache:
                 enabled: false
