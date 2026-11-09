@@ -1,0 +1,28 @@
+# The chart's dind sidecar is privileged (it runs dockerd), like altus'
+# gitea-actions runners (components-apps/gitea/
+# gitea-actions-privileged-clusterrolebinding.yaml). The runner talks to
+# dind over a unix socket only, never to the Kubernetes API, so the SA
+# token isn't mounted.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-actions-runner
+  namespace: gitea-runners
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gitea-runners-sakaar-privileged
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+subjects:
+  - kind: ServiceAccount
+    name: gitea-actions-runner
+    namespace: gitea-runners
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
