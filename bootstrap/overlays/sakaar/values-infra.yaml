@@ -31,6 +31,14 @@ applications:
     source:
       path: components-infra/cert-manager-operator/aggregate/overlays/letsencrypt
 
+  cluster-dns:
+    annotations:
+      argocd.argoproj.io/sync-wave: "1"
+    destination:
+      namespace: openshift-dns-operator
+    source:
+      path: components-infra/cluster-dns/overlays/sakaar
+
   certificates:
     annotations:
       argocd.argoproj.io/sync-wave: "3"
