@@ -8,7 +8,7 @@ A GitOps-managed home lab Kubernetes/OpenShift cluster. All cluster state is dec
 
 ## Validation
 
-All lint/validation tools are pinned in `mise.toml` — run `mise install` first, then call tools directly or via `mise exec -- <tool>`.
+All lint/validation tools are pinned in `mise.toml` — run `mise install` first, then call tools directly or via `mise exec -- <tool>`. `mise.lock` records each tool's version, URL and checksum for linux-x64 and macos-arm64, and CI installs `--locked`, so a pin change without a matching lock fails CI. After changing a pin, run `mise lock <tool>` and commit both files. Keep `lockfile_version = 1` (no `mise lock --upgrade`) until every machine runs mise ≥ 2026.11: an older mise ignores a newer format and rewrites the file.
 
 ```bash
 # Full validation: yamllint → kustomize build → kubeconform → kube-linter
