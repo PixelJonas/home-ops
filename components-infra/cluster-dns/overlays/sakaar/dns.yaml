@@ -1,0 +1,35 @@
+# Cluster DNS forward zone for janz.digital on sakaar.
+#
+# The hypervisor uses Tailscale MagicDNS, whose tailnet-wide split-DNS route
+# sends janz.digital to the home AdGuard resolver, which is unreachable from
+# Hetzner: every janz.digital lookup from sakaar pods timed out (CoreDNS
+# "i/o timeout" against the node resolver), which blocked the Gitea runner
+# (components-apps/gitea-runners-sakaar) from reaching Gitea.
+#
+# Forward that zone to public resolvers instead. TCP only: the Hetzner Robot
+# firewall is stateless and drops UDP replies from the internet (checked: TCP
+# DNS to 1.1.1.1 answers, UDP times out). Public answers are what sakaar needs
+# (Cloudflare-proxied names); internal-only names under the zone never resolved
+# here anyway.
+#
+# ServerSideApply: Argo owns only spec.servers; the DNS operator keeps the rest.
+# Delete=false/Prune=false: removing this app must never delete dns.operator
+# "default". Revert = delete spec.servers (oc patch ... --type json remove).
+apiVersion: operator.openshift.io/v1
+kind: DNS
+metadata:
+  name: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: Validate=false,ServerSideApply=true,Delete=false,Prune=false
+spec:
+  servers:
+    - name: janz-digital-public
+      zones:
+        - janz.digital
+      forwardPlugin:
+        policy: Sequential
+        protocolStrategy: TCP
+        upstreams:
+          - 1.1.1.1
+          - 1.0.0.1
