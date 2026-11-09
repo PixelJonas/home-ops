@@ -70,6 +70,28 @@ spec:
             extraEnvs:
               - name: DOCKER_HOST
                 value: unix:///docker-sock/docker.sock
+            # The chart's default config plus explicit labels. A non-empty
+            # runner.labels replaces the labels stored at registration
+            # (/data/.runner) on every start and declares them to Gitea.
+            # `altus` marks jobs that must run here: these runners give job
+            # containers the Docker socket (image builds, docker run) and sit
+            # on the home network; sakaar's pool (components-apps/
+            # gitea-runners-sakaar) has neither. Everything else uses
+            # ubuntu-* and may land on either pool.
+            config: |
+              log:
+                level: debug
+              runner:
+                labels:
+                  - "ubuntu-latest:docker://docker.gitea.com/runner-images:ubuntu-latest"
+                  - "ubuntu-24.04:docker://docker.gitea.com/runner-images:ubuntu-24.04"
+                  - "ubuntu-22.04:docker://docker.gitea.com/runner-images:ubuntu-22.04"
+                  - "altus:docker://docker.gitea.com/runner-images:ubuntu-latest"
+              cache:
+                enabled: false
+              container:
+                require_docker: true
+                docker_timeout: 300s
           dind:
             resources:
               requests:
