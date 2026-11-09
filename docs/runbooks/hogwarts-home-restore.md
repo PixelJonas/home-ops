@@ -226,7 +226,11 @@ separate drill that has not been run yet.
      VolumeSnapshot, name: home-test-snap}`);
    - copy the content back with the copy Job of part B step 4, run in
      `hogwarts-restore` with the helper ServiceAccount of step 5 (source
-     `home-test-revert`, destination `home-test`);
+     `home-test-revert`, destination `home-test`). Mount the source
+     read-WRITE, not read-only: on lvms a read-only mount of a restored
+     volume fails (`chmod 2777 failed`, then EACCES even as root), because
+     the driver chmods the mount point and the restored files carry the
+     live namespace's SELinux xattrs. The Job only reads it.
    - start the VM again: `findmnt /home` on the home disk, `ls -ln /home`
      owners 1000/1001, `pragma integrity_check` `ok`, and the marker is
      gone.
@@ -296,10 +300,13 @@ steps below with exact names, the pre-restore backup, revert path.
       and pointing the VM at another claim is a Git change. Copy the content
       back instead, with a helper Job in `hogwarts` (same ServiceAccount and
       temporary `anyuid` grant as step 6) that mounts `hogwarts-home-revert`
-      read-only at `/src` and `hogwarts-home` at `/dst` and runs
+      read-WRITE at `/src` and `hogwarts-home` at `/dst` and runs
       `cp --sparse=always /src/disk.img /dst/disk.img && chown 107:107
       /dst/disk.img && stat -c '%s %u:%g' /dst/disk.img`. Interrupted: run it
-      again (the snapshot is untouched).
+      again (the snapshot is untouched). The source is mounted read-write on
+      purpose: a read-only mount of a restored lvms volume fails
+      (`chmod 2777 failed`, then EACCES even as root, 2026-11-09). The Job
+      only reads it.
    4. Start and check as in step 7; once accepted delete
       `hogwarts-home-revert` and the VolumeSnapshot.
 

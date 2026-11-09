@@ -129,7 +129,7 @@ JOB_SCRIPTS = {
 }
 JOB_MOUNTS = {
     "fix-owner": [{"name": "restore", "mountPath": "/restore"}],
-    "revert-copy": [{"name": "src", "mountPath": "/src", "readOnly": True},
+    "revert-copy": [{"name": "src", "mountPath": "/src", "readOnly": False},
                     {"name": "dst", "mountPath": "/dst"}],
 }
 MOVER_LABELS = {"app.kubernetes.io/created-by": "volsync"}
@@ -417,7 +417,7 @@ def check_revert_copy(objs, errors):
     for pvc in by_kind(objs, "PersistentVolumeClaim", "home-test-revert"):
         if get(pvc, "spec", "dataSource", "name") != "home-test-snap":
             errors.append("home-test-revert must come from home-test-snap")
-    check_job(objs, errors, "revert-copy", {("home-test-revert", True), ("home-test", False)})
+    check_job(objs, errors, "revert-copy", {("home-test-revert", False), ("home-test", False)})
 
 
 def check(stage, objs, require_target=False):
@@ -508,8 +508,9 @@ def self_test(renders):
         "wide rolebinding": ("restore", lambda o: find(o, "RoleBinding")["subjects"].append(
             {"kind": "Group", "name": "system:authenticated"})),
         "job SCC": ("fix-owner", lambda o: find(o, "Job")["spec"]["template"]["metadata"].update(annotations={})),
-        "revert source writable": ("revert-copy", lambda o: find(o, "Job")["spec"]["template"]["spec"]["volumes"][0][
-            "persistentVolumeClaim"].update(readOnly=False)),
+        # A read-only revert source breaks the mount on altus (2026-11-09).
+        "revert source read-only": ("revert-copy", lambda o: find(o, "Job")["spec"]["template"]["spec"]["volumes"][0][
+            "persistentVolumeClaim"].update(readOnly=True)),
         # NetworkPolicy peers compared whole (namespaceSelector + podSelector + ports).
         "DNS peer without podSelector": ("boot", lambda o: egress(o)[0]["to"][0].pop("podSelector")),
         "LiteLLM peer without podSelector": ("boot", lambda o: egress(o)[1]["to"][0].pop("podSelector")),
@@ -559,7 +560,8 @@ def self_test(renders):
             initContainers=[{"name": "x", "image": "busybox"}])),
         "job env": ("revert-copy", lambda o: job_container(o).update(
             envFrom=[{"secretRef": {"name": "restic-config-home"}}])),
-        "job mount writable": ("revert-copy", lambda o: job_container(o)["volumeMounts"][0].pop("readOnly")),
+        "job mount read-only": ("revert-copy", lambda o: job_container(o)["volumeMounts"][0].update(
+            readOnly=True)),
         # rest-server policy: hogwarts-restore only in the mover peer.
         "rest-server: in the knowhere peer": ("rest-server-policy", lambda o: rest_peer(o, "knowhere")[
             "namespaceSelector"].update(matchExpressions=[{"key": "kubernetes.io/metadata.name",
