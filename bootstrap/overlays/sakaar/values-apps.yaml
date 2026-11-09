@@ -25,6 +25,7 @@ projects:
       - https://github.com/pixeljonas/home-ops
       - https://github.com/redhat-cop/gitops-catalog
       - https://bjw-s-labs.github.io/helm-charts
+      - https://dl.gitea.com/charts
     destinations: |
       - namespace: '*'
         server: https://kubernetes.default.svc
@@ -54,3 +55,10 @@ applications:
       argocd.argoproj.io/sync-wave: "300"
     source:
       path: components-apps/pricing-tool
+  # Wrapper key differs from the leaf Application (gitea-runners-sakaar-app),
+  # else both syncs fight over one object.
+  gitea-runners-sakaar:
+    annotations:
+      argocd.argoproj.io/sync-wave: "300"
+    source:
+      path: components-apps/gitea-runners-sakaar

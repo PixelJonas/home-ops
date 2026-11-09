@@ -1,0 +1,48 @@
+# Every pod in the namespace (the runner StatefulSet): no inbound at all,
+# outbound only cluster DNS and the internet. Job containers run inside the
+# dind sidecar and leave through the pod's IP, so this policy limits them too.
+#
+# The runner needs nothing in-cluster: it reaches Gitea at its public URL
+# (Cloudflare), pulls job images and actions from public registries/GitHub,
+# and talks to dind over a unix socket. The internet rule excludes RFC 1918,
+# CGNAT (100.64.0.0/10) and link-local, which also covers the cluster network
+# (10.128.0.0/14), the Service network (172.30.0.0/16), the node and the
+# libvirt NAT, so a job can't reach the API server, other pods or the host.
+# Cache server and metrics are off in the runner config, so nothing has to
+# reach the pod.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitea-runners
+  namespace: gitea-runners
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      # Policies see the pod port after DNAT: CoreDNS listens on 5353.
+      ports:
+        - protocol: UDP
+          port: 5353
+        - protocol: TCP
+          port: 5353
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
