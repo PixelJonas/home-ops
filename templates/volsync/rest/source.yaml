@@ -7,7 +7,13 @@ metadata:
 spec:
   sourcePVC: syno-template-backup
   trigger:
-    schedule: "0 5 * * *"
+    # Placeholder only: every consumer patches its own slot (UTC) from
+    # docs/volsync-schedules.md. Synology iSCSI clone sources sit on a 4-minute grid,
+    # all others on odd minutes, b2 legs after the rest legs. All RSes on
+    # one time overloaded the Synology CSI on 05.11.2026 (CreateVolume
+    # DeadlineExceeded, stuck movers). An RS still showing this value has
+    # no slot yet.
+    schedule: "2 7 * * *"
   restic:
     pruneIntervalDays: 14
     repository: restic-config-database
