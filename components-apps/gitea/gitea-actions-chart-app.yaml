@@ -65,7 +65,7 @@ spec:
           runner:
             registry: ""
             repository: docker.gitea.com/runner
-            tag: "3.0.2"
+            tag: "5.4.1"
             resources:
               requests:
                 cpu: 100m
@@ -93,7 +93,7 @@ spec:
             # Polling every 20 s (backoff off: fetch_interval_max = interval;
             # its 5 s default would sit below the interval) lets sakaar's
             # runners (1-2 s) take a waiting job first; these take the
-            # overflow within ~20 s. Keys checked against gitea/runner v3.0.2
+            # overflow within ~20 s. Keys checked against gitea/runner v5.4.1
             # internal/pkg/config/config.example.yaml.
             config: |
               log:
