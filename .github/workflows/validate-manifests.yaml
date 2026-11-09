@@ -4,9 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Nightly full run: validate-manifests builds every kustomization directory
+  # (--all) and the renovate config is validated without a change filter.
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # The event name keeps a nightly or manual run on main and a push run on
+  # main from cancelling each other.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -109,8 +116,18 @@ jobs:
         uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c  # v5.2.6
         with:
           cache: true
+      # yamllint has its own job. Pushes and PRs build the top-level
+      # kustomizations only (included ones are rendered through them);
+      # nightly and manual runs build every directory.
       - name: Validate Manifests
-        run: mise exec -- ./scripts/validate_manifests.sh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          args=(--skip-yamllint)
+          case "$EVENT_NAME" in
+            schedule | workflow_dispatch) args+=(--all) ;;
+          esac
+          mise exec -- ./scripts/validate_manifests.sh "${args[@]}"
 
   hogwarts-drill:
     runs-on: ubuntu-latest
@@ -150,19 +167,24 @@ jobs:
           fetch-depth: 0
       - name: Check for renovate config changes
         id: changes
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
         with:
+          # The workflow file carries RENOVATE_VERSION, so a bump runs the
+          # validator too.
           filters: |
             renovate:
               - ".github/renovate.json5"
               - ".github/renovate/**"
+              - ".github/workflows/validate-manifests.yaml"
       - name: Set up Node
-        if: steps.changes.outputs.renovate == 'true'
+        id: node
+        if: steps.changes.outputs.renovate == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: 24
       - name: Validate renovate config
-        if: steps.changes.outputs.renovate == 'true'
+        if: steps.node.outcome == 'success'
         env:
           # Pinned instead of whatever npm serves today (supply chain); Renovate
           # bumps it via the customManagers:githubActionsVersions preset.
