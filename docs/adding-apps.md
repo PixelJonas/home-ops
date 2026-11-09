@@ -430,6 +430,12 @@ patches:
   value: <APP>_<VOLUME>_REPO
 ```
 
+**Schedule slot:** every ReplicationSource needs its own start time. Pick
+the next free slot from [volsync-schedules.md](volsync-schedules.md)
+(Synology iSCSI clone sources on the 4-minute grid, everything else on odd
+minutes, b2 legs after the rest legs) and add the schedule patch shown there.
+The templates' placeholder (07:02/07:06 UTC) means "no slot yet".
+
 **IMPORTANT: `sourcePVC` must match the app's real PVC name exactly.** A
 stale or guessed `sourcePVC` (e.g. assuming a `-data` suffix that the
 app-template chart no longer adds) makes the backup a silent no-op — nothing
