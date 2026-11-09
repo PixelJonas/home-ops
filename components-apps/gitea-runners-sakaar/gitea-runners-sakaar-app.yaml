@@ -1,5 +1,5 @@
-# Gitea Actions runner pool on sakaar, phase A: one canary runner that also
-# takes ordinary ubuntu-* jobs.
+# Gitea Actions runner pool on sakaar, phase B: four runners (capacity 1 each)
+# that take ordinary ubuntu-* jobs first; altus' runners take the overflow.
 #
 # Same chart and pod layout as altus' runners (components-apps/gitea/
 # gitea-actions-chart-app.yaml): dind sidecar on a per-pod LVMS volume, socket
@@ -12,8 +12,16 @@
 # `sakaar` for jobs that must run here. Jobs that need the Docker socket or
 # the home network say `runs-on: altus`, which only altus' runners serve
 # (components-apps/gitea/gitea-actions-chart-app.yaml). Preference for
-# sakaar comes from polling: this runner fetches every 1-2 s, altus' runners
-# move to 20 s in phase B, so sakaar picks up a waiting job first.
+# sakaar comes from polling: these runners fetch every 1-2 s, altus' runners
+# every 20 s, so sakaar picks up a waiting job first while one of its four
+# slots is free (Gitea hands a job to the first runner that asks; a busy runner
+# stops asking).
+#
+# Size: four replicas is the fixed pool from the CI plan (infra-ops
+# docs/agents/ci-runners-scoping-caching-review-2026-11-09.md, D3). sakaar is
+# one VM: each replica requests 360m CPU (runner, dind, prune), which puts the
+# node at about 94 % of allocatable CPU requested (actual use ~20 % when
+# measured). Scale down here first if other sakaar workloads stop scheduling.
 #
 # No Docker socket in jobs: either Gitea account may run jobs here.
 # container.docker_host "-" keeps the dind socket out of job, service and
@@ -67,7 +75,7 @@ spec:
             repository: docker.io/library/busybox
             tag: "1.38.0"
         statefulset:
-          replicas: 1
+          replicas: 4
           serviceAccountName: gitea-actions-runner
           persistence:
             size: 1Gi

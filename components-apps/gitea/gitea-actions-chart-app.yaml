@@ -19,6 +19,15 @@ spec:
         giteaRootURL: "http://gitea-app-http.gitea.svc.cluster.local:3000"
         existingSecret: "gitea-actions-runner-token"
         existingSecretKey: "token"
+        # Images pinned and fully qualified (the chart's defaults are short
+        # names CRI-O resolves through its search registries, and Renovate
+        # can't see them). Renovate tracks the repository + tag pairs; a bump
+        # restarts every runner, killing jobs in flight.
+        init:
+          image:
+            registry: ""
+            repository: docker.io/library/busybox
+            tag: "1.38.0"
         statefulset:
           replicas: 3
           serviceAccountName: gitea-actions-runner
@@ -54,6 +63,9 @@ spec:
           # 1s exec liveness probe under CI load; a cap would OOM-kill job builds.
           # Runner/dind write-up: infra-ops repo .claude/rules/kubernetes-argocd.md
           runner:
+            registry: ""
+            repository: docker.gitea.com/runner
+            tag: "3.0.2"
             resources:
               requests:
                 cpu: 100m
@@ -78,10 +90,17 @@ spec:
             # on the home network; sakaar's pool (components-apps/
             # gitea-runners-sakaar) has neither. Everything else uses
             # ubuntu-* and may land on either pool.
+            # Polling every 20 s (backoff off: fetch_interval_max = interval;
+            # its 5 s default would sit below the interval) lets sakaar's
+            # runners (1-2 s) take a waiting job first; these take the
+            # overflow within ~20 s. Keys checked against gitea/runner v3.0.2
+            # internal/pkg/config/config.example.yaml.
             config: |
               log:
                 level: debug
               runner:
+                fetch_interval: 20s
+                fetch_interval_max: 20s
                 labels:
                   - "ubuntu-latest:docker://docker.gitea.com/runner-images:ubuntu-latest"
                   - "ubuntu-24.04:docker://docker.gitea.com/runner-images:ubuntu-24.04"
@@ -93,6 +112,9 @@ spec:
                 require_docker: true
                 docker_timeout: 300s
           dind:
+            registry: ""
+            repository: docker.io/library/docker
+            tag: "29.7.1-dind"
             resources:
               requests:
                 cpu: 250m
