@@ -32,14 +32,19 @@ spec:
           volumeMounts:
             - name: src
               mountPath: /src
-              readOnly: true
+              # NOT read-only: TopoLVM chmods the mount point (2777) and a
+              # restored volume carries SELinux xattrs from the live
+              # namespace. Mounting it read-only failed on altus
+              # ("chmod 2777 failed", then EACCES even as root), read-write
+              # works (2026-11-09). The Job only reads from this scratch copy.
+              readOnly: false
             - name: dst
               mountPath: /dst
       volumes:
         - name: src
           persistentVolumeClaim:
             claimName: home-test-revert
-            readOnly: true
+            readOnly: false
         - name: dst
           persistentVolumeClaim:
             claimName: home-test
