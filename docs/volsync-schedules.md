@@ -24,7 +24,8 @@ mover pods stuck for two hours (kanban t_639fbb2e).
 - **Rest legs first (05:xx), b2 legs after (06:xx)**, so the local and the
   off-site sync of the same PVC never run together.
 - Ranges: home-ops iSCSI rest 05:00-05:36, private-ops iSCSI 05:40-06:08,
-  home-ops iSCSI b2 06:12-06:28. Free iSCSI slots: 06:32-06:56. Free other
+  home-ops iSCSI b2 06:12-06:28. Free iSCSI slots: 06:00 (readarr,
+  decommissioned 2026-11-09), 06:32-06:56. Free other
   slots: 05:39, 05:43-05:59, 06:19-06:39, 06:43-06:59.
 - A hash of the name was considered and rejected: with ~23 iSCSI sources in
   120 minutes, hash slots collide or land within a few minutes of each other
@@ -92,7 +93,6 @@ the volume's `backup/<volume>/kustomization.yaml`:
 | 05:48 | iSCSI clone | `media/overseerr-backup` | private-ops |
 | 05:52 | iSCSI clone | `media/prowlarr-backup` | private-ops |
 | 05:56 | iSCSI clone | `media/radarr-backup` | private-ops |
-| 06:00 | iSCSI clone | `media/readarr-backup` | private-ops |
 | 06:01 | other | `actual-budget/data-backup-b2` | home-ops |
 | 06:03 | other | `happier/data-backup-b2` | home-ops |
 | 06:04 | iSCSI clone | `media/sonarr-backup` | private-ops |
