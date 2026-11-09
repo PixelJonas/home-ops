@@ -1,0 +1,204 @@
+# Gitea Actions runner pool on sakaar, phase A0: one canary runner.
+#
+# Same chart and pod layout as altus' runners (components-apps/gitea/
+# gitea-actions-chart-app.yaml): dind sidecar on a per-pod LVMS volume, socket
+# directory + DOCKER_HOST instead of the chart's subPath socket mount, MTU and
+# ndots flags, docker-prune sidecar. Differences: the public Gitea URL (no
+# in-cluster Service here), a smaller dind store, an explicit StorageClass
+# (sakaar has no default one, so /data would never bind), runner 5.x.
+#
+# Label: the runner carries ONLY `sakaar`, so no existing workflow
+# (runs-on: ubuntu-latest etc.) lands on it; a job opts in with
+# `runs-on: sakaar`. When a later phase adds shared labels, preference for
+# sakaar comes from polling: this runner fetches every 1-2 s, altus' runners
+# move to 20 s in phase B, so sakaar picks up a waiting job first.
+#
+# No Docker socket in jobs: either Gitea account may run jobs here.
+# container.docker_host "-" keeps the dind socket out of job, service and
+# docker-action containers (and starts no per-job Docker proxy), and with
+# privileged: false and no valid_volumes a job can't start privileged
+# containers or bind host paths to escape into dind (privileged) and from there
+# to the node. Image builds (docker build/push) therefore stay on altus.
+#
+# Rollback: set statefulset.replicas to 0 (stops polling at once; the runner
+# stays registered as offline in Gitea, delete it under Site Administration ->
+# Actions -> Runners). Then remove the `gitea-runners-sakaar` key from
+# bootstrap/overlays/sakaar/values-apps.yaml and prune-sync the root wrapper
+# cluster-config-manager (it has prune: false): hard refresh, then
+# {"operation":{"sync":{"revision":"<full-sha>","prune":true}}}. The wrapper's
+# resources finalizer removes the namespace (PVC included) and the
+# ClusterRoleBinding.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitea-runners-sakaar-app
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "112"
+spec:
+  destination:
+    namespace: gitea-runners
+    server: "https://kubernetes.default.svc"
+  source:
+    chart: actions
+    repoURL: https://dl.gitea.com/charts
+    targetRevision: 0.1.3
+    helm:
+      values: |-
+        enabled: true
+        # Public ROOT_URL (components-apps/gitea/gitea-chart-app.yaml) through
+        # Cloudflare; the init container's busybox wget handles https.
+        giteaRootURL: "https://git.janz.digital"
+        existingSecret: "gitea-actions-runner-token"
+        existingSecretKey: "token"
+        global:
+          # The chart renders this as the data-runner volumeClaimTemplate's
+          # storageClassName; sakaar has no default StorageClass.
+          storageClass: lvms-vg1
+        # Fully qualified, so CRI-O doesn't resolve the chart's short name
+        # through its search registries, and Renovate tracks it.
+        init:
+          image:
+            registry: ""
+            repository: docker.io/library/busybox
+            tag: "1.38.0"
+        statefulset:
+          replicas: 1
+          serviceAccountName: gitea-actions-runner
+          persistence:
+            size: 1Gi
+          # dind's layer store and the runner's action cache live on per-pod
+          # generic ephemeral LVMS volumes, not emptyDir on the node's /var
+          # (kubelet evicts at imagefs < 15 %). Volumes are deleted with the
+          # pod. Thin-provisioned, so size is a cap, not usage; the
+          # docker-prune sidecar below keeps the store bounded.
+          extraVolumes:
+            - name: dind-storage
+              ephemeral:
+                volumeClaimTemplate:
+                  spec:
+                    accessModes: ["ReadWriteOnce"]
+                    storageClassName: lvms-vg1
+                    resources:
+                      requests:
+                        storage: 50Gi
+            - name: runner-cache
+              ephemeral:
+                volumeClaimTemplate:
+                  spec:
+                    accessModes: ["ReadWriteOnce"]
+                    storageClassName: lvms-vg1
+                    resources:
+                      requests:
+                        storage: 10Gi
+          # Requests only, no limits: unset = BestEffort, which starves dind's
+          # 1s exec liveness probe under CI load; a cap would OOM-kill job builds.
+          runner:
+            registry: ""
+            repository: docker.gitea.com/runner
+            tag: "5.4.1"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            # Whole-dir mount + DOCKER_HOST, not the chart's subPath docker.sock
+            # mount (pinned at start -> dead socket after a dind restart).
+            extraVolumeMounts:
+              - name: docker-socket
+                mountPath: /docker-sock
+              # act's action clones (~/.cache/act), else on the node's rootfs
+              - name: runner-cache
+                mountPath: /root/.cache
+            extraEnvs:
+              - name: DOCKER_HOST
+                value: unix:///docker-sock/docker.sock
+            # Keys checked against gitea/runner v5.4.1
+            # internal/pkg/config/config.example.yaml.
+            config: |
+              log:
+                level: info
+              runner:
+                capacity: 1
+                fetch_interval: 1s
+                fetch_interval_max: 2s
+                labels:
+                  - "sakaar:docker://docker.gitea.com/runner-images:ubuntu-latest"
+              cache:
+                enabled: false
+              container:
+                require_docker: true
+                docker_timeout: 300s
+                privileged: false
+                valid_volumes: []
+                # "-": the runner finds dind via DOCKER_HOST but mounts it
+                # into no job container.
+                docker_host: "-"
+          dind:
+            registry: ""
+            repository: docker.io/library/docker
+            tag: "29.7.1-dind"
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+            extraVolumeMounts:
+              - name: dind-storage
+                mountPath: /var/lib/docker
+              - name: docker-socket
+                mountPath: /docker-sock
+            extraArgs:
+              - --mtu=1400
+              # overlay2 on the xfs (ftype=1) ephemeral volume: no
+              # overlay-on-overlay (the store isn't on CRI-O's rootfs).
+              - --storage-driver=overlay2
+              - --default-network-opt=bridge=com.docker.network.driver.mtu=1400
+              # Pod ndots:5 + search domains make musl apk/wget fail ("DNS: no
+              # address for host") on 2-dot names; ndots:1 resolves FQDNs as-is.
+              - --dns-opt=ndots:1
+        # Native sidecar (restartPolicy: Always, starts after dind): prunes
+        # unused images/containers/networks/build cache older than 7 days once
+        # a day, or older than 24h whenever the store is >=70% full. `until`
+        # only matches objects no container uses, so running jobs are safe.
+        postExtraInitContainers:
+          - name: docker-prune
+            image: docker.io/library/docker:29.9.3-cli # renovate
+            restartPolicy: Always
+            env:
+              - name: DOCKER_HOST
+                value: unix:///docker-sock/docker.sock
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                last=0
+                while true; do
+                  sleep 600
+                  docker info >/dev/null 2>&1 || continue
+                  used=$(df -P /var/lib/docker | awk 'NR==2 {sub("%", "", $5); print $5}')
+                  now=$(date +%s)
+                  if [ "${used:-0}" -ge 70 ]; then age=24h
+                  elif [ $((now - last)) -ge 86400 ]; then age=168h
+                  else continue; fi
+                  echo "$(date -Iseconds) store ${used}% used, pruning until=${age}"
+                  docker system prune -af --filter "until=${age}" | tail -1
+                  docker builder prune -af --filter "until=${age}" | tail -1
+                  df -P /var/lib/docker | awk 'NR==2 {print "after: " $5 " used"}'
+                  last=$now
+                done
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+            volumeMounts:
+              - name: docker-socket
+                mountPath: /docker-sock
+              - name: dind-storage
+                mountPath: /var/lib/docker
+                readOnly: true
+
+  project: cluster-apps
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
