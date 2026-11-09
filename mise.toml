@@ -1,3 +1,12 @@
+[settings]
+# mise.lock pins every tool's version, download URL and checksum for these
+# platforms (CI/knowhere: linux-x64, Macs: macos-arm64). Keep it at format
+# version 1 until every machine runs mise >= 2026.11 (older mise ignores and
+# rewrites a newer format). After a pin change run `mise lock`; CI installs
+# with --locked and fails on a stale lock.
+lockfile = true
+lockfile_platforms = ["linux-x64", "macos-arm64"]
+
 [tools]
 # pv-migrate: operator tool for PV migrations, not used by CI or scripts.
 # Pinned like the other tools instead of "latest" (reproducible installs);
