@@ -26,7 +26,7 @@ mover pods stuck for two hours (kanban t_639fbb2e).
 - Ranges: home-ops iSCSI rest 05:00-05:36, private-ops iSCSI 05:40-06:08,
   home-ops iSCSI b2 06:12-06:28. Free iSCSI slots: 06:00 (readarr,
   decommissioned 2026-11-09), 06:32-06:56. Free other
-  slots: 05:39, 05:43-05:59, 06:19-06:39, 06:43-06:59.
+  slots: 05:43-05:59, 06:19-06:39, 06:43-06:59.
 - A hash of the name was considered and rejected: with ~23 iSCSI sources in
   120 minutes, hash slots collide or land within a few minutes of each other
   almost surely, which is exactly the overload this avoids.
@@ -87,6 +87,7 @@ the volume's `backup/<volume>/kustomization.yaml`:
 | 05:35 | other | `tymeslot/data-backup` | home-ops |
 | 05:36 | iSCSI clone | `vehicle-pipeline/database-backup` | home-ops |
 | 05:37 | other | `vaultwarden/config-backup` | home-ops |
+| 05:39 | other | `gitea/packages-backup` | home-ops |
 | 05:40 | iSCSI clone | `jellystat/database-backup` | private-ops |
 | 05:41 | other | `media-vpn/qbittorrent-backup` | private-ops |
 | 05:44 | iSCSI clone | `media/audiobookshelf-backup` | private-ops |

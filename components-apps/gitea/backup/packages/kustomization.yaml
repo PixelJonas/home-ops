@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Gitea package registry volume (gitea-packages). Local restic-rest-server
+# only, never B2 (Jonas, 2026-11-09): images are rebuilt from git, so this
+# copy only saves a rebuild. Short retention (local.yaml) also bounds what
+# tailsafe copies to the peers.
+namePrefix: packages-
+namespace: gitea
+
+resources:
+  - ../../../../templates/volsync/rest
+
+patches:
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    path: local.yaml
+  - target:
+      group: external-secrets.io
+      version: v1
+      kind: ExternalSecret
+      name: external-restic-config
+    path: local-secret.yaml
+
+  # Backup slot 05:39 UTC (non-iSCSI grid), see docs/volsync-schedules.md.
+  - target:
+      group: volsync.backube
+      version: v1alpha1
+      kind: ReplicationSource
+      name: backup
+    patch: |-
+      - op: replace
+        path: /spec/trigger/schedule
+        value: "39 5 * * *"
