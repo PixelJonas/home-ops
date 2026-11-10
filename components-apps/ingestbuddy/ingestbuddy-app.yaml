@@ -261,6 +261,8 @@ spec:
                   # TAXBUDDY_INGESTBUDDY_WEBHOOK_SECRET, the same key
                   # taxbuddy's INGESTBUDDY_INTAKE_SECRET reads). The re-OCR
                   # callback (ingestbuddy#36) goes to the same URL.
+                  # Keep byte-identical to taxbuddy's INGESTBUDDY_REOCR_CALLBACK_URL
+                  # (components-apps/taxbuddy/taxbuddy-app.yaml, ingestbuddy#62 C9).
                   PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/intake/ingestbuddy
                   PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__SECRET:
                     valueFrom:
