@@ -2,7 +2,11 @@ githubConfigUrl: "https://github.com/PixelJonas/taxbuddy"
 githubConfigSecret: gha-runners-github-secret
 runnerScaleSetName: "arc-runner-set-taxbuddy"
 minRunners: 0
-maxRunners: 10
+# sakaar's root SSD (shared with etcd) saturates under concurrent runner IO:
+# 12-23 parallel runners stalled etcd for seconds and hit DiskPressure on
+# 2026-11-10. Caps total 16 across the five scale sets (infra-ops
+# docs/agents/sakaar-runner-disk-io-2026-11-10.md).
+maxRunners: 4
 controllerServiceAccount:
   namespace: actions-runner-system
   name: arc-gha-rs-controller
@@ -24,8 +28,13 @@ template:
           # Disk is the scarce resource on sakaar's single node: the request
           # lets the scheduler queue runners instead of the kubelet evicting
           # them under DiskPressure; the limit evicts only a runaway job.
+          # memory: ~p90 working set (0.67 GiB peak over 7 days), so the runners
+          # are Burstable and the scheduler counts them. No CPU request: the
+          # node's CPU requests are ~85-94 % while real use is ~18 %, so one
+          # would park runners in Pending below maxRunners.
           requests:
             ephemeral-storage: 4Gi
+            memory: 512Mi
           limits:
             ephemeral-storage: 20Gi
         volumeMounts:
