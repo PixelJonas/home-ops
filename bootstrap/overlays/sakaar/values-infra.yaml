@@ -179,3 +179,13 @@ applications:
       namespace: openshift-image-registry
     source:
       path: components-infra/registry-sno/overlays/sakaar
+
+  # Trims LVMS thin volumes every 6 h so freed blocks return to the thin pool
+  # (LVMS mounts without discard; runner volumes otherwise drift to full size).
+  lvms-fstrim:
+    annotations:
+      argocd.argoproj.io/sync-wave: "11"
+    destination:
+      namespace: openshift-lvm-storage
+    source:
+      path: components-infra/lvms-fstrim/overlays/sakaar

@@ -1,0 +1,88 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lvms-fstrim
+  annotations:
+    ignore-check.kube-linter.io/host-pid: "nsenter into PID 1's mount namespace to reach the kubelet's CSI mounts"
+spec:
+  # LVMS mounts its thin volumes without `discard`, so blocks a filesystem
+  # frees stay allocated in the thin pool until something trims them. Busy
+  # volumes (CI runner dind stores, Prometheus TSDB, restic packs) drift to
+  # their full size in the pool even when the filesystem is nearly empty
+  # (sakaar 2026-11-10: a 50Gi runner dind volume held 7.9 GiB of pool for
+  # 3.4 GiB of files after 11 h; one fstrim gave 4.8 GiB back in under a
+  # second). Every 6 h keeps a runner's drift to a few GiB.
+  #
+  # Only LVMS volumes (`/dev/mapper/<vg>-*`) are trimmed. The node's root
+  # filesystem is left alone: on sakaar it shares the SSD with etcd and has
+  # never been trimmed, so its first trim needs an attended, sliced run.
+  #
+  # One Job runs on one node: fine on a single-node cluster. On a multi-node
+  # cluster give the overlay a nodeSelector for the LVMS node.
+  schedule: "23 */6 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app: lvms-fstrim
+          annotations:
+            openshift.io/required-scc: privileged
+        spec:
+          serviceAccountName: lvms-fstrim
+          hostPID: true
+          restartPolicy: Never
+          containers:
+            - name: fstrim
+              image: registry.access.redhat.com/ubi9/ubi:9.8-1794186345@sha256:87f66688da4e206d5a1877088626c542288a5ccd97898cf363b588d57817e6be
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                privileged: true
+                runAsUser: 0
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              env:
+                - name: VG
+                  value: vg1
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  # Host mount namespace: the kubelet's CSI mounts and the
+                  # host's own fstrim/findmnt/lvs.
+                  exec nsenter -t 1 -m -- /bin/sh -s "$VG" <<'EOF'
+                  set -eu
+                  vg="$1"
+                  pool() {
+                    lvs --noheadings -o lv_name,data_percent,metadata_percent "$vg" 2>/dev/null \
+                      | awk '$1 ~ /^thin-pool/ {print "pool " $1 ": data " $2 "%, metadata " $3 "%"}'
+                  }
+                  pool
+                  n=0
+                  fail=0
+                  # A volume is mounted several times (staging, pod path, subPath binds
+                  # shown as `dev[/subdir]`): trim each device once.
+                  for dev in $(findmnt -rn -o SOURCE | sed 's/\[.*//' | grep "^/dev/mapper/${vg}-" | sort -u); do
+                    tgt=$(findmnt -rn -o TARGET -S "$dev" | head -1)
+                    if out=$(fstrim -v "$tgt" 2>&1); then
+                      n=$((n + 1))
+                      echo "${dev#/dev/mapper/}: ${out##*: }"
+                    else
+                      fail=$((fail + 1))
+                      echo "${dev#/dev/mapper/}: FAILED: $out"
+                    fi
+                  done
+                  pool
+                  echo "trimmed $n volume(s), $fail failure(s)"
+                  [ "$fail" -eq 0 ]
+                  EOF
