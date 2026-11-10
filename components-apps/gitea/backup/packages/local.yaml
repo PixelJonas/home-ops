@@ -1,0 +1,32 @@
+- op: replace
+  path: /spec/sourcePVC
+  value: gitea-packages
+- op: replace
+  path: /spec/restic/repository
+  value: restic-config-packages
+
+# Short retention, no monthly/yearly: about a week of dailies plus a few
+# weeklies (infra-ops CI review P2). within: 3d stays from the template so
+# manual syncs don't rotate out a scheduled snapshot.
+- op: replace
+  path: /spec/restic/retain
+  value:
+    within: 3d
+    daily: 7
+    weekly: 4
+# Image layers churn with every build; forgotten snapshots free space only at
+# prune, so prune weekly instead of the template's 14 days.
+- op: replace
+  path: /spec/restic/pruneIntervalDays
+  value: 7
+
+# Same as data-backup: snapshot the lvms-vg1 volume instead of mounting the
+# live PVC into the mover. No moverSecurityContext: the gitea namespace has
+# no privileged-movers annotation, so restricted-v2 gives the mover the
+# namespace uid/fsGroup, the same as the Gitea pod that owns the files.
+- op: add
+  path: /spec/restic/copyMethod
+  value: Snapshot
+- op: add
+  path: /spec/restic/volumeSnapshotClassName
+  value: lvms-vg1
