@@ -55,6 +55,23 @@ spec:
               ALLOWED_HOST_LIST: "external,knowhere-hermes-webhook.knowhere.svc.cluster.local"
             actions:
               ENABLED: true
+            # Packages (container images from the CI image builds) live on
+            # their own volume (gitea-packages, packages-pvc.yaml) with their
+            # own short-retention backup (backup/packages), never on /data
+            # and its tier-A backup (infra-ops CI review P2, 2026-11-09).
+            # Uploads in progress still buffer in /data/tmp/package-upload.
+            storage.packages:
+              STORAGE_TYPE: local
+              PATH: /data-packages
+
+        extraVolumes:
+          - name: packages
+            persistentVolumeClaim:
+              claimName: gitea-packages
+        # Main container only: the init containers never touch package storage.
+        extraContainerVolumeMounts:
+          - name: packages
+            mountPath: /data-packages
 
         deployment:
           env:
