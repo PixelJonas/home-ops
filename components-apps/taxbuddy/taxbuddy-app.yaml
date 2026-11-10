@@ -252,6 +252,13 @@ spec:
                       secretKeyRef:
                         name: taxbuddy-credentials
                         key: INGESTBUDDY_REOCR_SECRET
+                  # ingestbuddy#62 C9 (taxbuddy#232): sent as `callback_url` on
+                  # every re-OCR request. ingestbuddy calls back only the
+                  # webhook instance with this exact url, so it must stay
+                  # byte-identical to PLUGINS_WEBHOOK_INSTANCES__TAXBUDDY__URL
+                  # in components-apps/ingestbuddy/ingestbuddy-app.yaml; a
+                  # mismatch fails every request as callback_url_not_allowed.
+                  INGESTBUDDY_REOCR_CALLBACK_URL: http://taxbuddy-app-ingestion-api.taxbuddy.svc.cluster.local:8000/intake/ingestbuddy
                   # Re-OCR fallback-poll give-up (ADR-0026). 10 days = 864000 s,
                   # raised from the 6 h code default because re-OCR may sit
                   # queued for the local OCR host for days. A real failure
