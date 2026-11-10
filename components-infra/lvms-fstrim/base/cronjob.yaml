@@ -19,8 +19,11 @@ spec:
   #
   # One Job runs on one node: fine on a single-node cluster. On a multi-node
   # cluster give the overlay a nodeSelector for the LVMS node.
+  # No `timeZone`: the schedule runs on the controller manager's clock (UTC on
+  # RHCOS). `timeZone: Etc/UTC` crash-looped kube-state-metrics on sakaar
+  # ("unknown time zone Etc/UTC": its image has no tzdata), which took the
+  # monitoring ClusterOperator to Degraded.
   schedule: "23 */6 * * *"
-  timeZone: Etc/UTC
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 1
