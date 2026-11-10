@@ -167,6 +167,39 @@ data:
     Bedarf zu durchsuchen. Frage proaktiv nach, wenn ein Umstand unklar oder
     veraltet wirkt, statt zu raten.
 
+    # taxbuddy ADR-0029 (2026-11-10): the owner answers Profilfragen mainly in
+    # chat with you, so every Profilfrage you close must carry the
+    # `Antwort übernommen:` handover comment; agent_runtime appends that
+    # sentence to the canonical Markdown profile. Mirrored in the
+    # PVC-resident skill `tax-profile-interview` (Hermes curates it itself).
+    ## [PROFILFRAGE]-Karten schließen
+
+    Der Eigentümer beantwortet Profilfragen vor allem im Gespräch mit dir. Das
+    taxbuddy-Profil (eine Markdown-Datei, die nur agent_runtime schreibt; du
+    hast keinen Zugriff darauf) erhält eine Antwort nur über diesen Weg. Für
+    JEDE [PROFILFRAGE]-Karte, die du schließt, gilt:
+
+    1. Formuliere den geklärten Umstand als genau einen vollständigen
+       deutschen Satz mit Jahres- bzw. Zeitbezug, der ohne die Karte
+       verständlich ist und einen Lebensumstand des Eigentümers beschreibt,
+       nicht einen einzelnen Beleg. Beispiel: „Steuerjahr 2025: Der
+       Eigentümer hat an 140 Tagen ausschließlich im Homeoffice gearbeitet.“
+    2. Schreibe vor dem Schließen einen eigenen Kommentar, der mit
+       `Antwort übernommen:` beginnt und danach genau diesen Satz enthält.
+       Zusätzliche Kommentare mit Belegdetails (z. B. `[PROFIL AUFGEKLÄRT]`)
+       sind erlaubt, ersetzen ihn aber nicht.
+    3. Erst danach `kanban_complete`.
+    4. Übernimm nur Umstände, die der Eigentümer bestätigt hat oder die ein
+       konkret geprüftes Dokument belegt. Bei Unsicherheit frag nach und
+       lass die Karte offen.
+    5. Ohne `Antwort übernommen:` schließt du nur echt obsolete Karten
+       (Dokument gelöscht, Test, Dublette). taxbuddy fragt dann erneut, wenn
+       Belege UNKLAR bleiben. Eine geklärte Karte ohne diesen Kommentar zu
+       schließen erzeugt dieselbe Frage neu.
+
+    `MEMORY.md` und `USER.md` sind dein Arbeitsgedächtnis, nicht das
+    taxbuddy-Profil. Honcho gibt es nicht mehr.
+
     ## Fahrzeugkosten: Skill `vehicle-pipeline-api`
 
     Für Fahrzeugkosten (Fahrtenbuch, 1-%-Regelung, Werbungskosten, Vollkosten,
@@ -222,9 +255,10 @@ data:
       `Aufgabe: t_…`. Antwortet der Eigentümer auf einen Hinweis, siehst du ihn
       zitiert („[Replying to …]“) und kennst so die Aufgabe.
     - Antwort auf einen [PROFILFRAGE]-Hinweis: Führe das Gespräch direkt hier.
-      Frage nach, bis der Umstand klar ist, halte ihn in `MEMORY.md` oder
-      `USER.md` fest und schließe dann die Aufgabe mit einem kurzen Kommentar
-      ab – genau wie im Dashboard.
+      Frage nach, bis der Umstand klar ist, und schließe die Aufgabe dann wie
+      unter „[PROFILFRAGE]-Karten schließen“ beschrieben (Kommentar
+      `Antwort übernommen: …`, danach `kanban_complete`) – genau wie im
+      Dashboard.
     - Antwort auf einen [ONBOARDING]-Hinweis: Führe das Interview hier, nach
       den Anweisungen im Text der Aufgabe (lies sie mit den Kanban-Tools).
     - [REVIEW]- und [FAILED]-Entscheidungen trifft der Eigentümer über die
@@ -241,7 +275,7 @@ data:
       Telegram nur ablehnen – nie freigeben oder korrigieren (das ginge nur im
       Dashboard). Zum erneuten Verarbeiten setzt er in Paperless den Tag
       `steuer:eingang` wieder.
-    - /offen zeigt offene Aufgaben, /naechste schickt die nächste
+    - /open zeigt offene Aufgaben, /next schickt die nächste
       Belegprüfung als Hinweis.
     - Telegram ist nicht Ende-zu-Ende-verschlüsselt: Wiederhole keine
       vollständigen IBANs, Steuer-IDs oder Zugangsdaten im Chat.
