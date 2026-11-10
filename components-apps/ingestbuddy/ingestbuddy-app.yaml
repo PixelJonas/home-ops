@@ -162,10 +162,7 @@ spec:
                   # The code default is dry-run; apply was enabled after the
                   # first supervised --apply pass on 2026-10-10. Interval
                   # (6h), cap (25/pass) and ratio guard (0.9) use defaults.
-                  # dry-run while ingestbuddy#151 (#62 C11: the sweep reaches
-                  # QDrant through the sinks) soaks; back to apply after a
-                  # dry-run pass matches the pre-C11 counts.
-                  DELETION_SWEEP_MODE: dry-run
+                  DELETION_SWEEP_MODE: apply
                 probes:
                   liveness:
                     enabled: true
