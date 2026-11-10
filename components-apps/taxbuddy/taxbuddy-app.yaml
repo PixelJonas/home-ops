@@ -375,7 +375,7 @@ spec:
               bmf-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:be6f069807f6ef009891f9d5b95568a195aa5fcab3f60b4ccaf88ab11f7960e9"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
+                  digest: "sha256:28799ef9428448acdf7f1eeac0abfcb1a895cf8cbb3d0b529b7e248f9c798d2e"   # PLACEHOLDER — release.yml pins the real digest on the first taxbuddy main build that includes the watcher (P3-T02)
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
@@ -440,7 +440,7 @@ spec:
               bgbl-watcher:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:be6f069807f6ef009891f9d5b95568a195aa5fcab3f60b4ccaf88ab11f7960e9"   # taxbuddy@bc79f4b (release run 38442907648, includes #206); release.yml bumps all knowledge_service digests together
+                  digest: "sha256:28799ef9428448acdf7f1eeac0abfcb1a895cf8cbb3d0b529b7e248f9c798d2e"   # taxbuddy@bc79f4b (release run 38442907648, includes #206); release.yml bumps all knowledge_service digests together
                   pullPolicy: IfNotPresent
                 # The image's default CMD is the HTTP service; the watcher
                 # is a one-shot module entry point.
@@ -490,7 +490,7 @@ spec:
               knowledge-service:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/knowledge_service
-                  digest: "sha256:be6f069807f6ef009891f9d5b95568a195aa5fcab3f60b4ccaf88ab11f7960e9"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
+                  digest: "sha256:28799ef9428448acdf7f1eeac0abfcb1a895cf8cbb3d0b529b7e248f9c798d2e"   # taxbuddy@04e4d97 (release run 35530978907); release.yml bumps on subsequent main builds
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
