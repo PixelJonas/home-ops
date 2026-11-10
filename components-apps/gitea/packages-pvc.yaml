@@ -1,0 +1,30 @@
+# Gitea package registry storage ([storage.packages] PATH /data-packages in
+# gitea-chart-app.yaml), kept off the 20Gi /data volume and its tier-A backup.
+#
+# Size: a ci-tools image is ~2-3 GB per version. A cleanup rule keeps about a
+# week of dailies plus a few weeklies (~11 versions), and Gitea deletes
+# untagged blobs only in the nightly cleanup_packages cron, 24 h after they
+# lost their last reference, so ~13 versions can sit here at once: ~39 GB
+# worst case if no layer is shared between versions. 50Gi leaves headroom;
+# lvms-vg1 is thin-provisioned (only written blocks use the pool) and allows
+# online expansion.
+#
+# lvms-vg1 binds on first consumer (WaitForFirstConsumer, node altus only,
+# like /data). A Pending PVC counts as Healthy in this Argo CD (custom health
+# check), so wave 110 lets it exist before gitea-app (wave 111) mounts it.
+# Writable for Gitea's OpenShift-assigned uid through the pod fsGroup that
+# restricted-v2 sets (the chart adds none in OpenShift mode), as for /data.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-packages
+  namespace: gitea
+  annotations:
+    argocd.argoproj.io/sync-wave: "110"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: lvms-vg1
+  resources:
+    requests:
+      storage: 50Gi

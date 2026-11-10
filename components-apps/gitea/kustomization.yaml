@@ -7,6 +7,7 @@ resources:
   - external-gitea-db-secret.yaml
   - external-gitea-admin-secret.yaml
   - external-gitea-ssh-key.yaml
+  - packages-pvc.yaml
   - gitea-chart-app.yaml
   - ./backup
   - bootstrap-rbac.yaml
