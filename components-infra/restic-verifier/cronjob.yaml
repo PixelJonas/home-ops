@@ -53,9 +53,10 @@ spec:
                   value: "14400"
                 - name: MAX_SNAPSHOT_AGE_SECONDS
                   value: "172800"
-                # Keys left over from the removed devland apps; their repos are gone.
+                # Keys of removed apps: devland (repos gone) and honcho (removed
+                # 2026-11, its repo gets no new snapshots). Space-separated.
                 - name: SKIP_KEY_PATTERN
-                  value: "DEVLAND_*"
+                  value: "DEVLAND_* HONCHO_*"
                 - name: HOME
                   value: /work
                 - name: TMPDIR
@@ -64,8 +65,10 @@ spec:
                 requests:
                   cpu: 100m
                   memory: 256Mi
+                # 2Gi was OOMKilled on 2026-11-11 while loading the index of
+                # INFLUXDB3_DATA_REST_REPO_LOCAL.
                 limits:
-                  memory: 2Gi
+                  memory: 6Gi
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
