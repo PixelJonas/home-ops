@@ -15,17 +15,13 @@ spec:
     targetRevision: 5.3.0
     helm:
       values: |-
-        defaultPodOptions:
-          imagePullSecrets:
-            - name: vehicle-pipeline-ghcr-pull-secret
-
         controllers:
           app:
             replicas: 1
             containers:
               app:
                 image:
-                  repository: ghcr.io/pixeljonas/vehicle-pipeline
+                  repository: git.janz.digital/ci/vehicle-pipeline
                   tag: latest
                   pullPolicy: Always
                 env:
@@ -116,7 +112,7 @@ spec:
             containers:
               app:
                 image:
-                  repository: ghcr.io/pixeljonas/vehicle-pipeline
+                  repository: git.janz.digital/ci/vehicle-pipeline
                   tag: latest
                   pullPolicy: Always
                 command: ["python", "-m", "vehicle_pipeline.trips.detector"]
