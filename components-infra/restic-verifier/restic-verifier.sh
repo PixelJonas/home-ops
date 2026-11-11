@@ -6,7 +6,8 @@
 # covered without touching this. The log names repos by key, never by URL.
 #
 # Inputs (environment): SECRETS_DIR, BUDGET_SECONDS, REPO_TIMEOUT_SECONDS,
-# MAX_SNAPSHOT_AGE_SECONDS, SKIP_KEY_PATTERN (shell case pattern, optional).
+# MAX_SNAPSHOT_AGE_SECONDS, SKIP_KEY_PATTERN (space-separated shell case
+# patterns, optional).
 set -u
 
 now() { date -u +%s; }
@@ -24,10 +25,16 @@ checked=0
 for file in "$SECRETS_DIR"/*_REST_REPO_LOCAL; do
   [ -e "$file" ] || continue
   key=$(basename "$file")
-  # shellcheck disable=SC2254 # a glob pattern on purpose
-  case "$key" in
-    ${SKIP_KEY_PATTERN:-}) log "$key: skipped"; continue ;;
-  esac
+  skip=""
+  set -f # split the patterns on spaces, but don't glob them against files
+  for pattern in ${SKIP_KEY_PATTERN:-}; do
+    # shellcheck disable=SC2254 # a glob pattern on purpose
+    case "$key" in
+      $pattern) skip=1 ;;
+    esac
+  done
+  set +f
+  if [ -n "$skip" ]; then log "$key: skipped"; continue; fi
 
   left=$((deadline - $(now)))
   if [ "$left" -le 0 ]; then
