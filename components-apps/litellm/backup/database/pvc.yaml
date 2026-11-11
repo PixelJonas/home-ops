@@ -1,3 +1,11 @@
 - op: replace
   path: /metadata/namespace
   value: litellm
+# The PVC holds one backup.sql, and the dump preflight needs 1.5x its size
+# free next to it, so capacity must be >= ~2.5x the dump plus ext4 overhead.
+# 2026-11-11: backup.sql 2.7 GiB (LiteLLM_SpendLogs with stored prompts,
+# 7d retention) failed preflight on 5Gi. 15Gi accepts dumps up to ~5.5 GiB.
+# synology-iscsi-storage expands online; a PVC can never shrink.
+- op: replace
+  path: /spec/resources/requests/storage
+  value: 15Gi
