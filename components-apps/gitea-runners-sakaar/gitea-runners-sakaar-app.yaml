@@ -24,7 +24,7 @@
 #
 # Back to opt-in only: drop the ubuntu-* labels (the config change restarts
 # the pod, which declares the shorter list to Gitea).
-# Rollback: set statefulset.replicas to 0 (stops polling at once; the runner
+# Rollback: set statefulset.replicas to "0" (quoted, see below; stops polling at once; the runner
 # stays registered as offline in Gitea, delete it under Site Administration ->
 # Actions -> Runners). Then remove the `gitea-runners-sakaar` key from
 # bootstrap/overlays/sakaar/values-apps.yaml and prune-sync the root wrapper
@@ -70,7 +70,9 @@ spec:
           # 0 since 2026-11-11: dind writes grew the sparse vdc image on the
           # hypervisor's root (no discard on vdc). Back to 1 once vdc has
           # discard='unmap' (infra-ops .claude/rules/sakaar.md).
-          replicas: 0
+          # Quoted on purpose: the chart renders `replicas | default 1`, so an
+          # integer 0 becomes 1; the string "0" renders as `replicas: 0`.
+          replicas: "0"
           serviceAccountName: gitea-actions-runner
           persistence:
             size: 1Gi
