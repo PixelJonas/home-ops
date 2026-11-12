@@ -12,3 +12,4 @@ resources:
   - postgresql-database.yaml
   - litellm-app.yaml
   - litellm-bge-m3-app.yaml
+  - spendlog-toolindex-cleanup.yaml
