@@ -3,7 +3,8 @@
 # without bound (2.06M rows, 1.87M of them pointing at pruned logs, on
 # 2026-11-12). This deletes index rows whose spend log is gone. Rows younger
 # than a day are left alone, in case a log row is written after its index
-# rows. Runs before the 03:00 database dump.
+# rows. Runs before the 03:00 database dump. The DO block uses a named
+# dollar quote: Kubernetes turns $$ in args into $.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -48,7 +49,7 @@ spec:
               command: ["psql", "-v", "ON_ERROR_STOP=1", "-At", "-c"]
               args:
                 - |-
-                  do $$
+                  do $cleanup$
                   declare n bigint; total bigint := 0;
                   begin
                     loop
@@ -63,7 +64,7 @@ spec:
                       exit when n = 0;
                     end loop;
                     raise notice 'deleted % orphaned tool index rows', total;
-                  end $$;
+                  end $cleanup$;
               resources:
                 requests:
                   cpu: 10m
