@@ -1,0 +1,77 @@
+# LiteLLM's spend-log retention (maximum_spend_logs_retention_period) prunes
+# LiteLLM_SpendLogs but not LiteLLM_SpendLogToolIndex, which then grows
+# without bound (2.06M rows, 1.87M of them pointing at pruned logs, on
+# 2026-11-12). This deletes index rows whose spend log is gone. Rows younger
+# than a day are left alone, in case a log row is written after its index
+# rows. Runs before the 03:00 database dump.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: spendlog-toolindex-cleanup
+  namespace: litellm
+  annotations:
+    argocd.argoproj.io/sync-wave: "200"
+spec:
+  schedule: "30 2 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 900
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: cleanup
+              image: ghcr.io/cloudnative-pg/postgresql:18.6-system-trixie
+              env:
+                - name: PGHOST
+                  value: litellm-db-rw
+                - name: PGUSER
+                  value: litellm
+                - name: PGDATABASE
+                  value: litellm
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: litellm-db-litellm-secret
+                      key: password
+              command: ["psql", "-v", "ON_ERROR_STOP=1", "-At", "-c"]
+              args:
+                - |-
+                  do $$
+                  declare n bigint; total bigint := 0;
+                  begin
+                    loop
+                      delete from "LiteLLM_SpendLogToolIndex" where ctid in (
+                        select t.ctid from "LiteLLM_SpendLogToolIndex" t
+                        where t.start_time < now() - interval '1 day'
+                          and not exists (select 1 from "LiteLLM_SpendLogs" s
+                                          where s.request_id = t.request_id)
+                        limit 50000);
+                      get diagnostics n = row_count;
+                      total := total + n;
+                      exit when n = 0;
+                    end loop;
+                    raise notice 'deleted % orphaned tool index rows', total;
+                  end $$;
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
