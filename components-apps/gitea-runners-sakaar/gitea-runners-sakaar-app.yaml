@@ -67,12 +67,9 @@ spec:
             repository: docker.io/library/busybox
             tag: "1.38.0"
         statefulset:
-          # 0 since 2026-11-11: dind writes grew the sparse vdc image on the
-          # hypervisor's root (no discard on vdc). Back to 1 once vdc has
-          # discard='unmap' (infra-ops .claude/rules/sakaar.md).
-          # Quoted on purpose: the chart renders `replicas | default 1`, so an
-          # integer 0 becomes 1; the string "0" renders as `replicas: 0`.
-          replicas: "0"
+          # Scaling to 0 needs the quoted string "0": the chart renders
+          # `replicas | default 1`, so an integer 0 becomes 1.
+          replicas: 1
           serviceAccountName: gitea-actions-runner
           persistence:
             size: 1Gi
