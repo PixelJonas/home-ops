@@ -145,7 +145,7 @@ spec:
           dind:
             registry: ""
             repository: docker.io/library/docker
-            tag: "29.7.1-dind"
+            tag: "29.9.3-dind"
             resources:
               requests:
                 cpu: 250m
