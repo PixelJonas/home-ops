@@ -26,4 +26,4 @@ lockfile_platforms = ["linux-x64", "macos-arm64"]
 "aqua:rhysd/actionlint" = "1.7.12"
 "aqua:zizmorcore/zizmor" = "1.32.0"
 "pipx:yamllint" = "1.38.0"
-"github:prometheus/prometheus" = "3.15.1"
+"github:prometheus/prometheus" = "v3.16.0"
