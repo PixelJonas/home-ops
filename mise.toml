@@ -15,7 +15,7 @@ lockfile_platforms = ["linux-x64", "macos-arm64"]
 "aqua:kubernetes-sigs/kustomize" = "5.8.1"
 # yq: JSON for scripts/check_hogwarts_drill.py (CI job hogwarts-drill); also
 # reads the kustomization graph in scripts/validate_manifests.sh
-"aqua:mikefarah/yq" = "4.54.2"
+"aqua:mikefarah/yq" = "4.54.3"
 # helm: kustomize's helmCharts inflator shells out to the helm CLI. v4.3.0 validated 2026-10-21: byte-identical kustomize --enable-helm output vs v3.22.0 for all helmCharts dirs
 "aqua:helm/helm" = "4.3.1"
 "aqua:yannh/kubeconform" = "0.8.0"
