@@ -102,7 +102,7 @@ spec:
           runner:
             registry: ""
             repository: docker.gitea.com/runner
-            tag: "5.4.1"
+            tag: "6.0.0"
             resources:
               requests:
                 cpu: 100m
