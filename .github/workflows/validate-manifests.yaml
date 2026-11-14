@@ -189,7 +189,7 @@ jobs:
           # Pinned instead of whatever npm serves today (supply chain); Renovate
           # bumps it via the customManagers:githubActionsVersions preset.
           # renovate: datasource=npm depName=renovate
-          RENOVATE_VERSION: 44.198.3
+          RENOVATE_VERSION: 44.227.4
         # The shared preset is validated as a file too: the repo config only
         # extends it from main, so a broken preset would otherwise pass CI.
         run: npx --yes --package "renovate@${RENOVATE_VERSION}" renovate-config-validator --strict .github/renovate.json5 .github/renovate/base.json5
