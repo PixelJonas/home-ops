@@ -28,7 +28,7 @@ spec:
               mcp:
                 image:
                   repository: image-registry.openshift-image-registry.svc:5000/coppermind-mcp/coppermind-mcp
-                  tag: 9e4f866
+                  tag: 996908f
                   pullPolicy: IfNotPresent
                 env:
                   QDRANT_URL: http://qdrant-app.qdrant.svc.cluster.local:6333
