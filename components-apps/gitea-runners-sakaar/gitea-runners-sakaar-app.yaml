@@ -145,7 +145,7 @@ spec:
           dind:
             registry: ""
             repository: docker.io/library/docker
-            tag: "29.7.1-dind"
+            tag: "29.10.0-dind"
             resources:
               requests:
                 cpu: 250m
@@ -170,7 +170,7 @@ spec:
         # only matches objects no container uses, so running jobs are safe.
         postExtraInitContainers:
           - name: docker-prune
-            image: docker.io/library/docker:29.9.3-cli # renovate
+            image: docker.io/library/docker:29.10.0-cli # renovate
             restartPolicy: Always
             env:
               - name: DOCKER_HOST
