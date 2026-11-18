@@ -115,7 +115,7 @@ spec:
               install-taxbuddy-inbox:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/agent_runtime
-                  digest: "sha256:7b58ffb110cdf8733aef3e2a9df4e842e7b60cb340a387d36e3f2e227aefe5f1"
+                  digest: "sha256:ae2b360b6df06813442accfa210a2665b906051ad44b234c4629977cba4e5a92"
                   pullPolicy: IfNotPresent
                 command:
                   - /bin/sh
