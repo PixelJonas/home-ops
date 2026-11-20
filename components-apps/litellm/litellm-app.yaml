@@ -25,9 +25,14 @@ spec:
           litellm:
             containers:
               litellm:
+                # Tag + digest: the digest pins the content (a repushed tag
+                # can't drift the image), the -lts tag lets Renovate's
+                # app-template regex follow the LTS line. No automerge (LiteLLM
+                # packageRule in .github/renovate/base.json5): the proxy runs
+                # its Prisma migrations at startup; take a DB dump before each bump.
                 image:
                   repository: ghcr.io/berriai/litellm
-                  digest: "sha256:9ef6f45bc0104940571765e610c52a1d761b5ec85efcd193795281086ee61277"   # v1.92.0
+                  tag: v1.108.13-lts@sha256:65a9631f79329779a3371f4bdf185c3a4a93653254743b8722c5cbd9b9dd8a65
                   pullPolicy: IfNotPresent
                 args:
                   - "--config"
