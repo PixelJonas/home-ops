@@ -40,7 +40,9 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          # Write access via the package's "Manage Actions access" (home-ops:
+          # Write, 2026-11-10): GITHUB_TOKEN with packages: write, no PAT.
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute tags
         id: meta
@@ -64,7 +66,7 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
           SHA_SHORT: ${{ steps.meta.outputs.sha_short }}
           PUSH: ${{ steps.meta.outputs.push }}
-          GH_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tags=(-t "$IMAGE:$VERSION")
           if [ "$EVENT" != "pull_request" ]; then
