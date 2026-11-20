@@ -1,0 +1,81 @@
+---
+# promtool unit tests for the nextcloud-app-update rules in ../prometheus-rule.yaml.
+rule_files:
+  - rules.generated.yaml
+evaluation_interval: 1m
+tests:
+  # Failed Job of this CronJob fires; a failed Job of another CronJob doesn't.
+  - interval: 1m
+    input_series:
+      - series: kube_job_failed{namespace="nextcloud",job_name="nextcloud-app-update-29920000",condition="true"}
+        values: 1x30
+      - series: kube_job_owner{namespace="nextcloud",job_name="nextcloud-app-update-29920000",owner_kind="CronJob",owner_name="nextcloud-app-update",owner_is_controller="true"}
+        values: 1x30
+      - series: kube_job_failed{namespace="nextcloud",job_name="nextcloud-app-cron-29868020",condition="true"}
+        values: 1x30
+      - series: kube_job_owner{namespace="nextcloud",job_name="nextcloud-app-cron-29868020",owner_kind="CronJob",owner_name="nextcloud-app-cron",owner_is_controller="true"}
+        values: 1x30
+    alert_rule_test:
+      - alertname: NextcloudAppUpdateFailed
+        eval_time: 5m
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: nextcloud
+              job_name: nextcloud-app-update-29920000
+              condition: "true"
+            exp_annotations:
+              summary: "Nextcloud app update failed: nextcloud-app-update-29920000"
+              description: >-
+                The weekly app-store update Job failed (backup preflight, app update or
+                postflight check). Its log says which step; a rollback tarball of custom_apps
+                is under /var/www/app-backups on the nextcloud-app PVC. Delete the Job once
+                handled to clear this.
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_status_last_successful_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 0x2600
+    alert_rule_test:
+      - alertname: NextcloudAppUpdateStale
+        eval_time: 7d
+        exp_alerts: []
+      - alertname: NextcloudAppUpdateStale
+        eval_time: 9d
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: nextcloud
+              cronjob: nextcloud-app-update
+            exp_annotations:
+              summary: Nextcloud app update has not succeeded for over 8 days
+              description: >-
+                The weekly nextcloud-app-update CronJob (Sundays 04:00) has no successful run
+                in 8 days. Check the CronJob and its last Job in namespace nextcloud.
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_created{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 0x2600
+    alert_rule_test:
+      - alertname: NextcloudAppUpdateNeverSucceeded
+        eval_time: 7d
+        exp_alerts: []
+      - alertname: NextcloudAppUpdateNeverSucceeded
+        eval_time: 9d
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: nextcloud
+              cronjob: nextcloud-app-update
+            exp_annotations:
+              summary: Nextcloud app update has never succeeded
+              description: The nextcloud-app-update CronJob is over 8 days old and has no successful run.
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_created{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 0x2600
+      - series: kube_cronjob_status_last_successful_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 700000x2600
+    alert_rule_test:
+      - alertname: NextcloudAppUpdateNeverSucceeded
+        eval_time: 9d
+        exp_alerts: []
