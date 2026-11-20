@@ -158,6 +158,11 @@ spec:
                   # year missing from the map is skipped (logged), never
                   # priced at a wrong rate.
                   ZAPPI_RATE_PER_KWH: '{"2026": "0.34"}'
+                  # Town names for unnamed trip starts/ends (vehicle-pipeline
+                  # ADR 0006): the detector reverse geocodes them through
+                  # Nominatim, rounded to ~100 m, max 1 req/s, HA zones never
+                  # sent. Unset = off.
+                  NOMINATIM_URL: https://nominatim.openstreetmap.org
                   DATABASE_URL:
                     valueFrom:
                       secretKeyRef:
