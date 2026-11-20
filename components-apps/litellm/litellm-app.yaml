@@ -25,9 +25,13 @@ spec:
           litellm:
             containers:
               litellm:
+                # Digest-only pin (multi-arch index of the tag in the comment).
+                # Renovate's app-template regex needs a `tag:`, so it does not
+                # see this image: bump it by hand. The proxy runs its Prisma
+                # migrations at startup; take a DB dump before each bump.
                 image:
                   repository: ghcr.io/berriai/litellm
-                  digest: "sha256:9ef6f45bc0104940571765e610c52a1d761b5ec85efcd193795281086ee61277"   # v1.92.0
+                  digest: "sha256:65a9631f79329779a3371f4bdf185c3a4a93653254743b8722c5cbd9b9dd8a65"   # v1.108.13 (LTS)
                   pullPolicy: IfNotPresent
                 args:
                   - "--config"
