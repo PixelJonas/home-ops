@@ -1,0 +1,25 @@
+---
+# Narrow rights for the app-update Job: exec into the Nextcloud pod (occ, tar),
+# read the backup Jobs/CronJobs and the VolSync ReplicationSources for the
+# preflight. No write access to any object.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nextcloud-app-update
+rules:
+  # `kubectl exec deploy/nextcloud-app` resolves the Deployment to a pod.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list"]
+  - apiGroups: ["volsync.backube"]
+    resources: ["replicationsources"]
+    verbs: ["get", "list"]
