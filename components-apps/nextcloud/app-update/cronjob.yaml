@@ -1,0 +1,51 @@
+---
+# Sundays 04:00 Europe/Berlin: after the nightly psql-backup (03:00, holds
+# maintenance mode ~12 min) and the data-PVC VolSync snapshots (03:10 local +
+# B2). The script refuses to run unless those succeeded this night.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nextcloud-app-update
+  annotations:
+    argocd.argoproj.io/sync-wave: "150"
+spec:
+  schedule: "0 4 * * 0"
+  timeZone: Europe/Berlin
+  concurrencyPolicy: Forbid
+  # A run missed by more than an hour waits for next week (the backup gate
+  # would fail it after midnight anyway).
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # No retry: a half-done update must surface as a failed Job (alert), not
+      # be re-run blindly.
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          serviceAccountName: nextcloud-app-update
+          restartPolicy: Never
+          volumes:
+            - name: script
+              configMap:
+                name: nextcloud-app-update-script
+                defaultMode: 0555
+          containers:
+            - name: app-update
+              # Same image as the psql-backup maintenance-mode container
+              # (Renovate keeps origin-cli on 4.x).
+              image: quay.io/openshift/origin-cli:4.22
+              command: ["/bin/bash", "/scripts/app-update.sh"]
+              env:
+                - name: TZ
+                  value: Europe/Berlin
+                # Renovate parity: only releases at least this old.
+                - name: MIN_RELEASE_AGE_DAYS
+                  value: "3"
+                - name: KEEP_TARBALLS
+                  value: "4"
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
