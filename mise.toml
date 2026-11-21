@@ -11,7 +11,7 @@ lockfile_platforms = ["linux-x64", "macos-arm64"]
 # pv-migrate: operator tool for PV migrations, not used by CI or scripts.
 # Pinned like the other tools instead of "latest" (reproducible installs);
 # Renovate's mise manager bumps github: backend pins.
-"github:utkuozdemir/pv-migrate" = "3.7.0"
+"github:utkuozdemir/pv-migrate" = "v3.8.0"
 "aqua:kubernetes-sigs/kustomize" = "5.8.1"
 # yq: JSON for scripts/check_hogwarts_drill.py (CI job hogwarts-drill); also
 # reads the kustomization graph in scripts/validate_manifests.sh
