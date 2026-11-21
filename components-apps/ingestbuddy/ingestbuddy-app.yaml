@@ -104,6 +104,14 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: OCR_QUEUE_ADMIN_SECRET
+                  # Bearer token of the `api` scope (ingestbuddy ADR-0008,
+                  # #63 D9): /v1/documents, /v1/search, plugin routes.
+                  # Unset -> those answer 503.
+                  API_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: API_TOKEN
                   # Midgard-aware OCR queue (ingestbuddy ADR-0005): turns the
                   # queue on. Supervisor /healthz on midgard (LAN, no auth).
                   # Without it ingestbuddy never calls the `local: true`
