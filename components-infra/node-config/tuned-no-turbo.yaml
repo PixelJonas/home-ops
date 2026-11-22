@@ -8,11 +8,21 @@ spec:
     - name: openshift-control-plane-no-turbo
       data: |
         [main]
-        summary=Control-plane profile with Intel turbo disabled (thermal/VRM mitigation on altus)
+        summary=Control-plane profile with Intel turbo disabled (thermal/VRM mitigation on altus) and power-saving CPU policy
         include=openshift-control-plane
 
+        # no_turbo: thermal/VRM mitigation on altus.
+        # Power saving: the parent throughput-performance pins governor
+        # performance, EPP performance and min_perf_pct=100 (3.6 GHz on every
+        # core). Let HWP scale down at low load. min_perf_pct is a percentage
+        # of the max turbo P-state (5.0 GHz), 20 = 1.0 GHz floor.
+        # Applied live by NTO (no reboot); revert = git revert.
         [cpu]
         no_turbo=1
+        governor=powersave
+        energy_performance_preference=balance_power
+        energy_perf_bias=normal
+        min_perf_pct=20
 
         # Cap dirty page cache so bulk writers (image pulls, VolSync/restic) can't
         # build up GBs of writeback that stalls etcd fsyncs on the shared disk.
