@@ -93,7 +93,7 @@ spec:
               doc-pipeline:
                 image:
                   repository: ghcr.io/pixeljonas/taxbuddy/doc_pipeline
-                  digest: "sha256:f0fc4b9224805c6888439d36945e81f98e8c3455384c70f260717efc89c09176"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
+                  digest: "sha256:c863d3c56dfde2679c073e1837417189e25f279c7552571f94fef8439acbf8e9"   # PLACEHOLDER — Task 3 / release.yml updates this once real images exist
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
