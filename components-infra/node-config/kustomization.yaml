@@ -6,3 +6,4 @@ resources:
   - increased-reservation.yaml
   - master-pool-labels.yaml
   - tuned-no-turbo.yaml
+  - tuned-xandar-powersave.yaml

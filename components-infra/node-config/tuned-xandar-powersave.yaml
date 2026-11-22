@@ -1,0 +1,30 @@
+apiVersion: tuned.openshift.io/v1
+kind: Tuned
+metadata:
+  name: xandar-powersave
+  namespace: openshift-cluster-node-tuning-operator
+spec:
+  profile:
+    - name: openshift-node-powersave
+      data: |
+        [main]
+        summary=Worker profile with power-saving CPU policy (xandar)
+        include=openshift-node
+
+        # The parent throughput-performance pins governor performance, EPP
+        # performance and min_perf_pct=100 (every core at max turbo). Let HWP
+        # scale down at low load; turbo stays available under load.
+        # min_perf_pct is a percentage of the max turbo P-state (4.1 GHz),
+        # 20 = ~0.8 GHz, the hardware minimum. Applied live by NTO (no reboot);
+        # revert = git revert.
+        [cpu]
+        governor=powersave
+        energy_performance_preference=balance_power
+        energy_perf_bias=normal
+        min_perf_pct=20
+  recommend:
+    - match:
+        - label: kubernetes.io/hostname
+          value: xandar
+      priority: 15
+      profile: openshift-node-powersave
