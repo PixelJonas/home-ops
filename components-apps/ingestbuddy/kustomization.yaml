@@ -15,8 +15,8 @@ resources:
   - ingestbuddy-app.yaml
   - servicemonitor.yaml
   - backup
-  # networkpolicy.yaml intentionally NOT included, matching
-  # components-apps/taxbuddy/kustomization.yaml — see tax-agent's ADR-007:
+  # Ingress only. There are no egress rules, matching
+  # components-apps/taxbuddy/kustomization.yaml (tax-agent's ADR-007:
   # OVN-Kubernetes on this cluster doesn't reliably allow NetworkPolicy
-  # egress to the Kubernetes API server. No other app in this repo has one
-  # either.
+  # egress to the Kubernetes API server).
+  - networkpolicy.yaml

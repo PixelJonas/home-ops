@@ -1,0 +1,62 @@
+# Ingress-only policies for the two ingestbuddy pods that listen. Egress stays
+# open (see kustomization.yaml). The worker listens on nothing, and the CNPG
+# instance pods are left alone: the operator reaches them from its own
+# namespace.
+#
+# Kubelet probes come from the node's management port, which OVN-Kubernetes
+# always allows, so no rule is needed for them.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingestbuddy-api-ingress
+  namespace: ingestbuddy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: ingestbuddy-app
+      app.kubernetes.io/controller: api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Every pod in this namespace.
+        - podSelector: {}
+        # taxbuddy-app-agent-runtime: re-OCR requests (INGESTBUDDY_BASE_URL).
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: taxbuddy
+        # Paperless intake workflow webhook (POST /v1/webhooks/paperless).
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: paperless
+        # servicemonitor.yaml: prometheus-user-workload scrapes /metrics.
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: monitoring
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+# Valkey has no password: until this policy, any pod in the cluster could read
+# and write the RQ queues (job payloads included). Only ingestbuddy's own pods
+# may connect now.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingestbuddy-valkey-ingress
+  namespace: ingestbuddy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: ingestbuddy-app
+      app.kubernetes.io/controller: valkey
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: ingestbuddy-app
+      ports:
+        - protocol: TCP
+          port: 6379
