@@ -89,6 +89,19 @@ crash-consistent `lvms-vg1` CSI snapshot is a loadable AOF. REST repo only
 namespace enables VolSync privileged movers (the files are uid 999, mode
 0600; no mover fsGroup), which also applies to `database-backup`.
 
+## Network policy
+
+`networkpolicy.yaml` only restricts ingress:
+
+| Pod | Port | Who may connect |
+|---|---|---|
+| api | 8000 | this namespace; `taxbuddy` (agent-runtime re-OCR); `paperless` (intake webhook); the monitoring policy group (`/metrics`) |
+| valkey | 6379 | ingestbuddy's own pods only |
+
+Egress, the worker and the CNPG pods are not covered. A new caller of the API
+from another namespace needs a `from` entry here, or its connection times
+out.
+
 ## Secrets
 
 | Key | Purpose |
