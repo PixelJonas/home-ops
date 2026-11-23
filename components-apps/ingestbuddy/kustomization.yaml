@@ -20,3 +20,17 @@ resources:
   # OVN-Kubernetes on this cluster doesn't reliably allow NetworkPolicy
   # egress to the Kubernetes API server).
   - networkpolicy.yaml
+
+configMapGenerator:
+  # ingestbuddy#63 D4: the owner's config, out of the image. The name has no
+  # hash suffix because ingestbuddy-app.yaml references it from inside the
+  # Application's helm values, which kustomize can't rewrite. So an edit
+  # doesn't roll the pods: restart api and worker after it syncs (README).
+  - name: ingestbuddy-config
+    namespace: ingestbuddy
+    files:
+      - ingestbuddy.yaml=config/ingestbuddy.yaml
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        argocd.argoproj.io/sync-wave: "30"

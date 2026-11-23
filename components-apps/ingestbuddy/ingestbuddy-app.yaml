@@ -33,8 +33,12 @@ spec:
                   # ingestbuddy#60/#101 (ADR-0007): plugin enable flags and the
                   # PLUGINS_<NAME>_<KEY> names below sit alongside the old flat
                   # names until the config loader (#102) ships; the old names
-                  # go in #108. INGESTBUDDY_CONFIG stays unset (image default
-                  # /app/ingestbuddy.yaml); PLUGINS_QDRANT_ENABLED defaults true.
+                  # go in #108. PLUGINS_QDRANT_ENABLED defaults true.
+                  #
+                  # The config file comes from the ingestbuddy-config
+                  # ConfigMap (config/ingestbuddy.yaml, ingestbuddy#63 D4),
+                  # not from the image. Pods read it at boot only.
+                  INGESTBUDDY_CONFIG: /config/ingestbuddy.yaml
                   PLUGINS_TAX_ENABLED: "true"
                   PLUGINS_VEHICLE_ENABLED: "true"
                   # ingestbuddy#62 C4: taxbuddy is a named instance of the
@@ -204,8 +208,12 @@ spec:
                   # ingestbuddy#60/#101 (ADR-0007): plugin enable flags and the
                   # PLUGINS_<NAME>_<KEY> names below sit alongside the old flat
                   # names until the config loader (#102) ships; the old names
-                  # go in #108. INGESTBUDDY_CONFIG stays unset (image default
-                  # /app/ingestbuddy.yaml); PLUGINS_QDRANT_ENABLED defaults true.
+                  # go in #108. PLUGINS_QDRANT_ENABLED defaults true.
+                  #
+                  # The config file comes from the ingestbuddy-config
+                  # ConfigMap (config/ingestbuddy.yaml, ingestbuddy#63 D4),
+                  # not from the image. Pods read it at boot only.
+                  INGESTBUDDY_CONFIG: /config/ingestbuddy.yaml
                   PLUGINS_TAX_ENABLED: "true"
                   PLUGINS_VEHICLE_ENABLED: "true"
                   # ingestbuddy#62 C4: taxbuddy is a named instance of the
@@ -397,6 +405,21 @@ spec:
                 port: 6379
 
         persistence:
+          # The owner's ingestbuddy.yaml (ingestbuddy#63 D4), mounted at
+          # /config for api and worker; INGESTBUDDY_CONFIG points at it.
+          config:
+            enabled: true
+            type: configMap
+            name: ingestbuddy-config
+            advancedMounts:
+              api:
+                api:
+                  - path: /config
+                    readOnly: true
+              worker:
+                worker:
+                  - path: /config
+                    readOnly: true
           valkey-data:
             enabled: true
             accessMode: ReadWriteOnce
