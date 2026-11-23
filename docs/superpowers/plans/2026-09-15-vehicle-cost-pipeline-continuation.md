@@ -218,7 +218,7 @@ insurance, biennial TÜV — simply haven't come due yet).
 
 - **Tag IDs (Paperless):** `Fahrzeug:ID4-auto` = 1750, `Fahrzeug:Multivan-auto`
   = 1751, `MyGarage:imported` = 1752.
-- **VINs:** Multivan T7 = `WV2ZZZST4SH003739`, ID.4 = `WVGZZZE27SE017858`
+- **VINs:** redacted (personal data). The real ones are only in the vehicle registry config, never in this repo.
   (also in Doppler `MYGARAGE_VEHICLES`, `homelab/home`).
 - **MyGarage base URL:** `https://mygarage.apps.altus.janz.digital` (public)
   / `http://mygarage-app.mygarage.svc:8686` (in-cluster, use this from
