@@ -15,6 +15,21 @@ Application (wave 111), registered in
 (`local.home`) only — this stack (docling-serve, litellm, qdrant, taxbuddy)
 has no Sakaar presence.
 
+## Config file (ingestbuddy#63 D4)
+
+`config/ingestbuddy.yaml` is this deployment's ingestbuddy config: LLM
+endpoints, models and role chains, plus the commented defaults. It becomes
+the `ingestbuddy-config` ConfigMap (wave 30), which is mounted at `/config` in
+the api and worker. `INGESTBUDDY_CONFIG=/config/ingestbuddy.yaml` points at
+it. Once D4 lands in ingestbuddy, the images carry only a generic example,
+so this file is the one that counts. Env vars still override it (the `PLUGINS_*` and core keys in
+`ingestbuddy-app.yaml`).
+
+The pods read the file once, at boot, and an edit doesn't restart them. After
+the edit has synced, check that the queues are idle (`jobs:reocr`
+StartedJobRegistry empty), then run
+`oc rollout restart deploy/ingestbuddy-app-api deploy/ingestbuddy-app-worker -n ingestbuddy`.
+
 ## NFS scan inbox (ingestbuddy#9)
 
 Scans go to `\\statesman\configs\paperless\consume\inbox` (NAS path
