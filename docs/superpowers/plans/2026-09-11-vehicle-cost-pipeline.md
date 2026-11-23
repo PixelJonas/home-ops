@@ -235,7 +235,7 @@ def _env(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> None:
         "MYGARAGE_URL": "https://mygarage.example.test/",
         "MYGARAGE_USERNAME": "admin",
         "MYGARAGE_PASSWORD": "adminpw",
-        "MYGARAGE_VEHICLES": json.dumps({"WVGZZZE27SE017858": "id4", "WV2ZZZ7HZNH000000": "multivan"}),
+        "MYGARAGE_VEHICLES": json.dumps({"WVGZZZE2ZSE000001": "id4", "WV2ZZZ7HZNH000000": "multivan"}),
     }
     base.update(overrides)
     for key, value in base.items():
@@ -246,7 +246,7 @@ def test_from_env_reads_required_fields(monkeypatch: pytest.MonkeyPatch) -> None
     _env(monkeypatch)
     settings = Settings.from_env()
     assert settings.paperless_url == "https://paperless.example.test"
-    assert settings.vehicles == {"WVGZZZE27SE017858": "id4", "WV2ZZZ7HZNH000000": "multivan"}
+    assert settings.vehicles == {"WVGZZZE2ZSE000001": "id4", "WV2ZZZ7HZNH000000": "multivan"}
     assert settings.poll_interval_seconds == 900
 
 
@@ -394,7 +394,7 @@ def test_settings() -> Settings:
         mygarage_url="https://mygarage.example.test",
         mygarage_username="admin",
         mygarage_password="adminpw",
-        vehicles={"WVGZZZE27SE017858": "id4", "WV2ZZZ7HZNH000000": "multivan"},
+        vehicles={"WVGZZZE2ZSE000001": "id4", "WV2ZZZ7HZNH000000": "multivan"},
         poll_interval_seconds=900,
     )
 ```
@@ -572,10 +572,10 @@ def test_create_list_approve_roundtrip() -> None:
             paperless_doc_id=doc_id,
             paperless_doc_title="KFZ-Steuer Bescheid 2026",
             paperless_doc_url="https://paperless.example.test/documents/8675309/",
-            vin="WVGZZZE27SE017858",
+            vin="WVGZZZE2ZSE000001",
             mygarage_entity="tax-records",
             extracted_category="kfz_steuer",
-            payload={"date": "2026-03-01", "amount": 120.0, "vin": "WVGZZZE27SE017858"},
+            payload={"date": "2026-03-01", "amount": 120.0, "vin": "WVGZZZE2ZSE000001"},
             confidence="high",
         )
 
@@ -904,11 +904,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 # tests/test_classify_vehicle.py
 from vehicle_pipeline.classify_vehicle import classify_vehicle
 
-VEHICLES = {"WVGZZZE27SE017858": "id4", "WV2ZZZ7HZNH000000": "multivan"}
+VEHICLES = {"WVGZZZE2ZSE000001": "id4", "WV2ZZZ7HZNH000000": "multivan"}
 
 
 def test_classifies_by_id4_tag() -> None:
-    assert classify_vehicle(["Fahrzeug:ID4-auto"], "irrelevant content", VEHICLES) == "WVGZZZE27SE017858"
+    assert classify_vehicle(["Fahrzeug:ID4-auto"], "irrelevant content", VEHICLES) == "WVGZZZE2ZSE000001"
 
 
 def test_classifies_by_multivan_tag() -> None:
@@ -916,8 +916,8 @@ def test_classifies_by_multivan_tag() -> None:
 
 
 def test_falls_back_to_vin_in_content_when_no_tag() -> None:
-    content = "Fahrzeugschein VIN: WVGZZZE27SE017858 ausgestellt am ..."
-    assert classify_vehicle([], content, VEHICLES) == "WVGZZZE27SE017858"
+    content = "Fahrzeugschein VIN: WVGZZZE2ZSE000001 ausgestellt am ..."
+    assert classify_vehicle([], content, VEHICLES) == "WVGZZZE2ZSE000001"
 
 
 def test_returns_none_when_no_signal() -> None:
@@ -926,7 +926,7 @@ def test_returns_none_when_no_signal() -> None:
 
 def test_tag_takes_precedence_over_conflicting_content_vin() -> None:
     content = "mentions WV2ZZZ7HZNH000000 somewhere"
-    assert classify_vehicle(["Fahrzeug:ID4-auto"], content, VEHICLES) == "WVGZZZE27SE017858"
+    assert classify_vehicle(["Fahrzeug:ID4-auto"], content, VEHICLES) == "WVGZZZE2ZSE000001"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1209,7 +1209,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 from vehicle_pipeline.extract import ExtractionResult
 from vehicle_pipeline.taxonomy import map_to_mygarage
 
-VIN = "WVGZZZE27SE017858"
+VIN = "WVGZZZE2ZSE000001"
 
 
 def _result(**overrides) -> ExtractionResult:
@@ -1402,7 +1402,7 @@ async def test_create_record_logs_in_then_posts() -> None:
             assert _json.loads(request.content) == {"username": "admin", "password": "adminpw"}
             return httpx.Response(200, json={"access_token": "tok123", "token_type": "bearer",
                                               "expires_in": 3600, "csrf_token": "csrf"})
-        assert request.url.path == "/api/vehicles/WVGZZZE27SE017858/tax-records"
+        assert request.url.path == "/api/vehicles/WVGZZZE2ZSE000001/tax-records"
         assert request.headers["Authorization"] == "Bearer tok123"
         return httpx.Response(201, json={"id": 99, "amount": 120.5})
 
@@ -1410,11 +1410,11 @@ async def test_create_record_logs_in_then_posts() -> None:
         "https://mygarage.example.test", "admin", "adminpw", transport=httpx.MockTransport(handler)
     )
     result = await client.create_record(
-        "WVGZZZE27SE017858", "tax-records",
-        {"vin": "WVGZZZE27SE017858", "date": "2026-03-01", "amount": 120.5},
+        "WVGZZZE2ZSE000001", "tax-records",
+        {"vin": "WVGZZZE2ZSE000001", "date": "2026-03-01", "amount": 120.5},
     )
     assert result == {"id": 99, "amount": 120.5}
-    assert calls == ["/api/auth/login", "/api/vehicles/WVGZZZE27SE017858/tax-records"]
+    assert calls == ["/api/auth/login", "/api/vehicles/WVGZZZE2ZSE000001/tax-records"]
     await client.aclose()
 
 
@@ -1563,7 +1563,7 @@ import pytest
 from vehicle_pipeline.extract import ExtractionResult
 from vehicle_pipeline.pipeline import process_document
 
-VEHICLES = {"WVGZZZE27SE017858": "id4"}
+VEHICLES = {"WVGZZZE2ZSE000001": "id4"}
 
 
 class FakePaperless:
@@ -1613,7 +1613,7 @@ async def test_process_document_creates_review_draft() -> None:
     assert len(review_store.created) == 1
     draft = review_store.created[0]
     assert draft["mygarage_entity"] == "tax-records"
-    assert draft["vin"] == "WVGZZZE27SE017858"
+    assert draft["vin"] == "WVGZZZE2ZSE000001"
     assert draft["extracted_category"] == "kfz_steuer"
 
 
@@ -2081,7 +2081,7 @@ async def test_reconciliation_enqueues_new_documents() -> None:
         ingest_store=ingest_store,
         llm=FakeExtractorAlwaysOther(),
         review_store=FakeReviewStore(),
-        vehicles={"WVGZZZE27SE017858": "id4"},
+        vehicles={"WVGZZZE2ZSE000001": "id4"},
         watermark_store=watermark,
     )
 
@@ -2300,8 +2300,8 @@ def _item(item_id: int = 1) -> ReviewItem:
     return ReviewItem(
         id=item_id, paperless_doc_id=42, paperless_doc_title="KFZ-Steuer 2026",
         paperless_doc_url="https://paperless.example.test/documents/42/",
-        vin="WVGZZZE27SE017858", mygarage_entity="tax-records", extracted_category="kfz_steuer",
-        payload={"vin": "WVGZZZE27SE017858", "date": "2026-03-01", "amount": 120.5,
+        vin="WVGZZZE2ZSE000001", mygarage_entity="tax-records", extracted_category="kfz_steuer",
+        payload={"vin": "WVGZZZE2ZSE000001", "date": "2026-03-01", "amount": 120.5,
                  "tax_type": "KFZ-Steuer", "notes": None},
         confidence="high", status="pending", mygarage_record_id=None,
     )
@@ -2326,7 +2326,7 @@ def test_approve_commits_to_mygarage_and_marks_approved() -> None:
     client = TestClient(app)
 
     resp = client.post("/review/1/approve", data={
-        "vin": "WVGZZZE27SE017858", "date": "2026-03-01", "amount": "125.0",
+        "vin": "WVGZZZE2ZSE000001", "date": "2026-03-01", "amount": "125.0",
         "tax_type": "KFZ-Steuer", "notes": "corrected amount",
     })
 
@@ -2626,7 +2626,7 @@ export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
 export PAPERLESS_URL="https://paperless.example.test" PAPERLESS_TOKEN=x PAPERLESS_WEBHOOK_SECRET=x
 export LITELLM_BASE_URL="http://localhost:4000/v1" LITELLM_API_KEY=x
 export MYGARAGE_URL="https://mygarage.example.test" MYGARAGE_USERNAME=x MYGARAGE_PASSWORD=x
-export MYGARAGE_VEHICLES='{"WVGZZZE27SE017858":"id4"}'
+export MYGARAGE_VEHICLES='{"WVGZZZE2ZSE000001":"id4"}'
 # requires a local Postgres — skip if unavailable, real verification happens against
 # the live cluster in Task 13 via `oc port-forward`
 uvicorn vehicle_pipeline.main:app --reload &
