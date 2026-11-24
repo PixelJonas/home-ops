@@ -1,4 +1,7 @@
 #!/bin/bash
+# The php -r snippets are single-quoted on purpose ($s, $l are PHP variables).
+# shellcheck disable=SC2016
+#
 # Weekly update of the Nextcloud app-store apps (custom_apps).
 #
 # Runs in the Nextcloud image itself, as www-data (uid 33), with the same
@@ -8,7 +11,8 @@
 # and have their own alerts.
 #
 # Order: occ status healthy -> tar custom_apps (keep KEEP_TARBALLS) ->
-# occ app:update --all -> occ status healthy again -> before/after app list.
+# occ app:update --all -> occ status healthy again, status.php 200 via the
+# Service -> before/after app list.
 # Any failure exits non-zero, so the Job fails and NextcloudAppUpdateFailed fires.
 set -euo pipefail
 
@@ -17,6 +21,7 @@ APPS_DIR=/var/www/html/custom_apps
 # On the nextcloud-app PVC (subPath root), outside the webroot /var/www/html.
 BACKUP_DIR=/var/www/app-backups
 KEEP_TARBALLS="${KEEP_TARBALLS:-4}"
+STATUS_URL="${STATUS_URL:-http://nextcloud-app.nextcloud.svc:8080/status.php}"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*"; }
 die() { log "ERROR: $*"; exit 1; }
@@ -92,6 +97,10 @@ log "offered updates:"
 # 4. Postflight
 check_status postflight
 after=$(app_versions) || die "occ app:list failed"
+# The running app pod answers through its Service (plain HTTP, no token).
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$STATUS_URL") || code="curl-error"
+log "postflight: $STATUS_URL -> HTTP $code"
+[ "$code" = 200 ] || die "postflight: status.php returned $code"
 
 log "app versions (before -> after):"
 join -a1 -a2 -e '-' -o '0,1.2,2.2' <(printf '%s\n' "$before") <(printf '%s\n' "$after") \
