@@ -24,13 +24,24 @@ tests:
               description: >-
                 Repository integrity is unchecked. Check the CronJob in restic-verifier; a
                 failed run's log names the repositories.
+  # Scheduled at t=0 (kube-state-metrics then reports the next tick, 7d on),
+  # never succeeded: quiet while the first run may still be going, fires once
+  # the run is a day old and the 1h `for` has passed.
   - interval: 5m
     input_series:
-      - series: kube_cronjob_created{namespace="restic-verifier",cronjob="restic-verifier"}
+      - series: kube_cronjob_status_last_schedule_time{namespace="restic-verifier",cronjob="restic-verifier"}
         values: 0x2600
+      - series: kube_cronjob_next_schedule_time{namespace="restic-verifier",cronjob="restic-verifier"}
+        values: 604800x2600
     alert_rule_test:
       - alertname: ResticCheckNeverSucceeded
-        eval_time: 9d
+        eval_time: 1d
+        exp_alerts: []
+      - alertname: ResticCheckNeverSucceeded
+        eval_time: 1d30m
+        exp_alerts: []
+      - alertname: ResticCheckNeverSucceeded
+        eval_time: 1d2h
         exp_alerts:
           - exp_labels:
               severity: warning
@@ -38,14 +49,50 @@ tests:
               cronjob: restic-verifier
             exp_annotations:
               summary: restic-verifier has never succeeded
-              description: The CronJob is over 8 days old and has no successful run.
+              description: >-
+                The CronJob's first scheduled run is over a day past and no run has
+                succeeded. Check the CronJob and its Jobs in restic-verifier.
+  # Never scheduled (status.lastScheduleTime unset, e.g. the controller missed
+  # the tick): next_schedule_time stays at the first tick after creation (1h).
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_next_schedule_time{namespace="restic-verifier",cronjob="restic-verifier"}
+        values: 3600x2600
+    alert_rule_test:
+      - alertname: ResticCheckNeverSucceeded
+        eval_time: 1d
+        exp_alerts: []
+      - alertname: ResticCheckNeverSucceeded
+        eval_time: 2d
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: restic-verifier
+              cronjob: restic-verifier
+            exp_annotations:
+              summary: restic-verifier has never succeeded
+              description: >-
+                The CronJob's first scheduled run is over a day past and no run has
+                succeeded. Check the CronJob and its Jobs in restic-verifier.
   # A run that already succeeded isn't "never succeeded".
   - interval: 5m
     input_series:
-      - series: kube_cronjob_created{namespace="restic-verifier",cronjob="restic-verifier"}
+      - series: kube_cronjob_status_last_schedule_time{namespace="restic-verifier",cronjob="restic-verifier"}
         values: 0x2600
+      - series: kube_cronjob_next_schedule_time{namespace="restic-verifier",cronjob="restic-verifier"}
+        values: 604800x2600
       - series: kube_cronjob_status_last_successful_time{namespace="restic-verifier",cronjob="restic-verifier"}
-        values: 700000x2600
+        values: 7000x2600
+    alert_rule_test:
+      - alertname: ResticCheckNeverSucceeded
+        eval_time: 2d
+        exp_alerts: []
+  # Suspended and never scheduled: kube-state-metrics drops next_schedule_time,
+  # nothing is due, so no alert.
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_spec_suspend{namespace="restic-verifier",cronjob="restic-verifier"}
+        values: 1x2600
     alert_rule_test:
       - alertname: ResticCheckNeverSucceeded
         eval_time: 9d
