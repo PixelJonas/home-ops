@@ -66,6 +66,8 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: DOCLING_SERVE_API_KEY
+                  # Not ingestbuddy settings since ingestbuddy#166: only
+                  # config/ingestbuddy.yaml's llm endpoint expands them.
                   LITELLM_BASE_URL: http://litellm-app.litellm.svc.cluster.local:4000
                   LITELLM_API_KEY:
                     valueFrom:
@@ -93,16 +95,16 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: PAPERLESS_WEBHOOK_SECRET
-                  # x-reocr-secret for taxbuddy's re-OCR requests
-                  # (ingestbuddy#36); same Doppler key taxbuddy's
+                  # Bearer token of the `reocr` scope: taxbuddy's re-OCR
+                  # requests (ingestbuddy#36, #166); same Doppler key taxbuddy's
                   # agent_runtime reads as INGESTBUDDY_REOCR_SECRET.
                   REOCR_SHARED_SECRET:
                     valueFrom:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: REOCR_SHARED_SECRET
-                  # x-ocr-queue-secret for the OCR-queue admin API
-                  # (ingestbuddy ADR-0005).
+                  # Bearer token of the `admin` scope: the OCR-queue admin
+                  # API and known identifiers (ingestbuddy ADR-0005, ADR-0008).
                   OCR_QUEUE_ADMIN_SECRET:
                     valueFrom:
                       secretKeyRef:
@@ -238,6 +240,8 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: DOCLING_SERVE_API_KEY
+                  # Not ingestbuddy settings since ingestbuddy#166: only
+                  # config/ingestbuddy.yaml's llm endpoint expands them.
                   LITELLM_BASE_URL: http://litellm-app.litellm.svc.cluster.local:4000
                   LITELLM_API_KEY:
                     valueFrom:
