@@ -20,7 +20,8 @@ KEEP_TARBALLS="${KEEP_TARBALLS:-4}"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*"; }
 die() { log "ERROR: $*"; exit 1; }
-trap 'rc=$?; [ "$rc" -eq 0 ] || log "FAILED (exit $rc)"' EXIT
+on_exit() { [ "$1" -eq 0 ] || log "FAILED (exit $1)"; }
+trap 'on_exit $?' EXIT
 
 # occ status --output=json -> one key's value (true/false/number/string).
 status_field() {

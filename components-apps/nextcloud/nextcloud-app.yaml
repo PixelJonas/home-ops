@@ -21,7 +21,7 @@ spec:
         # app-update.sh refuses to run on a version skew.
         image:
           repository: library/nextcloud
-          tag: 35.0.2-apache
+          tag: 35.0.3-apache
 
         nextcloud:
           host: nextcloud.apps.altus.janz.digital

@@ -47,7 +47,7 @@ spec:
             fsGroup: 0
           containers:
             - name: app-update
-              image: docker.io/library/nextcloud:35.0.2-apache
+              image: docker.io/library/nextcloud:35.0.3-apache
               command: ["/bin/bash", "/scripts/app-update.sh"]
               securityContext:
                 runAsUser: 33
