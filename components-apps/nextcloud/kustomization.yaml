@@ -12,7 +12,7 @@ resources:
   - valkey.yaml
   - nextcloud-app.yaml
   - servicemonitor.yaml
-  - prometheus-rule.yaml
+  - prometheusrule.yaml
   - bootstrap/serviceaccount.yaml
   - bootstrap/role.yaml
   - bootstrap/rolebinding.yaml

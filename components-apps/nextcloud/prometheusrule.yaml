@@ -34,9 +34,10 @@ spec:
             summary: "Nextcloud PVC {{ $labels.persistentvolumeclaim }} is over 85% full"
             description: "{{ $labels.persistentvolumeclaim }} in namespace nextcloud is at {{ $value | humanizePercentage }} usage."
 
-    # nextcloud-app-update CronJob (app-update/). kube_* comes from the
-    # platform Prometheus; same pattern as components-infra/restic-verifier.
-    # Tests: tests/nextcloud-app-update.test.yaml.
+    # nextcloud-app-update CronJob (app-update/). Success/failure only, from
+    # kube-state-metrics in the platform Prometheus; same pattern as
+    # components-infra/restic-verifier. Tests: tests/nextcloud-app-update.test.yaml
+    # (run by scripts/test_prometheus_rules.sh in CI).
     - name: nextcloud-app-update
       rules:
         # kube_job_failed{condition="true"} is the Job's final Failed
@@ -51,10 +52,10 @@ spec:
           annotations:
             summary: "Nextcloud app update failed: {{ $labels.job_name }}"
             description: >-
-              The weekly app-store update Job failed (backup preflight, app update or
-              postflight check). Its log says which step; a rollback tarball of custom_apps
-              is under /var/www/app-backups on the nextcloud-app PVC. Delete the Job once
-              handled to clear this.
+              The weekly app-store update Job failed (occ status check, tarball, app update
+              or post-update check). Its log says which step; the rollback tarball of
+              custom_apps is under /var/www/app-backups on the nextcloud-app PVC. Delete the
+              Job once handled to clear this.
         - alert: NextcloudAppUpdateStale
           expr: |
             time() - kube_cronjob_status_last_successful_time{namespace="nextcloud", cronjob="nextcloud-app-update"}

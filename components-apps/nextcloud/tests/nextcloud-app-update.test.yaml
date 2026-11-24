@@ -1,5 +1,4 @@
----
-# promtool unit tests for the nextcloud-app-update rules in ../prometheus-rule.yaml.
+# promtool unit tests for the nextcloud-app-update rules in ../prometheusrule.yaml.
 rule_files:
   - rules.generated.yaml
 evaluation_interval: 1m
@@ -27,10 +26,10 @@ tests:
             exp_annotations:
               summary: "Nextcloud app update failed: nextcloud-app-update-29920000"
               description: >-
-                The weekly app-store update Job failed (backup preflight, app update or
-                postflight check). Its log says which step; a rollback tarball of custom_apps
-                is under /var/www/app-backups on the nextcloud-app PVC. Delete the Job once
-                handled to clear this.
+                The weekly app-store update Job failed (occ status check, tarball, app update
+                or post-update check). Its log says which step; the rollback tarball of
+                custom_apps is under /var/www/app-backups on the nextcloud-app PVC. Delete the
+                Job once handled to clear this.
   - interval: 5m
     input_series:
       - series: kube_cronjob_status_last_successful_time{namespace="nextcloud",cronjob="nextcloud-app-update"}

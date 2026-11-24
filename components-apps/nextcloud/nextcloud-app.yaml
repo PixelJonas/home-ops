@@ -15,6 +15,14 @@ spec:
     targetRevision: 9.4.1
     helm:
       values: |-
+        # Pinned (chart default = appVersion-flavor, the same value today) so
+        # the app and app-update/cronjob.yaml run one Nextcloud version:
+        # Renovate bumps both in one group (.github/renovate/base.json5), and
+        # app-update.sh refuses to run on a version skew.
+        image:
+          repository: library/nextcloud
+          tag: 35.0.2-apache
+
         nextcloud:
           host: nextcloud.apps.altus.janz.digital
           existingSecret:
