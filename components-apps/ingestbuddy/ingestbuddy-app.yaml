@@ -26,15 +26,19 @@ spec:
               api:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_api
-                  digest: "sha256:13536b36f4cc5771291648b06f1c642b635ca0d8d7e366687301cc44f53cff25"
+                  digest: "sha256:65d98505d4843a727601d849e83eff8bc45029dcc69325fe9cadd5e537c485cd"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
                   # ingestbuddy#60/#101 (ADR-0007): plugin enable flags and the
                   # PLUGINS_<NAME>_<KEY> names below sit alongside the old flat
                   # names until the config loader (#102) ships; the old names
-                  # go in #108. INGESTBUDDY_CONFIG stays unset (image default
-                  # /app/ingestbuddy.yaml); PLUGINS_QDRANT_ENABLED defaults true.
+                  # go in #108. PLUGINS_QDRANT_ENABLED defaults true.
+                  #
+                  # The config file comes from the ingestbuddy-config
+                  # ConfigMap (config/ingestbuddy.yaml, ingestbuddy#63 D4),
+                  # not from the image. Pods read it at boot only.
+                  INGESTBUDDY_CONFIG: /config/ingestbuddy.yaml
                   PLUGINS_TAX_ENABLED: "true"
                   PLUGINS_VEHICLE_ENABLED: "true"
                   # ingestbuddy#62 C4: taxbuddy is a named instance of the
@@ -104,6 +108,14 @@ spec:
                       secretKeyRef:
                         name: ingestbuddy-credentials
                         key: OCR_QUEUE_ADMIN_SECRET
+                  # Bearer token of the `api` scope (ingestbuddy ADR-0008,
+                  # #63 D9): /v1/documents, /v1/search, plugin routes.
+                  # Unset -> those answer 503.
+                  API_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: ingestbuddy-credentials
+                        key: API_TOKEN
                   # Midgard-aware OCR queue (ingestbuddy ADR-0005): turns the
                   # queue on. Supervisor /healthz on midgard (LAN, no auth).
                   # Without it ingestbuddy never calls the `local: true`
@@ -189,15 +201,19 @@ spec:
               worker:
                 image:
                   repository: ghcr.io/pixeljonas/ingestbuddy/pipeline_worker
-                  digest: "sha256:ca2467eaaed5fd825680fb5d6391cd788f8f0034b8bd7f40ab19ded0b6c1054d"
+                  digest: "sha256:51e5a680c9283ddcfe98c21ffee08a141a7058a732b216ddb8023bca8f65d8ff"
                   pullPolicy: IfNotPresent
                 env:
                   TZ: Europe/Berlin
                   # ingestbuddy#60/#101 (ADR-0007): plugin enable flags and the
                   # PLUGINS_<NAME>_<KEY> names below sit alongside the old flat
                   # names until the config loader (#102) ships; the old names
-                  # go in #108. INGESTBUDDY_CONFIG stays unset (image default
-                  # /app/ingestbuddy.yaml); PLUGINS_QDRANT_ENABLED defaults true.
+                  # go in #108. PLUGINS_QDRANT_ENABLED defaults true.
+                  #
+                  # The config file comes from the ingestbuddy-config
+                  # ConfigMap (config/ingestbuddy.yaml, ingestbuddy#63 D4),
+                  # not from the image. Pods read it at boot only.
+                  INGESTBUDDY_CONFIG: /config/ingestbuddy.yaml
                   PLUGINS_TAX_ENABLED: "true"
                   PLUGINS_VEHICLE_ENABLED: "true"
                   # ingestbuddy#62 C4: taxbuddy is a named instance of the
@@ -389,6 +405,21 @@ spec:
                 port: 6379
 
         persistence:
+          # The owner's ingestbuddy.yaml (ingestbuddy#63 D4), mounted at
+          # /config for api and worker; INGESTBUDDY_CONFIG points at it.
+          config:
+            enabled: true
+            type: configMap
+            name: ingestbuddy-config
+            advancedMounts:
+              api:
+                api:
+                  - path: /config
+                    readOnly: true
+              worker:
+                worker:
+                  - path: /config
+                    readOnly: true
           valkey-data:
             enabled: true
             accessMode: ReadWriteOnce

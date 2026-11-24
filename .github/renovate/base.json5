@@ -89,6 +89,15 @@
       minimumReleaseAge: "7 days",
     },
     {
+      description: "LiteLLM proxy (components-apps/litellm): pinned as `tag: vX.Y.Z-lts@sha256:...`, so it follows the -lts tag line only (docker versioning keeps the suffix; -nightly, -rc and non-LTS releases are never proposed). No automerge: the proxy runs its Prisma migrations at startup, so every bump needs a DB dump first. ghcr.io reports no release timestamps, so the 3-day age gate does not apply here; the review is the gate.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/berriai/litellm"],
+      automerge: false,
+      prBodyNotes: [
+        "**LiteLLM runs its Prisma migrations at startup. Before merging:** check the release is at least 3 days old (ghcr has no age gate), `pg_dump -Fc` the database in `litellm-db-1` and copy the dump off the pod, and make sure the ingestbuddy/taxbuddy queues are idle (the pod restart drops in-flight LLM calls). Rollback: revert the pin; restore the dump if the new migrations are not additive.",
+      ],
+    },
+    {
       description: "Own images: bumped by each project's release workflow (digest-only refs) or deployed from :latest / sha-<commit> tags that Renovate can't order. Lookups only produce dashboard warnings.",
       matchDatasources: ["docker"],
       matchPackageNames: ["ghcr.io/pixeljonas/**"],

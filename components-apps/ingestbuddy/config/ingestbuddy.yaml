@@ -1,0 +1,205 @@
+# ingestbuddy configuration (ADR-0007), loaded by ingest_core.config from
+# $INGESTBUDDY_CONFIG (default /app/ingestbuddy.yaml). Env vars override
+# this file, and secrets belong in env:
+#   core.<key>             <- <KEY>                (e.g. DATABASE_URL)
+#   identity.provider      <- IDENTITY_PROVIDER    (default paperless)
+#   plugins.<name>.<key>   <- PLUGINS_<NAME>_<KEY> (`__` separates nested keys)
+# `llm` takes no env overrides; `${VAR}` inside it is expanded from env.
+
+core: {}
+# Example (#77, ADR-0005 amendment): stop waiting for midgard once every local
+# model has failed a job's read deterministically twice (schema/json_invalid
+# after repair, context-length overflow, 422); the remote chain then reads it,
+# or with the cloud fallback off it waits flagged `local_read_permanent`.
+# Off (0) by default: turn it on only after the backfill re-escalation queue
+# has drained (env MIDGARD_LOCAL_READ_CAP overrides it).
+# core:
+#   midgard_local_read_cap: 2
+#
+# Languages (#61): `ocr_lang` is the list of OCR languages docling-serve is
+# asked for (a list here, comma-separated in env, e.g. `de` or `de,en`).
+# `prompt_locale` is the language of the pipeline's own LLM prompts
+# (enrichment, vision transcription): `de` or `en`; an unknown locale fails
+# the boot. Under `en`, titles, document types, summaries and
+# transcriptions stay in the document's own language. The tax and vehicle
+# plugins' prompts stay German. Both default to English (#61 P5);
+# production pins German (env OCR_LANG=de / PROMPT_LOCALE=de).
+# core:
+#   ocr_lang: [en]
+#   prompt_locale: en
+
+identity:
+  provider: paperless
+
+plugins: {}
+# The defaults below are safe for an existing library (#61 P5); a key
+# under plugins.paperless or plugins.qdrant that isn't one of those listed
+# here, a connection setting, `enabled` or paperless's
+# `reconciliation_interval_seconds` fails the boot, naming its env var.
+#
+# Paperless metadata write-back (#61, ADR-0001 amendments). The connection
+# settings (api_url, api_token, public_url, webhook_secret) belong in env,
+# PLUGINS_PAPERLESS_*. The mode is `dry-run` (the default: log what it
+# would write, write nothing), `apply` (write the metadata) or `off`; an
+# unknown value fails the boot. The fields are a subset of title,
+# correspondent, document_type, created and tags (a list here,
+# comma-separated in env; default all five). Every mode still uploads
+# scans and adds the done tag (tag_done below). Production pins `apply`
+# (env PLUGINS_PAPERLESS_WRITEBACK_MODE / PLUGINS_PAPERLESS_WRITEBACK_FIELDS).
+# title_policy decides whether an existing document's title is overwritten:
+# `if_unchanged` (the default) overwrites it only while it is still
+# paperless's filename default or the title ingestbuddy last wrote, and
+# keeps anything else as a human edit; `always` overwrites it. Scans
+# ingestbuddy uploads get their title either way. An unknown value fails
+# the boot. Production pins `always` (env PLUGINS_PAPERLESS_TITLE_POLICY).
+#
+# The tag gate's names (#61, CONTEXT.md "Tag gate"): tag_inbox marks a
+# document still to process, tag_done one processed, tag_duplicate a
+# byte-identical copy of another document (it replaces the inbox tag). The
+# Paperless workflow trigger must filter on the same inbox and done tags.
+# Empty or equal names (compared case-insensitively, as Paperless does) fail
+# the boot; a name missing in Paperless only logs a warning at api boot. The
+# defaults are below; production pins `ingestbuddy:eingang` and
+# `ingestbuddy:verarbeitet` (env PLUGINS_PAPERLESS_TAG_INBOX / _TAG_DONE /
+# _TAG_DUPLICATE).
+#
+# QDrant layout (#61). `collection` is the alias readers (taxbuddy) query;
+# `physical_collection` the versioned collection behind it (default
+# `<collection>_v1`); `dense_size` its dense vector size (default 1024,
+# bge-m3). Boot fails, writing nothing, when the alias already targets
+# another collection or the collection has another vector size; moving the
+# alias takes `python -m pipeline_worker.backfill bootstrap --repoint-alias`.
+# The physical collection is stamped with the embedding model id (what
+# llm.roles.embedding resolves to) and dense_size in its QDrant metadata; an
+# existing unstamped one is adopted once (WARNING), a different stamp fails
+# the boot. Building a new one side by side: `bootstrap --create-only`, then
+# `reembed`, then `--repoint-alias` (CONTEXT.md, "Switching the physical
+# collection").
+# Production pins the defaults (env PLUGINS_QDRANT_PHYSICAL_COLLECTION /
+# PLUGINS_QDRANT_DENSE_SIZE); `url` and `api_key` belong in env.
+# plugins:
+#   paperless:
+#     writeback_mode: dry-run
+#     writeback_fields: [title, correspondent, document_type, created, tags]
+#     title_policy: if_unchanged
+#     tag_inbox: "ingestbuddy:inbox"
+#     tag_done: "ingestbuddy:done"
+#     tag_duplicate: "ingestbuddy:duplicate"
+#   qdrant:
+#     collection: ingestbuddy_documents
+#     physical_collection: ingestbuddy_documents_v1
+#     dense_size: 1024
+
+llm:
+  endpoints:
+    litellm-main:
+      base_url: ${LITELLM_BASE_URL}
+      api_key: ${LITELLM_API_KEY}
+
+  models:
+    - id: kimi-k2
+      endpoint: litellm-main
+      vision: true
+      context_window: 262144
+      structured_output_tier: json_mode
+      min_reasoning_tokens: 500
+      pii_ok: false
+    - id: kimi-k3.1
+      endpoint: litellm-main
+      vision: true
+      context_window: 1048576
+      structured_output_tier: json_mode
+      # Registered on LiteLLM with reasoning_effort=high, so it spends more
+      # tokens thinking before answering than kimi-k2. K3.1 replay (2026-10-25,
+      # 108 OCR pages): a 2000-token reasoning budget truncated 4% of
+      # transcriptions mid-JSON, and 19% of calls ran past 120 s (latency
+      # tracks output tokens, ~40 tok/s). 4000 + 8000 tokens finish in ~320 s
+      # at the p10 rate; two attempts bound a page's worst case.
+      min_reasoning_tokens: 8000
+      timeout_seconds: 420
+      retry_attempts: 2
+      pii_ok: false
+    # Local models on midgard (RTX 4090, llama.cpp), registered on LiteLLM as
+    # aliases by the round-4 phase-3 work (see ADR-0004).
+    # pii_ok: true because the weights run on Jonas's own hardware on the LAN
+    # and no document bytes leave the home network (unlike the cloud models).
+    # Reasoning is off server-side (--reasoning off), so no min_reasoning_tokens.
+    - id: midgard-qwen3.6-27b
+      endpoint: litellm-main
+      local: true
+      vision: true
+      context_window: 12288
+      structured_output_tier: json_mode
+      pii_ok: true
+    - id: midgard-qwen3.6-35b-a3b
+      endpoint: litellm-main
+      local: true
+      vision: true
+      context_window: 8192
+      structured_output_tier: json_mode
+      pii_ok: true
+    - id: nvidia-nemotron-parse
+      endpoint: litellm-main
+      vision: true
+      # Not a documented max-context figure (nemotron-parse is a ~900M-param
+      # single-page document-VLM, not a long-context chat model) — a
+      # conservative placeholder, unused by any logic today.
+      context_window: 8192
+      structured_output_tier: none
+      response_shape: region_array
+      pii_ok: false
+    - id: claude-sonnet-5
+      endpoint: litellm-main
+      vision: true
+      context_window: 200000
+      structured_output_tier: strict_json_schema
+      pii_ok: true
+    # Not in any role chain since 2026-10-25: the OpenAI account has no
+    # credits (every call 429s). Re-add it to the fallbacks to re-enable.
+    - id: gpt-5
+      endpoint: litellm-main
+      vision: true
+      context_window: 128000
+      structured_output_tier: strict_json_schema
+      pii_ok: false
+    - id: bge-m3
+      endpoint: litellm-main
+      vision: false
+      context_window: 8192
+      structured_output_tier: none
+      pii_ok: true
+
+  roles:
+    # #49: moved to kimi-k3.1 primary (was kimi-k2) per ADR-0001 — not tax-sensitive,
+    # so no require_pii_ok needed.
+    enrichment:
+      primary: kimi-k3.1@litellm-main
+      fallbacks: [claude-sonnet-5@litellm-main]
+    # ADR-0004: local models first, then the cloud chain.
+    # Local reads are only trusted for identifiers after the validation funnel.
+    ocr_escalation:
+      primary: midgard-qwen3.6-27b@litellm-main
+      fallbacks:
+        - midgard-qwen3.6-35b-a3b@litellm-main
+        - kimi-k3.1@litellm-main
+        - claude-sonnet-5@litellm-main
+    # #13: kimi-k3.1, the model vehicle-pipeline's own extractor runs today
+    # (LITELLM_MODEL), so the shadow run compares like with like.
+    vehicle_extraction:
+      primary: kimi-k3.1@litellm-main
+      fallbacks: [claude-sonnet-5@litellm-main]
+    # Tax extraction (#17) reads personal financial documents, so only a
+    # pii_ok model may serve it, and there are deliberately no fallbacks:
+    # a failed call degrades to an all-null extraction that taxbuddy's own
+    # backstop handles. require_pii_ok is enforced when the config loads.
+    tax_extraction:
+      primary: claude-sonnet-5@litellm-main
+      fallbacks: []
+      require_pii_ok: true
+    # Exactly one model, never fallbacks (#61): the qdrant plugin stamps its
+    # collection with this model id and fails the boot otherwise, because a
+    # fallback would mix two models' vectors in one collection. Changing it
+    # means a new physical collection and a re-embed (CONTEXT.md, QDrant).
+    embedding:
+      primary: bge-m3@litellm-main
+      fallbacks: []

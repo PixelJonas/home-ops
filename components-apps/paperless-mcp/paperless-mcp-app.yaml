@@ -32,7 +32,7 @@ spec:
               mcp:
                 image:
                   repository: ghcr.io/baruchiro/paperless-mcp
-                  tag: 2.2.1
+                  tag: 2.3.0
                   pullPolicy: IfNotPresent
                 env:
                   PAPERLESS_URL: http://paperless-ng.paperless.svc.cluster.local:8000
@@ -78,7 +78,7 @@ spec:
               proxy:
                 image:
                   repository: ghcr.io/sigbit/mcp-auth-proxy
-                  tag: v2.10.6
+                  tag: v2.11.0
                   pullPolicy: IfNotPresent
                 args:
                   - --no-auto-tls

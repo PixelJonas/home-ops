@@ -35,17 +35,17 @@ url_api = "https://api.github.com/repos/hadolint/hadolint/releases/assets/496546
 provenance = "github-attestations"
 
 [[tools."aqua:helm/helm"]]
-version = "4.3.1"
+version = "4.3.2"
 backend = "aqua:helm/helm"
-specifiers = ["4.3.1"]
+specifiers = ["4.3.2"]
 
 [tools."aqua:helm/helm"."platforms.linux-x64"]
-checksum = "sha256:0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b"
-url = "https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz"
+checksum = "sha256:d1c0278d46beab79582d7e50f5b3dc206944ba8e577cde618513fd07daa53983"
+url = "https://get.helm.sh/helm-v4.3.2-linux-amd64.tar.gz"
 
 [tools."aqua:helm/helm"."platforms.macos-arm64"]
-checksum = "sha256:6b4e61c8cd27d99e5a801e63ff25dd5c70b36875c2cd659d3e9ce6b76fc23198"
-url = "https://get.helm.sh/helm-v4.3.1-darwin-arm64.tar.gz"
+checksum = "sha256:6f3421de3a8cc2ac578c8cfb33b8edde290dde2871bc1bab12e24f2e5caeaa90"
+url = "https://get.helm.sh/helm-v4.3.2-darwin-arm64.tar.gz"
 
 [[tools."aqua:koalaman/shellcheck"]]
 version = "0.11.0"
@@ -178,20 +178,20 @@ url_api = "https://api.github.com/repos/prometheus/prometheus/releases/assets/71
 provenance = "github-attestations"
 
 [[tools."github:utkuozdemir/pv-migrate"]]
-version = "3.7.0"
+version = "3.8.0"
 backend = "github:utkuozdemir/pv-migrate"
-specifiers = ["3.7.0"]
+specifiers = ["v3.8.0"]
 
 [tools."github:utkuozdemir/pv-migrate"."platforms.linux-x64"]
-checksum = "sha256:5e33342777786f07161d8629772cc46baf8a696de641d2d1537f4b9adb8bcdf1"
-url = "https://github.com/utkuozdemir/pv-migrate/releases/download/v3.7.0/pv-migrate_v3.7.0_linux_x86_64.tar.gz"
-url_api = "https://api.github.com/repos/utkuozdemir/pv-migrate/releases/assets/670646332"
+checksum = "sha256:8bb14641fc4d7e0b0d6f555d106a3c639ba05ed7f0df95502a879f225a9f364b"
+url = "https://github.com/utkuozdemir/pv-migrate/releases/download/v3.8.0/pv-migrate_v3.8.0_linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/utkuozdemir/pv-migrate/releases/assets/752319496"
 provenance = "github-attestations"
 
 [tools."github:utkuozdemir/pv-migrate"."platforms.macos-arm64"]
-checksum = "sha256:5ef6de5e1deefb36b5f312185fda00cd704a766c353265ce129eceb57e2dbf93"
-url = "https://github.com/utkuozdemir/pv-migrate/releases/download/v3.7.0/pv-migrate_v3.7.0_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/utkuozdemir/pv-migrate/releases/assets/670646296"
+checksum = "sha256:d17221ae91696f37928e31e21b951d52feb621eadda8655377aad942ff2b883b"
+url = "https://github.com/utkuozdemir/pv-migrate/releases/download/v3.8.0/pv-migrate_v3.8.0_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/utkuozdemir/pv-migrate/releases/assets/752319495"
 provenance = "github-attestations"
 
 [[tools."pipx:yamllint"]]

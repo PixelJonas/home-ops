@@ -15,6 +15,21 @@ Application (wave 111), registered in
 (`local.home`) only — this stack (docling-serve, litellm, qdrant, taxbuddy)
 has no Sakaar presence.
 
+## Config file (ingestbuddy#63 D4)
+
+`config/ingestbuddy.yaml` is this deployment's ingestbuddy config: LLM
+endpoints, models and role chains, plus the commented defaults. It becomes
+the `ingestbuddy-config` ConfigMap (wave 30), which is mounted at `/config` in
+the api and worker. `INGESTBUDDY_CONFIG=/config/ingestbuddy.yaml` points at
+it. Once D4 lands in ingestbuddy, the images carry only a generic example,
+so this file is the one that counts. Env vars still override it (the `PLUGINS_*` and core keys in
+`ingestbuddy-app.yaml`).
+
+The pods read the file once, at boot, and an edit doesn't restart them. After
+the edit has synced, check that the queues are idle (`jobs:reocr`
+StartedJobRegistry empty), then run
+`oc rollout restart deploy/ingestbuddy-app-api deploy/ingestbuddy-app-worker -n ingestbuddy`.
+
 ## NFS scan inbox (ingestbuddy#9)
 
 Scans go to `\\statesman\configs\paperless\consume\inbox` (NAS path
@@ -89,6 +104,19 @@ crash-consistent `lvms-vg1` CSI snapshot is a loadable AOF. REST repo only
 namespace enables VolSync privileged movers (the files are uid 999, mode
 0600; no mover fsGroup), which also applies to `database-backup`.
 
+## Network policy
+
+`networkpolicy.yaml` only restricts ingress:
+
+| Pod | Port | Who may connect |
+|---|---|---|
+| api | 8000 | this namespace; `taxbuddy` (agent-runtime re-OCR); `paperless` (intake webhook); the monitoring policy group (`/metrics`) |
+| valkey | 6379 | ingestbuddy's own pods only |
+
+Egress, the worker and the CNPG pods are not covered. A new caller of the API
+from another namespace needs a `from` entry here, or its connection times
+out.
+
 ## Secrets
 
 | Key | Purpose |
@@ -98,6 +126,7 @@ namespace enables VolSync privileged movers (the files are uid 999, mode
 | `INGESTBUDDY_PAPERLESS_WEBHOOK_SECRET` | Verifies incoming Paperless webhook calls: `ingestbuddy-credentials`/`PAPERLESS_WEBHOOK_SECRET`, consumed by the `api` controller as `PLUGINS_PAPERLESS_WEBHOOK_SECRET` (checked against the `x-paperless-webhook-secret` header, ingestbuddy#9); the same Doppler key is injected into the Paperless intake workflow by `components-apps/paperless`'s `paperless-workflows-apply` Job |
 | `INGESTBUDDY_DOCLING_SERVE_API_KEY` | docling-serve auth. **Same value as `TAXBUDDY_DOCLING_SERVE_API_KEY`** — docling-serve's own `DOCLING_SERVE_API_KEY` env is a single shared value the server checks against (upstream docling-serve has no multi-key support), so this must stay byte-for-byte identical to whatever `docling-serve-credentials`/`DOCLING_SERVE_API_KEY` actually holds. |
 | `INGESTBUDDY_LITELLM_KEY` | ingestbuddy's own LiteLLM virtual key |
+| `INGESTBUDDY_API_TOKEN` | Bearer token of pipeline_api's `api` scope (`ingestbuddy-credentials`/`API_TOKEN`, api only; ingestbuddy ADR-0008): `POST /v1/documents`, `GET /v1/search` and every plugin route. At least 32 characters and distinct from `REOCR_SHARED_SECRET`/`OCR_QUEUE_ADMIN_SECRET`, or the api refuses to boot. No in-cluster caller; unset, those routes answer 503. |
 | `INGESTBUDDY_DATABASE_REST_REPO_LOCAL` | restic REST repo for the Postgres backup |
 | `INGESTBUDDY_VALKEY_REST_REPO_LOCAL` | restic REST repo for the Valkey queue PVC backup |
 | `INGESTBUDDY_PAPERLESS_PUBLIC_URL` | External Paperless route, used only to build human-clickable doc links (`TaxbuddySink.doc_url`) — copy of `TAXBUDDY_PAPERLESS_URL`'s value |

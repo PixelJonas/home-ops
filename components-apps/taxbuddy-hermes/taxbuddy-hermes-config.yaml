@@ -367,6 +367,10 @@ data:
       (`km_estimated` in Vollkosten).
     - `odometer_start_km`/`odometer_end_km`: a reading for `ok`, interpolated for
       `odometer_split`, null while pending.
+    - Trip `start`/`end`: `name` is the named place covering the point. Without
+      one, `locality` is the town from OpenStreetMap reverse geocoding (point
+      rounded to ~100 m; district in big cities, country code outside Germany;
+      null until looked up), else only `lat`/`lon` are known.
     - `deductible`: Werbungskosten from the cost per km, after reimbursement.
       `est_tax_benefit_max` is an upper bound only. `km_since`: km before this date
       aren't covered by any trip, so the year's cost per km reads too high.
