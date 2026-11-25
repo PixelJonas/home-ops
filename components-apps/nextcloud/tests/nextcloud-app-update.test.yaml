@@ -48,18 +48,26 @@ tests:
             exp_annotations:
               summary: Nextcloud app update has not succeeded for over 8 days
               description: >-
-                The weekly nextcloud-app-update CronJob (Sundays 04:00) has no successful run
+                The weekly nextcloud-app-update CronJob (Sundays 04:00 UTC) has no successful run
                 in 8 days. Check the CronJob and its last Job in namespace nextcloud.
+  # Scheduled at t=0 (kube-state-metrics then reports the next tick, 7d on),
+  # never succeeded: quiet while the first run may still be going (deadline
+  # 30 min), fires once the run is an hour old and the 1h `for` has passed.
   - interval: 5m
     input_series:
-      - series: kube_cronjob_created{namespace="nextcloud",cronjob="nextcloud-app-update"}
+      - series: kube_cronjob_status_last_schedule_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
         values: 0x2600
+      - series: kube_cronjob_next_schedule_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 604800x2600
     alert_rule_test:
       - alertname: NextcloudAppUpdateNeverSucceeded
-        eval_time: 7d
+        eval_time: 1h
         exp_alerts: []
       - alertname: NextcloudAppUpdateNeverSucceeded
-        eval_time: 9d
+        eval_time: 1h30m
+        exp_alerts: []
+      - alertname: NextcloudAppUpdateNeverSucceeded
+        eval_time: 2h10m
         exp_alerts:
           - exp_labels:
               severity: warning
@@ -67,14 +75,51 @@ tests:
               cronjob: nextcloud-app-update
             exp_annotations:
               summary: Nextcloud app update has never succeeded
-              description: The nextcloud-app-update CronJob is over 8 days old and has no successful run.
+              description: >-
+                The nextcloud-app-update CronJob's first scheduled run is over an hour past
+                and no run has succeeded. Check the CronJob and its Jobs in namespace nextcloud.
+  # Never scheduled (status.lastScheduleTime unset, e.g. the controller missed
+  # the tick past startingDeadlineSeconds): next_schedule_time stays at the
+  # first tick after creation (1h).
   - interval: 5m
     input_series:
-      - series: kube_cronjob_created{namespace="nextcloud",cronjob="nextcloud-app-update"}
-        values: 0x2600
-      - series: kube_cronjob_status_last_successful_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
-        values: 700000x2600
+      - series: kube_cronjob_next_schedule_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 3600x2600
     alert_rule_test:
       - alertname: NextcloudAppUpdateNeverSucceeded
-        eval_time: 9d
+        eval_time: 2h
+        exp_alerts: []
+      - alertname: NextcloudAppUpdateNeverSucceeded
+        eval_time: 3h10m
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: nextcloud
+              cronjob: nextcloud-app-update
+            exp_annotations:
+              summary: Nextcloud app update has never succeeded
+              description: >-
+                The nextcloud-app-update CronJob's first scheduled run is over an hour past
+                and no run has succeeded. Check the CronJob and its Jobs in namespace nextcloud.
+  # Freshly created, first tick still ahead: no alert.
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_next_schedule_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 604800x2600
+    alert_rule_test:
+      - alertname: NextcloudAppUpdateNeverSucceeded
+        eval_time: 6d
+        exp_alerts: []
+  # A run that already succeeded isn't "never succeeded".
+  - interval: 5m
+    input_series:
+      - series: kube_cronjob_status_last_schedule_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 0x2600
+      - series: kube_cronjob_next_schedule_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 604800x2600
+      - series: kube_cronjob_status_last_successful_time{namespace="nextcloud",cronjob="nextcloud-app-update"}
+        values: 900x2600
+    alert_rule_test:
+      - alertname: NextcloudAppUpdateNeverSucceeded
+        eval_time: 2d
         exp_alerts: []

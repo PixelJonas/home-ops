@@ -1,6 +1,8 @@
-# Sundays 04:00 Europe/Berlin: after the nightly psql dump (03:00, holds
-# maintenance mode ~12 min) and the VolSync snapshots of the nextcloud-app PVC
-# (03:10 local + B2), which have their own alerts.
+# Sundays 04:00 UTC. The backup schedules in this namespace set no timeZone,
+# so they run in UTC too: the psql dump at 03:00 (holds maintenance mode ~13
+# min), the VolSync snapshots of the nextcloud-app PVC at 03:10 (local + B2)
+# and of the data PVC at 03:15. 04:00 UTC comes after all of them in winter and
+# summer alike (05:00 CET / 06:00 CEST); they have their own alerts.
 #
 # Built like the chart's nextcloud-app-cron CronJob: the same Nextcloud image
 # as the app (pinned together in ../nextcloud-app.yaml, one Renovate group),
@@ -14,7 +16,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "150"
 spec:
   schedule: "0 4 * * 0"
-  timeZone: Europe/Berlin
+  timeZone: Etc/UTC
   concurrencyPolicy: Forbid
   # A run missed by more than an hour waits for next week.
   startingDeadlineSeconds: 3600

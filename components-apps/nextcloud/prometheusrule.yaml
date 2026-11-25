@@ -66,15 +66,27 @@ spec:
           annotations:
             summary: Nextcloud app update has not succeeded for over 8 days
             description: >-
-              The weekly nextcloud-app-update CronJob (Sundays 04:00) has no successful run
+              The weekly nextcloud-app-update CronJob (Sundays 04:00 UTC) has no successful run
               in 8 days. Check the CronJob and its last Job in namespace nextcloud.
+        # No kube_cronjob_created: OpenShift's kube-state-metrics denylists every
+        # kube_*_created series. Instead: a run was scheduled over an hour ago,
+        # or (never scheduled) the first tick after creation passed over an hour
+        # ago, and nothing ever succeeded. An hour clears activeDeadlineSeconds
+        # (30 min), so a first run that is still going doesn't count. Same shape
+        # as ResticCheckNeverSucceeded.
         - alert: NextcloudAppUpdateNeverSucceeded
           expr: |
-            (time() - kube_cronjob_created{namespace="nextcloud", cronjob="nextcloud-app-update"} > 8 * 86400)
+            (
+              (time() - kube_cronjob_status_last_schedule_time{namespace="nextcloud", cronjob="nextcloud-app-update"} > 3600)
+              or
+              (time() - kube_cronjob_next_schedule_time{namespace="nextcloud", cronjob="nextcloud-app-update"} > 3600)
+            )
               unless on (namespace, cronjob) kube_cronjob_status_last_successful_time
           for: 1h
           labels:
             severity: warning
           annotations:
             summary: Nextcloud app update has never succeeded
-            description: The nextcloud-app-update CronJob is over 8 days old and has no successful run.
+            description: >-
+              The nextcloud-app-update CronJob's first scheduled run is over an hour past
+              and no run has succeeded. Check the CronJob and its Jobs in namespace nextcloud.

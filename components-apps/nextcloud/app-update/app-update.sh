@@ -6,9 +6,9 @@
 #
 # Runs in the Nextcloud image itself, as www-data (uid 33), with the same
 # volumes as the chart's nextcloud-app-cron CronJob: no Kubernetes API access.
-# Backups are not checked here; the nightly psql dump (03:00) and the VolSync
-# snapshots of nextcloud-app-nextcloud (03:10) run before this job (Sun 04:00)
-# and have their own alerts.
+# Backups are not checked here; the nightly psql dump (03:00 UTC) and the
+# VolSync snapshots of nextcloud-app-nextcloud (03:10 UTC) run before this job
+# (Sun 04:00 UTC) and have their own alerts.
 #
 # Order: occ status healthy -> tar custom_apps (keep KEEP_TARBALLS) ->
 # occ app:update --all -> occ status healthy again, status.php 200 via the
