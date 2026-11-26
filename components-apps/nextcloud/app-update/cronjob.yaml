@@ -1,0 +1,117 @@
+# Sundays 04:00 UTC. The backup schedules in this namespace set no timeZone,
+# so they run in UTC too: the psql dump at 03:00 (holds maintenance mode ~13
+# min), the VolSync snapshots of the nextcloud-app PVC at 03:10 (local + B2)
+# and of the data PVC at 03:15. 04:00 UTC comes after all of them in winter and
+# summer alike (05:00 CET / 06:00 CEST); they have their own alerts.
+#
+# Built like the chart's nextcloud-app-cron CronJob: the same Nextcloud image
+# as the app (pinned together in ../nextcloud-app.yaml, one Renovate group),
+# the same two PVCs and mounts, www-data. No ServiceAccount token, no RBAC,
+# no exec into the app pod.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nextcloud-app-update
+  annotations:
+    argocd.argoproj.io/sync-wave: "150"
+spec:
+  schedule: "0 4 * * 0"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  # A run missed by more than an hour waits for next week.
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nextcloud
+        app.kubernetes.io/component: app-update
+    spec:
+      # No retry: a half-done update must surface as a failed Job (alert), not
+      # be re-run blindly.
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: nextcloud
+            app.kubernetes.io/component: app-update
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # Same SA and pod securityContext as nextcloud-app-cron (anyuid via
+          # ../anyuid-rolebinding.yaml); the container runs as www-data, the
+          # owner of config.php, which occ requires.
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 0
+          containers:
+            - name: app-update
+              image: docker.io/library/nextcloud:35.0.3-apache
+              command: ["/bin/bash", "/scripts/app-update.sh"]
+              securityContext:
+                runAsUser: 33
+                runAsGroup: 33
+              env:
+                - name: TZ
+                  value: Europe/Berlin
+                - name: KEEP_TARBALLS
+                  value: "4"
+                # config.php reads these through the image's *.config.php
+                # (redis.config.php: getenv), as in the app and cron pods.
+                - name: REDIS_HOST
+                  value: nextcloud-valkey
+                - name: REDIS_HOST_PORT
+                  value: "6379"
+                - name: REDIS_HOST_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: nextcloud-redis
+                      key: redis-password
+                - name: OVERWRITEHOST
+                  value: nextcloud.janz.digital
+                - name: OVERWRITECLIURL
+                  value: https://nextcloud.janz.digital
+                - name: OVERWRITEPROTOCOL
+                  value: https
+                - name: TRUSTED_PROXIES
+                  value: 10.128.0.0/14
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                - name: nextcloud-main
+                  mountPath: /var/www/
+                  subPath: root
+                - name: nextcloud-main
+                  mountPath: /var/www/html
+                  subPath: html
+                - name: nextcloud-data
+                  mountPath: /var/www/html/data
+                  subPath: data
+                - name: nextcloud-main
+                  mountPath: /var/www/html/config
+                  subPath: config
+                - name: nextcloud-main
+                  mountPath: /var/www/html/custom_apps
+                  subPath: custom_apps
+                - name: nextcloud-main
+                  mountPath: /var/www/tmp
+                  subPath: tmp
+                - name: nextcloud-main
+                  mountPath: /var/www/html/themes
+                  subPath: themes
+          volumes:
+            - name: script
+              configMap:
+                name: nextcloud-app-update-script
+                defaultMode: 0555
+            # RWO lvms-vg1 volume, bound to node altus by its PV nodeAffinity;
+            # the scheduler places this pod there like the cron pods.
+            - name: nextcloud-main
+              persistentVolumeClaim:
+                claimName: nextcloud-app-nextcloud
+            - name: nextcloud-data
+              persistentVolumeClaim:
+                claimName: nextcloud-app-nextcloud-data

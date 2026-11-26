@@ -74,6 +74,12 @@
       allowedVersions: "<25",
     },
     {
+      description: "Nextcloud image: the app (components-apps/nextcloud/nextcloud-app.yaml, repository/tag pair) and the nextcloud-app-update CronJob (plain image line) must run the same version, so one PR bumps both. The CronJob refuses to run on a skew.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/library/nextcloud", "library/nextcloud"],
+      groupName: "nextcloud-image",
+    },
+    {
       matchUpdateTypes: ["minor", "patch"],
       automerge: true,
     },

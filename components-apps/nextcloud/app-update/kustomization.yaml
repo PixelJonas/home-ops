@@ -1,0 +1,14 @@
+# Weekly Nextcloud app-store app updates (custom_apps). See app-update.sh for
+# the run order; alerts in ../prometheusrule.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: nextcloud
+
+resources:
+  - cronjob.yaml
+
+configMapGenerator:
+  - name: nextcloud-app-update-script
+    files:
+      - app-update.sh

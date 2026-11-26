@@ -1,0 +1,92 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nextcloud-alerts
+  namespace: nextcloud
+  labels:
+    app.kubernetes.io/name: nextcloud
+spec:
+  groups:
+    - name: Nextcloud
+      rules:
+        - alert: NextcloudServiceDown
+          expr: nextcloud_up == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Nextcloud is unreachable"
+            description: "nextcloud-exporter has reported nextcloud_up == 0 for 5 minutes."
+
+        # VolSync backup-missed/out-of-sync alerts for this namespace are
+        # covered by the fleet-wide VolSyncBackupMissedInterval/OutOfSync
+        # rules in components-infra/openshift-monitoring/base — removed here
+        # 2026-09-25 to avoid duplicate alerts for the same condition.
+
+        - alert: NextcloudPVCUsageHigh
+          expr: |
+            kubelet_volume_stats_used_bytes{namespace="nextcloud"}
+              / kubelet_volume_stats_capacity_bytes{namespace="nextcloud"} > 0.85
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Nextcloud PVC {{ $labels.persistentvolumeclaim }} is over 85% full"
+            description: "{{ $labels.persistentvolumeclaim }} in namespace nextcloud is at {{ $value | humanizePercentage }} usage."
+
+    # nextcloud-app-update CronJob (app-update/). Success/failure only, from
+    # kube-state-metrics in the platform Prometheus; same pattern as
+    # components-infra/restic-verifier. Tests: tests/nextcloud-app-update.test.yaml
+    # (run by scripts/test_prometheus_rules.sh in CI).
+    - name: nextcloud-app-update
+      rules:
+        # kube_job_failed{condition="true"} is the Job's final Failed
+        # condition; joined to the owning CronJob via kube_job_owner.
+        - alert: NextcloudAppUpdateFailed
+          expr: |
+            kube_job_failed{namespace="nextcloud", condition="true"} == 1
+              and on (namespace, job_name)
+            kube_job_owner{namespace="nextcloud", owner_kind="CronJob", owner_name="nextcloud-app-update"}
+          labels:
+            severity: warning
+          annotations:
+            summary: "Nextcloud app update failed: {{ $labels.job_name }}"
+            description: >-
+              The weekly app-store update Job failed (occ status check, tarball, app update
+              or post-update check). Its log says which step; the rollback tarball of
+              custom_apps is under /var/www/app-backups on the nextcloud-app PVC. Delete the
+              Job once handled to clear this.
+        - alert: NextcloudAppUpdateStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{namespace="nextcloud", cronjob="nextcloud-app-update"}
+              > 8 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: Nextcloud app update has not succeeded for over 8 days
+            description: >-
+              The weekly nextcloud-app-update CronJob (Sundays 04:00 UTC) has no successful run
+              in 8 days. Check the CronJob and its last Job in namespace nextcloud.
+        # No kube_cronjob_created: OpenShift's kube-state-metrics denylists every
+        # kube_*_created series. Instead: a run was scheduled over an hour ago,
+        # or (never scheduled) the first tick after creation passed over an hour
+        # ago, and nothing ever succeeded. An hour clears activeDeadlineSeconds
+        # (30 min), so a first run that is still going doesn't count. Same shape
+        # as ResticCheckNeverSucceeded.
+        - alert: NextcloudAppUpdateNeverSucceeded
+          expr: |
+            (
+              (time() - kube_cronjob_status_last_schedule_time{namespace="nextcloud", cronjob="nextcloud-app-update"} > 3600)
+              or
+              (time() - kube_cronjob_next_schedule_time{namespace="nextcloud", cronjob="nextcloud-app-update"} > 3600)
+            )
+              unless on (namespace, cronjob) kube_cronjob_status_last_successful_time
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: Nextcloud app update has never succeeded
+            description: >-
+              The nextcloud-app-update CronJob's first scheduled run is over an hour past
+              and no run has succeeded. Check the CronJob and its Jobs in namespace nextcloud.
