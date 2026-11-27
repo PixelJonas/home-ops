@@ -43,11 +43,16 @@ spec:
           # Same model as knowhere: both VMs only ever run on the altus node.
           model: Skylake-Client-noTSX-IBRS
           cores: 4
+        # Guest RAM stays 4 GiB; the pod gets 1 GiB more so QEMU/libvirt keep
+        # room for their code pages once the guest has touched all its RAM
+        # (same failure as knowhere, see its virtualmachine.yaml).
+        memory:
+          guest: 4Gi
         resources:
           requests:
-            memory: 4Gi
+            memory: 5Gi
           limits:
-            memory: 4Gi
+            memory: 5Gi
         devices:
           rng: {}
           disks:

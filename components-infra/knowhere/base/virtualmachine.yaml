@@ -29,11 +29,21 @@ spec:
         cpu:
           model: Skylake-Client-noTSX-IBRS
           cores: 6
+        # Guest RAM stays 18 GiB; the pod gets 1 GiB more than the guest so
+        # QEMU/libvirt keep room for their own code pages. With pod memory =
+        # guest + KubeVirt's computed overhead (344 Mi here), a guest that has
+        # touched all its RAM left ~36 MB of file cache in the virt-launcher
+        # cgroup: QEMU's binaries were evicted and re-read at ~260 MB/s from
+        # the altus root SSD, and guest disk latency hit seconds
+        # (2026-11-27). Requests == limits keeps the pod out of the eviction
+        # order.
+        memory:
+          guest: 18Gi
         resources:
           requests:
-            memory: 18Gi
+            memory: 19Gi
           limits:
-            memory: 18Gi
+            memory: 19Gi
         devices:
           rng: {}
           disks:
