@@ -32,7 +32,7 @@ spec:
                 # its Prisma migrations at startup; take a DB dump before each bump.
                 image:
                   repository: ghcr.io/berriai/litellm
-                  tag: v1.108.13-lts@sha256:65a9631f79329779a3371f4bdf185c3a4a93653254743b8722c5cbd9b9dd8a65
+                  tag: v1.108.20-lts@sha256:4adb70dded95fd0d67c836fe8dbaef80544ee1316614e93fcbf499532af02a6a
                   pullPolicy: IfNotPresent
                 args:
                   - "--config"
